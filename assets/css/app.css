@@ -1,0 +1,1432 @@
+/* ==========================================================================
+   System Design Hub — Design System
+   Phong cách: neo-brutalism (viền đen 2px + hard shadow offset)
+   Lấy cảm hứng kiến trúc UI/UX từ labaws.site
+   ========================================================================== */
+
+/* ---------- 1. PRIMITIVE TOKENS ---------- */
+:root {
+  /* Ink & neutrals */
+  --ink: #151515;
+  --ink-soft: #505a68;
+  --ink-faint: #8b95a3;
+  --paper: #f3f6fa;
+  --paper-2: #f8fafc;
+  --white: #ffffff;
+
+  /* Borders */
+  --line: #151515;
+  --line-soft: #e7ebf1;
+  --line-softer: #eef2f6;
+
+  /* Brand colors */
+  --blue: #5294ff;
+  --blue-hover: #3b82f6;
+  --blue-soft: #e9f0fc;
+  --blue-wash: #eef4ff;
+
+  --yellow: #f4d77c;
+  --yellow-soft: #fef3c7;
+  --yellow-deep: #e6c65b;
+
+  --orange: #fb923c;
+  --orange-soft: #ffedd5;
+  --green: #10b981;
+  --green-soft: #dcfce7;
+  --red: #ef4444;
+  --red-soft: #fee2e2;
+  --purple: #8c4fff;
+  --purple-soft: #f3e8ff;
+  --cyan: #06b6d4;
+  --cyan-soft: #cffafe;
+
+  /* Hard shadows */
+  --sh-1: 1px 1px 0 0 var(--ink);
+  --sh-2: 2px 2px 0 0 var(--ink);
+  --sh-3: 3px 3px 0 0 var(--ink);
+  --sh-4: 4px 4px 0 0 var(--ink);
+  --sh-5: 5px 5px 0 0 var(--ink);
+  --sh-6: 6px 6px 0 0 var(--ink);
+  --sh-8: 8px 8px 0 0 var(--ink);
+
+  /* Radii */
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-2xl: 20px;
+  --r-3xl: 24px;
+  --r-pill: 9999px;
+
+  /* Spacing scale */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --s-12: 48px; --s-16: 64px; --s-24: 96px;
+
+  /* Typography */
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Layout */
+  --container: 1280px;
+  --header-h: 64px;
+
+  /* Semantic aliases */
+  --bg: var(--paper);
+  --fg: var(--ink);
+  --muted: var(--ink-soft);
+  --accent: var(--blue);
+  --card-bg: var(--white);
+  --card-line: var(--line);
+}
+
+/* ---------- 2. RESET ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 88px; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+::selection { background: var(--yellow); color: var(--ink); }
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+img, svg { display: block; max-width: 100%; }
+ul, ol { list-style: none; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--paper-2); }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; border: 3px solid var(--paper-2); }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+
+/* ---------- 3. LAYOUT ---------- */
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--s-4);
+}
+@media (min-width: 640px) { .container { padding-inline: var(--s-6); } }
+@media (min-width: 1024px) { .container { padding-inline: var(--s-8); } }
+
+.container-narrow { max-width: 880px; }
+
+.shell { display: flex; flex-direction: column; min-height: 100vh; }
+.main-area { flex: 1; }
+
+.stack-4 > * + * { margin-top: var(--s-4); }
+.stack-6 > * + * { margin-top: var(--s-6); }
+.stack-8 > * + * { margin-top: var(--s-8); }
+.stack-12 > * + * { margin-top: var(--s-12); }
+.stack-16 > * + * { margin-top: var(--s-16); }
+
+/* ---------- 4. HEADER ---------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 2px solid var(--line);
+}
+.site-header .container {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.brand { display: flex; align-items: center; gap: var(--s-3); }
+.brand-mark {
+  width: 40px; height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--r-lg);
+  background: var(--blue);
+  border: 2px solid var(--line);
+  box-shadow: var(--sh-2);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.brand:hover .brand-mark { transform: translate(-1px, -1px); box-shadow: var(--sh-3); }
+.brand-mark svg { width: 20px; height: 20px; stroke: var(--ink); }
+
+.brand-text { display: flex; flex-direction: column; }
+.brand-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 18px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.2;
+}
+.brand-sub {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  font-family: var(--font-mono); letter-spacing: -0.01em;
+}
+
+.nav-links { display: none; align-items: center; gap: 6px; }
+@media (min-width: 900px) { .nav-links { display: flex; } }
+
+.nav-link {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--r-lg);
+  font-size: 14px; font-weight: 700;
+  border: 2px solid transparent;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.nav-link:hover { background: var(--line-soft); border-color: var(--line); box-shadow: var(--sh-2); }
+.nav-link.is-active { background: var(--yellow); border-color: var(--line); box-shadow: var(--sh-2); }
+.nav-link svg { width: 16px; height: 16px; }
+
+.nav-count {
+  position: absolute; top: -7px; right: -8px;
+  min-width: 20px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 900;
+  background: var(--yellow); color: var(--ink);
+  border: 2px solid var(--line); border-radius: var(--r-pill);
+  box-shadow: var(--sh-1);
+}
+
+.header-actions { display: flex; align-items: center; gap: var(--s-2); }
+
+.icon-btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: var(--r-lg);
+  background: var(--white);
+  border: 2px solid var(--line);
+  box-shadow: var(--sh-2);
+  transition: background .16s, transform .16s, box-shadow .16s;
+}
+.icon-btn:hover { background: var(--yellow); transform: translate(-1px,-1px); box-shadow: var(--sh-3); }
+.icon-btn:active { transform: translate(1px,1px); box-shadow: var(--sh-1); }
+.icon-btn svg { width: 16px; height: 16px; }
+
+.menu-btn { display: inline-flex; }
+@media (min-width: 900px) { .menu-btn { display: none; } }
+
+/* Mobile nav */
+.mobile-nav {
+  display: none;
+  border-bottom: 2px solid var(--line);
+  background: var(--white);
+  padding: var(--s-3) 0 var(--s-4);
+}
+.mobile-nav.is-open { display: block; }
+.mobile-nav a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r-lg);
+  font-size: 14px; font-weight: 700;
+  border: 2px solid transparent;
+}
+.mobile-nav a:hover, .mobile-nav a.is-active {
+  background: var(--paper-2); border-color: var(--line); box-shadow: var(--sh-2);
+}
+@media (min-width: 900px) { .mobile-nav { display: none !important; } }
+
+/* ---------- 5. BUTTONS ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 24px;
+  border-radius: var(--r-lg);
+  font-weight: 800; font-size: 15px;
+  border: 2px solid var(--line);
+  box-shadow: var(--sh-4);
+  transition: transform .14s ease, box-shadow .14s ease, background .14s ease;
+  white-space: nowrap;
+}
+.btn:hover { transform: translate(-2px,-2px); box-shadow: var(--sh-5); }
+.btn:active { transform: translate(2px,2px); box-shadow: var(--sh-1); }
+.btn svg { width: 18px; height: 18px; }
+
+.btn-primary { background: var(--blue); color: var(--ink); }
+.btn-primary:hover { background: var(--blue-hover); }
+.btn-secondary { background: var(--white); color: var(--ink); }
+.btn-secondary:hover { background: var(--yellow); }
+.btn-yellow { background: var(--yellow); color: var(--ink); }
+.btn-yellow:hover { background: var(--yellow-deep); }
+.btn-sm { padding: 9px 16px; font-size: 13px; box-shadow: var(--sh-3); }
+.btn-sm:hover { box-shadow: var(--sh-4); }
+.btn-sm:active { box-shadow: 0 0 0 0 var(--ink); }
+.btn-block { width: 100%; }
+
+/* ---------- 6. BADGES / CHIPS ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px;
+  font-size: 10px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .06em;
+  border: 2px solid var(--line);
+  border-radius: var(--r-pill);
+  box-shadow: var(--sh-1);
+  background: var(--white);
+  color: var(--ink);
+}
+.badge-yellow { background: var(--yellow); }
+.badge-blue { background: var(--blue); }
+.badge-green { background: var(--green-soft); }
+.badge-orange { background: var(--orange); }
+.badge-purple { background: var(--purple-soft); }
+.badge-red { background: var(--red-soft); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px;
+  font-size: 12px; font-weight: 700;
+  border: 2px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--white);
+  box-shadow: var(--sh-1);
+  transition: background .14s, transform .14s, box-shadow .14s;
+}
+.chip:hover { background: var(--yellow); transform: translate(-1px,-1px); box-shadow: var(--sh-2); }
+.chip-mono { font-family: var(--font-mono); font-size: 11px; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------- 7. CARDS ---------- */
+.card {
+  background: var(--card-bg);
+  border: 2px solid var(--card-line);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--sh-4);
+  padding: var(--s-6);
+}
+.card-lg { padding: var(--s-8); border-radius: var(--r-3xl); box-shadow: var(--sh-6); }
+.card-flat { box-shadow: var(--sh-3); }
+.card-hover {
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.card-hover:hover { transform: translate(-2px,-2px); box-shadow: var(--sh-6); }
+
+/* Hero pill */
+.hero-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 16px; margin-bottom: var(--s-6);
+  font-size: 12px; font-weight: 800;
+  background: var(--yellow-soft);
+  border: 2px solid var(--line);
+  border-radius: var(--r-pill);
+  box-shadow: var(--sh-2);
+}
+.hero-pill svg { width: 14px; height: 14px; color: var(--orange); }
+
+/* ---------- 8. TYPOGRAPHY ---------- */
+h1, h2, h3, h4 { letter-spacing: -0.02em; line-height: 1.2; }
+
+.display-1 { font-size: clamp(2rem, 5vw, 3.75rem); font-weight: 900; line-height: 1.15; }
+.display-2 { font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 900; }
+.heading-2 { font-size: 24px; font-weight: 900; letter-spacing: -0.025em; }
+.heading-3 { font-size: 18px; font-weight: 800; letter-spacing: -0.015em; }
+.heading-4 { font-size: 15px; font-weight: 800; }
+
+.lead { font-size: clamp(1rem, 1.4vw, 1.125rem); color: var(--muted); font-weight: 500; line-height: 1.7; }
+.text-muted { color: var(--muted); }
+.text-sm { font-size: 14px; }
+.text-xs { font-size: 12px; }
+.mono { font-family: var(--font-mono); }
+
+/* Highlighted word — như labaws highlight trong h1 */
+.mark {
+  display: inline-block;
+  padding: 2px 12px;
+  background: var(--yellow);
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  transform: rotate(-1deg);
+}
+
+/* Keyword highlight trong nội dung bài học */
+.kw {
+  display: inline;
+  padding: 1px 6px;
+  background: var(--blue-wash);
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 0.94em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.kw-y { background: var(--yellow-soft); color: #92400e; border-color: #fde68a; }
+.kw-g { background: var(--green-soft); color: #065f46; border-color: #a7f3d0; }
+.kw-r { background: var(--red-soft); color: #991b1b; border-color: #fecaca; }
+.kw-p { background: var(--purple-soft); color: #6b21a8; border-color: #e9d5ff; }
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  font-weight: 500;
+  padding: 2px 6px;
+  background: var(--paper-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  color: #0f172a;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+/* Đoạn code dài trong câu văn được phép xuống dòng — nếu để nowrap
+   nó sẽ đẩy cả trang rộng ra trên mobile. */
+.codeblock code, pre code { white-space: pre; overflow-wrap: normal; word-break: normal; }
+
+/* ---------- 9. CODE BLOCKS ---------- */
+.codeblock {
+  position: relative;
+  margin: var(--s-4) 0;
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  background: #0f172a;
+  box-shadow: var(--sh-3);
+  overflow: hidden;
+}
+.codeblock-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 12px;
+  background: #1e293b;
+  border-bottom: 2px solid var(--line);
+}
+.codeblock-lang {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  color: #94a3b8; text-transform: uppercase; letter-spacing: .08em;
+}
+.codeblock-copy {
+  font-size: 11px; font-weight: 700; color: #cbd5e1;
+  padding: 3px 8px; border-radius: 5px;
+  transition: background .15s, color .15s;
+}
+.codeblock-copy:hover { background: #334155; color: #fff; }
+.codeblock pre {
+  margin: 0; padding: var(--s-4);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px; line-height: 1.7;
+  color: #e2e8f0;
+  tab-size: 2;
+}
+.codeblock pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; white-space: pre; }
+
+/* Syntax colors */
+.c-com { color: #64748b; font-style: italic; }
+.c-key { color: #c084fc; }
+.c-str { color: #86efac; }
+.c-num { color: #fbbf24; }
+.c-fn  { color: #7dd3fc; }
+.c-out { color: #94a3b8; }
+
+/* ---------- 10. CALLOUTS ---------- */
+.callout {
+  display: flex; gap: var(--s-3);
+  padding: var(--s-4);
+  margin: var(--s-5) 0;
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  background: var(--white);
+}
+.callout-ico {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--line); border-radius: var(--r-sm);
+  font-size: 14px; font-weight: 900;
+  box-shadow: var(--sh-1);
+}
+.callout-body { flex: 1; min-width: 0; }
+.callout-title { font-weight: 800; font-size: 14px; margin-bottom: 4px; }
+.callout-body p, .callout-body li { font-size: 14.5px; line-height: 1.7; }
+.callout-body p + p { margin-top: 8px; }
+
+.callout-tip  { background: var(--yellow-soft); }
+.callout-tip .callout-ico { background: var(--yellow); }
+.callout-info { background: var(--blue-wash); }
+.callout-info .callout-ico { background: var(--blue); }
+.callout-warn { background: var(--orange-soft); }
+.callout-warn .callout-ico { background: var(--orange); }
+.callout-danger { background: var(--red-soft); }
+.callout-danger .callout-ico { background: #fca5a5; }
+.callout-note { background: var(--paper-2); }
+.callout-note .callout-ico { background: var(--white); }
+
+/* ---------- 11. LISTS ---------- */
+.list-bullet > li {
+  position: relative;
+  padding-left: 22px;
+  margin-bottom: 10px;
+  line-height: 1.75;
+}
+.list-bullet > li::before {
+  content: '';
+  position: absolute; left: 0; top: 10px;
+  width: 8px; height: 8px;
+  background: var(--blue);
+  border: 2px solid var(--line);
+  border-radius: 2px;
+}
+.list-num { counter-reset: item; }
+.list-num > li {
+  position: relative;
+  padding-left: 36px;
+  margin-bottom: 12px;
+  counter-increment: item;
+  line-height: 1.75;
+}
+.list-num > li::before {
+  content: counter(item);
+  position: absolute; left: 0; top: 2px;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 900;
+  background: var(--yellow);
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  box-shadow: var(--sh-1);
+}
+.list-check > li {
+  position: relative;
+  padding-left: 28px;
+  margin-bottom: 8px;
+  line-height: 1.7;
+}
+.list-check > li::before {
+  content: '✓';
+  position: absolute; left: 0; top: 0;
+  font-weight: 900; color: var(--green);
+}
+
+/* ---------- 12. TABLES ---------- */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  margin: var(--s-5) 0;
+  background: var(--white);
+}
+/* min-width để bảng nhiều cột không bị bóp không đọc được;
+   wrapper cuộn ngang thay vì đẩy cả trang rộng ra. */
+table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 14px; }
+thead { background: var(--paper-2); }
+th {
+  text-align: left; padding: 10px 14px;
+  font-weight: 800; font-size: 12px;
+  text-transform: uppercase; letter-spacing: .04em;
+  border-bottom: 2px solid var(--line);
+  white-space: nowrap;
+}
+td { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--paper-2); }
+
+/* ---------- 13. SVG DIAGRAM ---------- */
+.diagram {
+  margin: var(--s-5) 0;
+  padding: var(--s-4);
+  background: var(--paper-2);
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  overflow-x: auto;
+}
+.diagram svg { width: 100%; height: auto; min-width: 480px; }
+.diagram-cap {
+  margin-top: 10px;
+  font-size: 12.5px; color: var(--muted); font-weight: 600;
+  text-align: center;
+}
+
+/* ---------- 14. QUIZ ---------- */
+.quiz {
+  margin: var(--s-5) 0;
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  background: var(--yellow-soft);
+  overflow: hidden;
+}
+.quiz-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--line);
+  font-weight: 800; font-size: 13px;
+  background: var(--yellow);
+}
+.quiz-body { padding: var(--s-4); }
+.quiz-q { font-weight: 700; font-size: 14.5px; margin-bottom: 10px; line-height: 1.6; }
+.quiz-reveal {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; font-size: 12px; font-weight: 800;
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-2);
+  transition: transform .14s, box-shadow .14s;
+}
+.quiz-reveal:hover { transform: translate(-1px,-1px); box-shadow: var(--sh-3); }
+.quiz-answer {
+  display: none;
+  margin-top: 12px; padding: 12px;
+  background: var(--white);
+  border: 2px dashed var(--line);
+  border-radius: var(--r-sm);
+  font-size: 14px; line-height: 1.7;
+}
+.quiz-answer.is-open { display: block; animation: fadeUp .22s ease; }
+.quiz-answer::before { content: '💡 '; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- 15. SECTION HEADER ---------- */
+.section-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--s-4); margin-bottom: var(--s-6); flex-wrap: wrap;
+}
+.section-head h2 {
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-weight: 900; letter-spacing: -0.025em;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-head h2 svg { width: 22px; height: 22px; }
+.section-head .sub { font-size: 14px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.section-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 14px; font-weight: 800;
+  transition: color .15s, gap .15s;
+}
+.section-link:hover { color: var(--blue); gap: 8px; }
+
+/* ---------- 16. MODULE CARD ---------- */
+.mod-card {
+  display: flex; flex-direction: column;
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--sh-4);
+  padding: var(--s-5);
+  transition: transform .18s, box-shadow .18s;
+  position: relative;
+  overflow: hidden;
+}
+.mod-card:hover { transform: translate(-2px,-2px); box-shadow: var(--sh-6); }
+.mod-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.mod-icon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--sh-2);
+}
+.mod-icon svg { width: 22px; height: 22px; stroke: var(--ink); }
+.mod-num {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 800;
+  color: var(--muted); letter-spacing: .04em;
+}
+.mod-title { font-size: 17px; font-weight: 900; letter-spacing: -0.02em; margin-bottom: 6px; line-height: 1.3; }
+.mod-desc { font-size: 13.5px; color: var(--muted); line-height: 1.6; font-weight: 500; margin-bottom: 14px; flex: 1; }
+.mod-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 12px; margin-top: auto;
+  border-top: 2px solid var(--line-soft);
+  font-size: 12px; font-weight: 700; color: var(--muted);
+}
+.mod-arrow {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--line); border-radius: var(--r-sm);
+  background: var(--paper-2); box-shadow: var(--sh-1);
+  transition: background .15s, transform .15s;
+}
+.mod-card:hover .mod-arrow { background: var(--blue); transform: translateX(2px); }
+.mod-arrow svg { width: 13px; height: 13px; }
+
+.grid-modules,
+.module-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-5);
+}
+@media (min-width: 640px) {
+  .grid-modules, .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1100px) {
+  .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
+  .grid-modules, .module-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Lưới tổng quát dùng trong các trang nội dung */
+.grid { display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); }
+.grid > * { min-width: 0; }
+@media (min-width: 720px) {
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 960px) {
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ---------- 17. HERO ---------- */
+.hero { position: relative; text-align: center; padding: var(--s-12) 0 var(--s-8); }
+.hero h1 { max-width: 900px; margin: 0 auto; }
+.hero .lead { max-width: 640px; margin: var(--s-5) auto 0; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); justify-content: center; margin-top: var(--s-8); }
+
+/* Stats strip */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-3);
+  margin-top: var(--s-10);
+}
+@media (min-width: 720px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+.stat {
+  padding: var(--s-4);
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  text-align: center;
+}
+.stat-num { font-size: 26px; font-weight: 900; letter-spacing: -0.03em; line-height: 1.1; }
+.stat-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+
+/* ---------- 18. MARQUEE ---------- */
+.marquee {
+  overflow: hidden;
+  background: var(--yellow);
+  border-block: 2px solid var(--line);
+  padding: 10px 0;
+  user-select: none;
+}
+.marquee-track {
+  display: flex;
+  gap: var(--s-6);
+  width: max-content;
+  animation: marquee 38s linear infinite;
+}
+.marquee:hover .marquee-track { animation-play-state: paused; }
+.marquee-item {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: 12px; font-weight: 900;
+  text-transform: uppercase; letter-spacing: .1em;
+  white-space: nowrap;
+}
+.marquee-item .dot { width: 6px; height: 6px; background: var(--ink); border-radius: 50%; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .marquee-track { animation: none; } }
+
+/* ---------- 19. TIMELINE / LEARNING PATH ---------- */
+.timeline { position: relative; padding-left: 28px; }
+.timeline::before {
+  content: '';
+  position: absolute; left: 8px; top: 6px; bottom: 6px;
+  width: 3px; background: var(--line); border-radius: 2px;
+}
+.tl-item { position: relative; padding-bottom: var(--s-6); }
+.tl-item:last-child { padding-bottom: 0; }
+.tl-item::before {
+  content: '';
+  position: absolute; left: -28px; top: 4px;
+  width: 19px; height: 19px;
+  background: var(--white);
+  border: 3px solid var(--line);
+  border-radius: 50%;
+}
+.tl-item.done::before { background: var(--green); }
+.tl-item.now::before { background: var(--yellow); box-shadow: 0 0 0 4px var(--yellow-soft); }
+.tl-week { font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: .05em; }
+.tl-title { font-size: 15px; font-weight: 800; margin: 2px 0 4px; }
+.tl-desc { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+
+/* ---------- 20. TOC SIDEBAR (module pages) ---------- */
+.module-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-8);
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .module-layout { grid-template-columns: minmax(0, 1fr) 260px; }
+}
+/* Cột nội dung phải co được — thiếu min-width:0 thì grid item
+   giữ kích thước nội tại và tràn ngang trên màn hình hẹp. */
+#lessonColumn { min-width: 0; }
+.lesson { min-width: 0; max-width: 100%; }
+.toc {
+  display: none;
+  position: sticky;
+  top: calc(var(--header-h) + 16px);
+  padding: var(--s-4);
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  max-height: calc(100vh - var(--header-h) - 32px);
+  overflow-y: auto;
+}
+@media (min-width: 1100px) { .toc { display: block; } }
+.toc-title {
+  font-size: 10px; font-weight: 900; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--muted);
+  padding-bottom: 8px; margin-bottom: 8px;
+  border-bottom: 2px solid var(--line-soft);
+}
+.toc a {
+  display: block;
+  padding: 5px 8px;
+  font-size: 12.5px; font-weight: 600;
+  color: var(--muted);
+  border-radius: 5px;
+  border-left: 2px solid transparent;
+  line-height: 1.45;
+  transition: all .14s;
+}
+.toc a:hover { color: var(--ink); background: var(--paper-2); }
+.toc a.is-active {
+  color: var(--ink); font-weight: 800;
+  background: var(--blue-wash);
+  border-left-color: var(--blue);
+}
+.toc a.toc-sub { padding-left: 18px; font-size: 12px; }
+
+/* ---------- 21. MODULE HERO ---------- */
+.module-hero {
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-3xl);
+  box-shadow: var(--sh-6);
+  padding: var(--s-6);
+  margin-bottom: var(--s-8);
+}
+@media (min-width: 768px) { .module-hero { padding: var(--s-8); } }
+.module-hero-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: var(--s-4); }
+.module-hero h1 { font-size: clamp(1.5rem, 3.2vw, 2.25rem); font-weight: 900; letter-spacing: -0.03em; }
+.module-hero .lead { margin-top: var(--s-3); font-size: 15px; }
+
+.meta-row {
+  display: flex; flex-wrap: wrap; gap: var(--s-2);
+  margin-top: var(--s-5); padding-top: var(--s-5);
+  border-top: 2px solid var(--line-soft);
+}
+.meta-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px; font-weight: 700;
+  background: var(--paper-2);
+  border: 2px solid var(--line);
+  border-radius: var(--r-pill);
+}
+.meta-item svg { width: 13px; height: 13px; }
+
+/* Reading progress bar */
+.progress-bar {
+  position: fixed; top: 0; left: 0; z-index: 100;
+  height: 3px; width: 0;
+  background: var(--blue);
+  transition: width .1s linear;
+}
+
+/* ---------- 22. CONTENT SECTIONS ---------- */
+.lesson { background: var(--white); border: 2px solid var(--line); border-radius: var(--r-2xl); box-shadow: var(--sh-4); padding: var(--s-6); margin-bottom: var(--s-6); scroll-margin-top: 84px; }
+@media (min-width: 768px) { .lesson { padding: var(--s-8); } }
+.lesson h2 {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 20px; font-weight: 900; letter-spacing: -0.025em;
+  margin-bottom: var(--s-4);
+  padding-bottom: var(--s-3);
+  border-bottom: 2px dashed var(--line-soft);
+}
+.lesson h2 .num {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 34px; padding: 0 8px;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 900;
+  background: var(--yellow); border: 2px solid var(--line);
+  border-radius: var(--r-sm); box-shadow: var(--sh-2);
+}
+.lesson h3 {
+  font-size: 15.5px; font-weight: 800;
+  margin: var(--s-6) 0 var(--s-2);
+  color: var(--ink);
+}
+.lesson p { margin-bottom: var(--s-3); line-height: 1.8; font-size: 15px; }
+.lesson strong { font-weight: 800; }
+.lesson ul, .lesson ol { margin: var(--s-3) 0; }
+
+/* ---------- 23. FOOTER ---------- */
+.site-footer {
+  margin-top: var(--s-16);
+  background: var(--white);
+  border-top: 2px solid var(--line);
+}
+.footer-main {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-8);
+  padding: var(--s-10) 0 var(--s-8);
+}
+@media (min-width: 768px) { .footer-main { grid-template-columns: 1.4fr repeat(3, 1fr); } }
+.footer-brand p { font-size: 13.5px; color: var(--muted); margin-top: var(--s-3); line-height: 1.7; max-width: 300px; }
+.footer-col h4 { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 12px; }
+.footer-col a { display: block; font-size: 13.5px; font-weight: 600; color: var(--muted); padding: 4px 0; transition: color .14s; }
+.footer-col a:hover { color: var(--ink); }
+.footer-bottom {
+  border-top: 2px solid var(--line-soft);
+  padding: var(--s-4) 0;
+  display: flex; flex-wrap: wrap; gap: var(--s-3);
+  align-items: center; justify-content: space-between;
+  font-size: 12.5px; color: var(--muted); font-weight: 600;
+}
+
+/* ---------- 24. UTILITIES ---------- */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.flex-wrap { flex-wrap: wrap; }
+.flex-1 { flex: 1; }
+.gap-1 { gap: 4px; } .gap-2 { gap: 8px; } .gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; } .gap-5 { gap: 20px; } .gap-6 { gap: 24px; }
+.mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; } .mt-4 { margin-top: 16px; }
+.mt-5 { margin-top: 20px; } .mt-6 { margin-top: 24px; } .mt-8 { margin-top: 32px; }
+.mb-2 { margin-bottom: 8px; } .mb-3 { margin-bottom: 12px; } .mb-4 { margin-bottom: 16px; }
+.mb-6 { margin-bottom: 24px; } .mb-8 { margin-bottom: 32px; }
+.w-full { width: 100%; }
+.text-center { text-align: center; }
+.hidden { display: none !important; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---------- 25. SEARCH ---------- */
+.search-box {
+  position: relative;
+  display: flex; align-items: center;
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  overflow: hidden;
+}
+.search-box:focus-within { box-shadow: var(--sh-4); }
+.search-box svg { width: 18px; height: 18px; margin-left: 14px; color: var(--muted); flex-shrink: 0; }
+.search-box input {
+  flex: 1;
+  padding: 12px 14px;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  background: none; border: none; outline: none;
+  color: var(--ink);
+  min-width: 0;
+}
+.search-box input::placeholder { color: var(--ink-faint); font-weight: 500; }
+
+.filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin: var(--s-5) 0; }
+.filter-btn {
+  padding: 7px 14px;
+  font-size: 12.5px; font-weight: 800;
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-pill);
+  box-shadow: var(--sh-2);
+  transition: all .14s;
+}
+.filter-btn:hover { background: var(--paper-2); transform: translate(-1px,-1px); box-shadow: var(--sh-3); }
+.filter-btn.is-active { background: var(--ink); color: var(--white); }
+
+.empty-state {
+  padding: var(--s-12) var(--s-6);
+  text-align: center;
+  background: var(--white);
+  border: 2px dashed var(--line);
+  border-radius: var(--r-2xl);
+}
+
+/* ---------- 26. PREV / NEXT ---------- */
+.pager { display: grid; grid-template-columns: 1fr; gap: var(--s-3); margin-top: var(--s-8); }
+@media (min-width: 640px) { .pager { grid-template-columns: 1fr 1fr; } }
+.pager a {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--s-4);
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  transition: all .16s;
+}
+.pager a:hover { transform: translate(-2px,-2px); box-shadow: var(--sh-5); }
+.pager .dir { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.pager .name { font-size: 14px; font-weight: 800; }
+.pager .next { text-align: right; }
+
+/* ---------- 27. PROGRESS PILL ---------- */
+.done-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px; font-weight: 800;
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-2);
+  transition: all .14s;
+}
+.done-btn:hover { background: var(--paper-2); }
+.done-btn.is-done { background: var(--green); color: #fff; }
+.done-btn svg { width: 15px; height: 15px; }
+
+/* ---------- 28. KEYWORD GRID ---------- */
+.kw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s-3);
+  margin: var(--s-4) 0;
+}
+.kw-card {
+  padding: 12px 14px;
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-2);
+  transition: all .16s;
+}
+.kw-card:hover { transform: translate(-1px,-1px); box-shadow: var(--sh-3); }
+.kw-card dt { font-size: 13px; font-weight: 900; margin-bottom: 3px; }
+.kw-card dd { font-size: 12.5px; color: var(--muted); line-height: 1.55; font-weight: 500; }
+
+/* ---------- 29. REDUCED MOTION ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- 30. PRINT ---------- */
+@media print {
+  .site-header, .site-footer, .toc, .pager, .marquee, .progress-bar { display: none !important; }
+  .lesson { break-inside: avoid; box-shadow: none; }
+}
+
+/* ---------- 31. DARK THEME ---------- */
+[data-theme="dark"] {
+  --ink: #f1f5f9;
+  --ink-soft: #a3b0c2;
+  --ink-faint: #6b7788;
+  --paper: #12161d;
+  --paper-2: #1a2029;
+  --white: #171d26;
+  --line: #3d4756;
+  --line-soft: #2b3441;
+  --line-softer: #232b36;
+  --blue-soft: #1e2f4d;
+  --blue-wash: #1b2a42;
+  --yellow-soft: #3d3218;
+  --yellow: #d8bb62;
+  --green-soft: #14361f;
+  --red-soft: #3d1a1a;
+  --purple-soft: #2a1d3d;
+  --orange-soft: #3d2a14;
+}
+[data-theme="dark"] .site-header { background: rgba(23, 29, 38, .95); }
+[data-theme="dark"] .codeblock { background: #0b0f16; }
+[data-theme="dark"] .kw { color: #93c5fd; border-color: #2c4a72; }
+[data-theme="dark"] .kw-y { color: #fcd34d; border-color: #5c4a1a; }
+[data-theme="dark"] .kw-g { color: #6ee7b7; border-color: #1d5c3d; }
+[data-theme="dark"] .kw-r { color: #fca5a5; border-color: #6b2626; }
+[data-theme="dark"] .kw-p { color: #d8b4fe; border-color: #4c2f6b; }
+[data-theme="dark"] code { color: #e2e8f0; }
+
+/* ============================================================
+   33. PAGE COMPONENTS (hero nâng cao, card, timeline mở rộng)
+   Các khối dùng ở trang chủ, trang module index, lộ trình,
+   ADR và bài tập. Bổ sung cho hệ thống component ở trên.
+   ============================================================ */
+
+/* ---------- 33.1 Section khung ---------- */
+.section { padding: var(--s-12) 0; }
+.section-alt { background: var(--white); border-block: 2px solid var(--line); }
+.section-cta { padding: var(--s-10) 0 var(--s-12); }
+
+.section-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--s-5); flex-wrap: wrap; margin-bottom: var(--s-8);
+}
+.section-eyebrow {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--ink-faint); margin-bottom: 6px;
+}
+.section-title {
+  font-size: clamp(1.4rem, 2.6vw, 1.85rem); font-weight: 900;
+  letter-spacing: -.025em; line-height: 1.2; margin: 0;
+}
+.section-sub {
+  margin-top: 8px; max-width: 620px;
+  font-size: 14.5px; line-height: 1.65; color: var(--ink-soft);
+}
+.section-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13.5px; font-weight: 800; color: var(--ink);
+  padding: 8px 14px; border: 2px solid var(--line); border-radius: var(--r-md);
+  background: var(--white); box-shadow: var(--sh-2);
+  transition: transform .15s, box-shadow .15s, background .15s;
+  white-space: nowrap;
+}
+.section-link:hover {
+  background: var(--yellow); transform: translate(-2px, -2px);
+  box-shadow: var(--sh-4);
+}
+
+/* ---------- 33.2 Hero trang chủ ---------- */
+.hero-inner {
+  display: grid; grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-8); align-items: center;
+}
+@media (min-width: 1040px) {
+  .hero-inner { grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: var(--s-10); }
+  .hero { text-align: left; }
+  .hero-title, .hero-lead { margin-inline: 0; }
+  .hero-actions { justify-content: flex-start; }
+}
+.hero-copy { min-width: 0; }
+.hero-eyebrow {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-bottom: var(--s-5);
+}
+.hero-title {
+  font-size: clamp(1.85rem, 3.4vw, 2.75rem); font-weight: 900;
+  line-height: 1.14; letter-spacing: -.032em; margin: 0;
+  text-wrap: balance;
+}
+@media (max-width: 1039px) {
+  .hero-title { font-size: clamp(2rem, 7vw, 2.9rem); }
+}
+.br-narrow { display: none; }
+@media (max-width: 1039px) { .br-narrow { display: inline; } }
+.hero-lead {
+  margin-top: var(--s-5); max-width: 560px;
+  font-size: 15.5px; line-height: 1.7; color: var(--ink-soft);
+}
+.hero-lead strong { color: var(--ink); font-weight: 800; }
+.hero-lead em { color: var(--ink); font-style: normal; font-weight: 700; }
+.hero-art { min-width: 0; }
+.hero-art svg { width: 100%; height: auto; display: block; }
+@media (max-width: 1039px) {
+  .hero-art { max-width: 520px; margin-inline: auto; }
+}
+
+/* ---------- 33.3 Hero trang con ---------- */
+.page-hero {
+  padding: var(--s-10) 0 var(--s-8);
+  background: var(--white);
+  border-bottom: 2px solid var(--line);
+}
+.page-title {
+  font-size: clamp(1.75rem, 4vw, 2.6rem); font-weight: 900;
+  letter-spacing: -.03em; line-height: 1.15; margin: 0;
+}
+.page-lead {
+  margin-top: var(--s-4); max-width: 720px;
+  font-size: 15.5px; line-height: 1.7; color: var(--ink-soft);
+}
+.breadcrumb {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink-faint);
+  margin-bottom: var(--s-4);
+}
+.breadcrumb a { color: var(--ink-soft); border-bottom: 2px solid transparent; }
+.breadcrumb a:hover { color: var(--ink); border-bottom-color: var(--yellow); }
+
+/* ---------- 33.4 Chip màu ---------- */
+.chip-blue   { background: var(--blue-soft);   border-color: var(--blue);   color: #1e40af; }
+.chip-yellow { background: var(--yellow-soft); border-color: var(--yellow-deep); color: #92400e; }
+.chip-green  { background: var(--green-soft);  border-color: var(--green);  color: #065f46; }
+
+/* ---------- 33.5 Nút mở rộng ---------- */
+.btn-lg { padding: 13px 22px; font-size: 15px; border-radius: var(--r-lg); }
+.btn-ghost { background: transparent; box-shadow: none; }
+.btn-ghost:hover { background: var(--white); }
+.btn-ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 6px; transition: transform .15s;
+}
+.btn:hover .btn-ico { transform: translateX(3px); }
+
+/* ---------- 33.6 Card mở rộng ---------- */
+.card {
+  padding: var(--s-5);
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-4);
+  min-width: 0;
+}
+.card-link {
+  display: block; color: inherit;
+  transition: transform .15s, box-shadow .15s;
+}
+.card-link:hover { transform: translate(-3px, -3px); box-shadow: var(--sh-6); }
+.card-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s-3); margin-bottom: var(--s-4); flex-wrap: wrap;
+}
+.card-ico {
+  width: 44px; height: 44px; flex: 0 0 44px;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--line); border-radius: var(--r-md);
+  box-shadow: var(--sh-2);
+  font-family: var(--font-mono); font-size: 16px; font-weight: 800; color: var(--ink);
+}
+.bg-yellow { background: var(--yellow); }
+.bg-blue   { background: var(--blue-soft); }
+.bg-green  { background: var(--green-soft); }
+.bg-purple { background: var(--purple-soft); }
+.bg-orange { background: var(--orange-soft); }
+.bg-red    { background: var(--red-soft); }
+.card-title {
+  font-size: 1.02rem; font-weight: 900; letter-spacing: -.02em;
+  line-height: 1.3; margin: 0 0 8px;
+}
+.card-text {
+  font-size: 13.5px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 var(--s-3);
+}
+.card-text em { color: var(--ink); font-style: normal; font-weight: 700; }
+.card-note {
+  margin: var(--s-4) 0 0; padding-top: var(--s-3);
+  border-top: 2px dashed var(--line-soft);
+  font-size: 12.5px; line-height: 1.6; color: var(--ink-soft);
+}
+.card-note strong { color: var(--ink); font-weight: 800; }
+.card-mono {
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 700;
+  color: var(--ink); background: var(--yellow-soft);
+  border: 2px solid var(--line); border-radius: var(--r-sm);
+  padding: 6px 10px; display: inline-block; margin: 2px 0 var(--s-2);
+  letter-spacing: .02em;
+}
+
+/* ---------- 33.7 Bảng thông số (bài tập) ---------- */
+.spec-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px; margin: var(--s-4) 0 0;
+}
+.spec {
+  padding: 8px 10px; background: var(--paper-2);
+  border: 2px solid var(--line-soft); border-radius: var(--r-sm);
+  min-width: 0;
+}
+.spec-k {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--ink-faint); margin-bottom: 2px;
+}
+.spec-v { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+
+/* ---------- 33.8 Danh sách compact ---------- */
+.list-compact { margin-top: var(--s-3); font-size: 13px; }
+.list-compact li { padding: 3px 0; }
+.list-compact.list-num li { padding: 4px 0; }
+
+/* ---------- 33.9 CTA box ---------- */
+.cta-box {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s-6); flex-wrap: wrap;
+  padding: var(--s-8);
+  background: var(--yellow);
+  border: 2px solid var(--line);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--sh-6);
+}
+.cta-copy { min-width: 0; flex: 1 1 380px; }
+.cta-title {
+  font-size: clamp(1.3rem, 2.6vw, 1.7rem); font-weight: 900;
+  letter-spacing: -.025em; margin: 0 0 8px;
+}
+.cta-text { font-size: 14px; line-height: 1.65; color: #3f3a2a; margin: 0; max-width: 620px; }
+.cta-actions { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+
+/* ---------- 33.10 Toolbar tìm kiếm ---------- */
+.toolbar {
+  display: flex; gap: var(--s-4); flex-wrap: wrap;
+  align-items: center; justify-content: space-between;
+  margin-bottom: var(--s-6);
+}
+.toolbar .search-box { flex: 1 1 300px; max-width: 460px; }
+.search-ico {
+  display: flex; align-items: center; color: var(--ink-faint);
+  margin-right: 2px;
+}
+
+/* ---------- 33.11 Empty state bổ sung ---------- */
+.empty-ico {
+  font-size: 2rem; font-weight: 900; color: var(--ink-faint);
+  line-height: 1; margin-bottom: var(--s-3);
+}
+.empty-title { font-size: 1.05rem; font-weight: 900; margin: 0 0 6px; }
+.empty-text { font-size: 13.5px; color: var(--ink-soft); margin: 0 0 var(--s-4); }
+
+/* ---------- 33.12 Timeline mở rộng ---------- */
+.tl-meta {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: var(--s-3);
+}
+.tl-task {
+  margin-top: var(--s-3); padding: 10px 12px;
+  background: var(--paper-2);
+  border: 2px solid var(--line-soft);
+  border-left: 4px solid var(--blue);
+  border-radius: var(--r-sm);
+  font-size: 13px; line-height: 1.6; color: var(--ink-soft);
+}
+.tl-task strong { color: var(--ink); font-weight: 800; }
+.tl-item.now .tl-task { border-left-color: var(--orange); background: var(--yellow-soft); }
+.tl-item.done .tl-task { border-left-color: var(--green); }
+
+/* ---------- 33.13 Utilities bổ sung ---------- */
+.gap-2 { gap: var(--s-2); }
+.mt-3 { margin-top: var(--s-3); }
+.mt-4 { margin-top: var(--s-4); }
+.mt-8 { margin-top: var(--s-8); }
+.mb-3 { margin-bottom: var(--s-3); }
+.mb-4 { margin-bottom: var(--s-4); }
+
+/* ---------- 33.14 Pager & TOC sub ---------- */
+.toc-sub {
+  display: block; padding-left: 12px !important;
+  font-size: 12px !important; opacity: .8;
+  border-left: 2px solid var(--line-soft); margin-left: 6px;
+}
+
+/* ---------- 33.15 Responsive cho các khối trên ---------- */
+@media (max-width: 720px) {
+  .section { padding: var(--s-10) 0; }
+  .card { padding: var(--s-4); }
+  .cta-box { padding: var(--s-6); }
+  .cta-actions { width: 100%; }
+  .cta-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .spec-grid { gap: 6px; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .toolbar .search-box { max-width: none; }
+}
+
+/* ---------- 33.16 Dark theme cho khối mới ---------- */
+[data-theme="dark"] .section-alt { background: #14181d; }
+[data-theme="dark"] .page-hero { background: #14181d; }
+[data-theme="dark"] .card,
+[data-theme="dark"] .spec { background: #1a1f26; }
+[data-theme="dark"] .card-ico { color: #151515; }
+[data-theme="dark"] .cta-box { background: #3f3620; border-color: #f4d77c; }
+[data-theme="dark"] .cta-text { color: #e8dcc0; }
+[data-theme="dark"] .tl-task { background: #1a1f26; border-color: #2a323c; }
+[data-theme="dark"] .card-mono { background: #2a2416; color: #f4d77c; }
+[data-theme="dark"] .spec-v { color: #e2e8f0; }
+
+/* ---------- 33.17 Header trên màn hình hẹp ---------- */
+@media (max-width: 560px) {
+  .site-header .container { gap: var(--s-2); }
+  .brand { gap: 8px; min-width: 0; }
+  .brand-mark { width: 34px; height: 34px; border-radius: var(--r-md); }
+  .brand-mark svg { width: 17px; height: 17px; }
+  .brand-text { min-width: 0; }
+  .brand-title {
+    font-size: 14.5px; line-height: 1.15; white-space: nowrap;
+    gap: 4px;
+  }
+  .brand-title .badge { font-size: 8px !important; padding: 1px 5px !important; }
+  .brand-sub { font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header-actions { gap: 6px; }
+  .icon-btn { width: 34px; height: 34px; }
+}
+@media (max-width: 400px) {
+  .brand-sub { display: none; }
+  .brand-title { font-size: 14px; }
+}
+
+/* ---------- 33.18 Dark theme: bảng, badge, nút ---------- */
+[data-theme="dark"] thead { background: #1f2833; }
+[data-theme="dark"] th { color: #cbd5e1; border-bottom-color: #3d4756; }
+[data-theme="dark"] td { color: #dbe3ee; border-bottom-color: #2b3441; }
+[data-theme="dark"] tbody tr:hover { background: #1f2833; }
+[data-theme="dark"] .table-wrap { background: #171d26; }
+[data-theme="dark"] .lesson { background: #171d26; }
+[data-theme="dark"] .toc { background: #171d26; }
+[data-theme="dark"] .diagram { background: #1a2029; }
+[data-theme="dark"] .badge-yellow { background: #3d3218; color: #fcd34d; border-color: #5c4a1a; }
+[data-theme="dark"] .badge-blue { background: #1e2f4d; color: #93c5fd; border-color: #2c4a72; }
+[data-theme="dark"] .badge-green { background: #14361f; color: #6ee7b7; border-color: #1d5c3d; }
+[data-theme="dark"] .btn { background: #1f2833; color: #e2e8f0; border-color: var(--line); }
+[data-theme="dark"] .btn:hover { background: #26303d; }
+[data-theme="dark"] .btn-primary { background: var(--blue); color: #0b1220; }
+[data-theme="dark"] .btn-primary:hover { background: var(--blue-hover); }
+[data-theme="dark"] .chip { background: #1f2833; color: #cbd5e1; border-color: var(--line); }
+[data-theme="dark"] .chip-blue { background: #1e2f4d; color: #93c5fd; border-color: #2c4a72; }
+[data-theme="dark"] .chip-yellow { background: #3d3218; color: #fcd34d; border-color: #5c4a1a; }
+[data-theme="dark"] .chip-green { background: #14361f; color: #6ee7b7; border-color: #1d5c3d; }
+[data-theme="dark"] .site-footer { background: #14181d; }
+[data-theme="dark"] .quiz { background: #171d26; }
+[data-theme="dark"] .quiz-answer { background: #1a2029; }
+[data-theme="dark"] .search-box { background: #1a2029; border-color: var(--line); }
+[data-theme="dark"] .search-box input { color: #e2e8f0; }
+[data-theme="dark"] .filter-btn { background: #1f2833; color: #cbd5e1; border-color: var(--line); }
+[data-theme="dark"] .filter-btn.is-active { background: var(--yellow); color: #151515; }
+[data-theme="dark"] .module-hero { background: #171d26; }
+[data-theme="dark"] .marquee { background: #3d3218; color: #fcd34d; }
+[data-theme="dark"] .marquee-item { color: #fcd34d; }
+[data-theme="dark"] .marquee-item .dot { background: #fcd34d; }
+[data-theme="dark"] .timeline::before { background: var(--line); }
+[data-theme="dark"] .tl-title { color: #f1f5f9; }
+[data-theme="dark"] .tl-desc { color: #a3b0c2; }
+[data-theme="dark"] .list-bullet li::before { background: #6b7788; }
+[data-theme="dark"] .section-alt { background: #14181d; }
+[data-theme="dark"] .page-hero { background: #14181d; }
+
+/* ---------- 33.19 Headroom cho dấu tiếng Việt ----------
+   Tiếng Việt có dấu mũ/móc vươn cao hơn chữ Latin thường.
+   Tăng line-height một chút để dấu không bị cắt hoặc chạm dòng trên. */
+h1, h2, h3, h4, h5, h6,
+.card-title, .mod-title, .tl-title, .cta-title,
+.page-title, .section-title, .hero-title, .module-hero h1, .lesson h2 {
+  padding-block: 0.06em;
+}
+.card-title, .mod-title, .tl-title { line-height: 1.36; }
+.section-title, .cta-title { line-height: 1.28; }
+.page-title { line-height: 1.18; }
+.brand-title { line-height: 1.3; }
+.lesson h2 { line-height: 1.45; }
+.display-1, .display-2 { line-height: 1.14; }
+
+/* brand-sub: tiếng Việt có dấu móc dưới (g, ạ, ộ) nên cần thêm chiều cao dòng */
+.brand-sub { line-height: 1.5; padding-bottom: 1px; }
+.site-footer .brand-sub { line-height: 1.55; }
+.meta-item, .tl-week, .spec-k, .section-eyebrow { line-height: 1.5; }
