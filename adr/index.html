@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Architecture Decision Records — System Design</title>
+<meta name="description" content="Sáu bản ghi quyết định kiến trúc mẫu theo chuẩn ADR: bối cảnh, phương án, quyết định và hệ quả.">
+<meta name="theme-color" content="#f3f6fa">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body>
+
+<header id="siteHeader"></header>
+
+<main id="main">
+
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="../index.html">Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <span>ADR</span>
+      </nav>
+      <h1 class="page-title">Architecture Decision Records</h1>
+      <p class="page-lead">
+        ADR là cách ghi lại <span class="kw">tại sao</span> một quyết định kiến trúc được đưa ra —
+        không phải nó là gì. Sáu tháng sau, người đọc (kể cả bạn) sẽ không nhớ bối cảnh, và
+        đó là lúc một ADR tốt cứu cả team khỏi việc lặp lại sai lầm cũ.
+      </p>
+
+      <div class="chip-row mt-4">
+        <span class="chip chip-blue">6 bản ghi</span>
+        <span class="chip">Có bản dịch tiếng Việt</span>
+        <span class="chip chip-mono">Markdown</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+
+      <div class="callout callout-tip mb-6">
+        <div class="callout-ico">★</div>
+        <div class="callout-body">
+          <div class="callout-title">Cấu trúc của một ADR tốt</div>
+          <p>
+            <strong>Status</strong> (Proposed / Accepted / Superseded) ·
+            <strong>Context</strong> (ràng buộc, lực lượng đang tác động) ·
+            <strong>Options considered</strong> (ít nhất 2, có ưu/nhược điểm) ·
+            <strong>Decision</strong> (chọn gì và tại sao) ·
+            <strong>Consequences</strong> (hệ quả tốt <em>và</em> xấu, việc phải làm tiếp).
+            Thiếu phần "options considered" thì đó là tài liệu mô tả, không phải ADR.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+
+        <a class="card card-link" href="./001-url-shortener-design.md">
+          <div class="card-top">
+            <span class="chip chip-mono">ADR 001</span>
+            <span class="chip chip-yellow">Proposed</span>
+          </div>
+          <h3 class="card-title">URL Shortener Design</h3>
+          <p class="card-text">
+            Chọn giữa hash + base62, Snowflake ID và counter service cho việc sinh short code.
+            Phân tích va chạm của hash ở quy mô 100 triệu URL/ngày.
+          </p>
+          <div class="chip-row">
+            <span class="chip">Base62</span>
+            <span class="chip">Snowflake</span>
+            <span class="chip">Collision</span>
+          </div>
+        </a>
+
+        <a class="card card-link" href="./002-rate-limiter-design.md">
+          <div class="card-top">
+            <span class="chip chip-mono">ADR 002</span>
+            <span class="chip chip-yellow">Proposed</span>
+          </div>
+          <h3 class="card-title">Rate Limiter — Token Bucket</h3>
+          <p class="card-text">
+            So sánh 5 thuật toán và chọn token bucket với state chia sẻ trong Redis.
+            Phân tích lỗi 2× ở biên của fixed window.
+          </p>
+          <div class="chip-row">
+            <span class="chip">Token bucket</span>
+            <span class="chip">Redis + Lua</span>
+            <span class="chip">Sliding window</span>
+          </div>
+        </a>
+
+        <a class="card card-link" href="./003-cache-aside-pattern.md">
+          <div class="card-top">
+            <span class="chip chip-mono">ADR 003</span>
+            <span class="chip chip-yellow">Proposed</span>
+          </div>
+          <h3 class="card-title">Cache-Aside Pattern</h3>
+          <p class="card-text">
+            Cache-aside vs write-through vs write-behind. Cách xử lý ba bệnh kinh điển:
+            stampede, penetration, avalanche.
+          </p>
+          <div class="chip-row">
+            <span class="chip">Cache-aside</span>
+            <span class="chip">TTL + jitter</span>
+            <span class="chip">Single-flight</span>
+          </div>
+        </a>
+
+        <a class="card card-link" href="./004-message-queue-design.md">
+          <div class="card-top">
+            <span class="chip chip-mono">ADR 004</span>
+            <span class="chip chip-yellow">Proposed</span>
+          </div>
+          <h3 class="card-title">Message Queue — Pub/Sub</h3>
+          <p class="card-text">
+            Queue (SQS/RabbitMQ) vs event log (Kafka). At-least-once delivery và yêu cầu
+            idempotency ở phía consumer.
+          </p>
+          <div class="chip-row">
+            <span class="chip">Kafka</span>
+            <span class="chip">At-least-once</span>
+            <span class="chip">DLQ</span>
+          </div>
+        </a>
+
+        <a class="card card-link" href="./005-database-scaling-design.md">
+          <div class="card-top">
+            <span class="chip chip-mono">ADR 005</span>
+            <span class="chip chip-yellow">Proposed</span>
+          </div>
+          <h3 class="card-title">Database Scaling</h3>
+          <p class="card-text">
+            Thứ tự tối ưu đúng: index → cache → read replica → archive → tách service →
+            vertical → sharding. Khi nào thật sự cần shard.
+          </p>
+          <div class="chip-row">
+            <span class="chip">Replication</span>
+            <span class="chip">Sharding</span>
+            <span class="chip">Hotspot</span>
+          </div>
+        </a>
+
+        <a class="card card-link" href="./006-microservices-architecture.md">
+          <div class="card-top">
+            <span class="chip chip-mono">ADR 006</span>
+            <span class="chip chip-yellow">Proposed</span>
+          </div>
+          <h3 class="card-title">Microservices Architecture</h3>
+          <p class="card-text">
+            Khi nào tách service, chia theo bounded context, và cách tránh distributed monolith —
+            anti-pattern tốn kém nhất trong kiến trúc hiện đại.
+          </p>
+          <div class="chip-row">
+            <span class="chip">Bounded context</span>
+            <span class="chip">Saga</span>
+            <span class="chip">Outbox</span>
+          </div>
+        </a>
+
+      </div>
+
+      <div class="callout callout-info mt-8">
+        <div class="callout-ico">i</div>
+        <div class="callout-body">
+          <div class="callout-title">Về định dạng file</div>
+          <p>
+            Sáu ADR này ở định dạng Markdown gốc — đúng như cách chúng được lưu trong repository
+            thật (thư mục <code>docs/adr/</code>, một file mỗi quyết định, đánh số tăng dần).
+            Mở trực tiếp để đọc, hoặc dùng làm mẫu cho dự án của bạn. Bản dịch tiếng Việt nằm
+            trong thư mục <code>vi/</code> cùng tên file.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Kỹ năng</div>
+          <h2 class="section-title">Viết ADR trong 20 phút</h2>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h3 class="card-title">Nên làm</h3>
+          <ul class="list-check">
+            <li>Viết <strong>trước khi</strong> triển khai, không phải sau khi xong</li>
+            <li>Nêu ít nhất 2 phương án và lý do loại</li>
+            <li>Ghi con số cụ thể — "1.160 QPS" tốt hơn "tải cao"</li>
+            <li>Ghi cả hệ quả xấu, đừng chỉ ưu điểm</li>
+            <li>Đánh số và giữ vĩnh viễn; ADR cũ không bị sửa, chỉ bị supersede</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Không nên làm</h3>
+          <ul class="list-bullet">
+            <li>Viết lại quyết định sau khi đã làm xong để hợp thức hoá</li>
+            <li>Chỉ có một phương án — nghĩa là chưa cân nhắc</li>
+            <li>Dùng ADR để mô tả kiến trúc (đó là tài liệu khác)</li>
+            <li>Viết dài quá 2 trang — không ai đọc</li>
+            <li>Xoá ADR cũ khi quyết định thay đổi — mất lịch sử tư duy</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-cta">
+    <div class="container">
+      <div class="cta-box">
+        <div class="cta-copy">
+          <h2 class="cta-title">Đọc lý thuyết rồi, giờ làm bài</h2>
+          <p class="cta-text">
+            ADR cho bạn thấy cách người có kinh nghiệm cân nhắc. Bài tập cho bạn tự cân nhắc.
+            Cần cả hai.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary btn-lg" href="../exercises/index.html">Bài tập thiết kế →</a>
+          <a class="btn btn-lg" href="../modules/3/index.html">Ôn Module 3</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer id="siteFooter"></footer>
+
+<script src="../assets/js/app.js"></script>
+</body>
+</html>

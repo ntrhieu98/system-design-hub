@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" aria-label="Rate Limiter Token Bucket Diagram">
+  <title>Rate Limiter Design (Token Bucket)</title>
+  <desc>Diagram illustrating the token bucket algorithm for rate limiting: clients send requests, tokens are added at a constant rate, and requests are allowed only when tokens are available.</desc>
+  <rect x="10" y="10" width="780" height="580" fill="white" stroke="#333" stroke-width="2"/>
+  <text x="400" y="40" font-size="16" font-family="Arial" text-anchor="middle">
+    Rate Limiter Design (Token Bucket)
+  </text>
+  
+  <!-- Client -->
+  <rect x="650" y="100" width="100" height="40" fill="#e1e4e8" stroke="#333" stroke-width="1"/>
+  <text x="700" y="125" font-size="12" font-family="Arial" text-anchor="middle">Client</text>
+  
+  <!-- API Gateway -->
+  <rect x="530" y="100" width="120" height="40" fill="#e1e4e8" stroke="#333" stroke-width="1"/>
+  <text x="590" y="125" font-size="12" font-family="Arial" text-anchor="middle">API Gateway</text>
+  
+  <!-- Rate Limiter -->
+  <rect x="380" y="100" width="140" height="40" fill="#e1e4e8" stroke="#333" stroke-width="1"/>
+  <text x="450" y="125" font-size="12" font-family="Arial" text-anchor="middle">Rate Limiter</text>
+  
+  <!-- Token Bucket (In-Memory) -->
+  <rect x="230" y="100" width="140" height="40" fill="#fbbf24" stroke="#333" stroke-width="1"/>
+  <text x="300" y="125" font-size="12" font-family="Arial" text-anchor="middle">Token Bucket</text>
+  
+  <!-- Token Bucket (Persistent) -->
+  <rect x="80" y="100" width="140" height="40" fill="#fbbf24" stroke="#333" stroke-width="1"/>
+  <text x="130" y="125" font-size="12" font-family="Arial" text-anchor="middle">Persistent Store</text>
+  
+  <!-- Flow arrows -->
+  <line x1="420" y1="140" x2="530" y2="140" stroke="#8b5cf6" stroke-width="2"/>
+  <line x1="550" y1="140" x2="380" y2="140" stroke="#8b5cf6" stroke-width="2"/>
+  <line x1="250" y1="140" x2="230" y2="140" stroke="#8b5cf6" stroke-width="2"/>
+  <line x1="150" y1="140" x2="80" y2="140" stroke="#8b5cf6" stroke-width="2"/>
+  <line x1="150" y1="240" x2="80" y2="240" stroke="#8b5cf6" stroke-width="2"/>
+  
+  <!-- Rate labels -->
+  <text x="150" y="80" font-size="10" fill="#64748b" text-anchor="middle">Rate: λ requests/sec</text>
+  <text x="230" y="80" font-size="10" fill="#64748b" text-anchor="middle">Token Rate: ν tokens/sec</text>
+  <text x="380" y="80" font-size="10" fill="#64748b" text-anchor="middle">Capacity: C tokens</text>
+</svg>

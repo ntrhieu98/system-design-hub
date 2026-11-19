@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tất cả module — System Design</title>
+<meta name="description" content="Tám module system design: nền tảng, framework, building blocks, dữ liệu, phân tán, bài toán kinh điển, cloud và luyện phỏng vấn.">
+<meta name="theme-color" content="#f3f6fa">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body>
+
+<header id="siteHeader"></header>
+
+<main id="main">
+
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="../index.html">Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <span>Module</span>
+      </nav>
+      <h1 class="page-title">Tám module</h1>
+      <p class="page-lead">
+        Đi theo thứ tự nếu bạn mới bắt đầu — mỗi module xây trên module trước.
+        Nếu đã có nền, lọc theo cấp độ và nhảy vào phần bạn cần.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+
+      <div class="toolbar">
+        <div class="search-box">
+          <span class="search-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+              <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+            </svg>
+          </span>
+          <input type="search" id="moduleSearch" placeholder="Tìm module, chủ đề, công nghệ…" aria-label="Tìm module">
+        </div>
+
+        <div class="filter-row" role="group" aria-label="Lọc theo cấp độ">
+          <button class="filter-btn is-active" data-level="all" type="button">Tất cả</button>
+          <button class="filter-btn" data-level="beginner" type="button">Beginner</button>
+          <button class="filter-btn" data-level="intermediate" type="button">Intermediate</button>
+          <button class="filter-btn" data-level="advanced" type="button">Advanced</button>
+          <button class="filter-btn" data-level="expert" type="button">Expert</button>
+        </div>
+      </div>
+
+      <div class="module-grid" id="moduleGrid"></div>
+
+      <div class="empty-state" id="emptyState" hidden>
+        <div class="empty-ico" aria-hidden="true">∅</div>
+        <h3 class="empty-title">Không tìm thấy module nào</h3>
+        <p class="empty-text">Thử từ khoá khác, hoặc bỏ bộ lọc cấp độ.</p>
+        <button class="btn" type="button" id="resetFilters">Xoá bộ lọc</button>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Thứ tự đề xuất</div>
+          <h2 class="section-title">Học theo đường nào?</h2>
+        </div>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-ico bg-yellow">A</div>
+          <h3 class="card-title">Mới bắt đầu</h3>
+          <p class="card-text">Chưa từng thiết kế hệ thống, hoặc mới đi làm dưới 1 năm.</p>
+          <p class="card-mono">0 → 1 → 2 → 3</p>
+          <p class="card-note">Khoảng 6 tuần. Đừng bỏ qua Module 0 dù nó có vẻ cơ bản.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-ico bg-blue">B</div>
+          <h3 class="card-title">Đã đi làm, cần ôn phỏng vấn</h3>
+          <p class="card-text">Có kinh nghiệm nhưng chưa hệ thống hoá, hoặc sắp phỏng vấn.</p>
+          <p class="card-mono">5 → 7 → 2 → 4</p>
+          <p class="card-note">Khoảng 4 tuần. Module 5 và 7 là trọng tâm.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-ico bg-green">C</div>
+          <h3 class="card-title">Đang vận hành hệ thống</h3>
+          <p class="card-text">Cần giải quyết vấn đề thật: scale, độ tin cậy, chi phí.</p>
+          <p class="card-mono">3 → 4 → 6</p>
+          <p class="card-note">Module 6 có phần SRE và cost optimization thực dụng nhất.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer id="siteFooter"></footer>
+
+<script src="../assets/js/app.js"></script>
+</body>
+</html>

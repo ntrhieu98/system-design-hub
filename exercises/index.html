@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Bài tập thiết kế — System Design</title>
+<meta name="description" content="Bài tập system design có ràng buộc cụ thể, tiêu chí đánh giá và diagram tham khảo. Tự làm trước, xem đáp án sau.">
+<meta name="theme-color" content="#f3f6fa">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body>
+
+<header id="siteHeader"></header>
+
+<main id="main">
+
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="../index.html">Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <span>Bài tập</span>
+      </nav>
+      <h1 class="page-title">Bài tập thiết kế</h1>
+      <p class="page-lead">
+        Đọc lý thuyết tạo cảm giác hiểu. Làm bài tập mới tạo năng lực. Mỗi bài có ràng buộc
+        cụ thể (QPS, latency, ngân sách) — vì trong thực tế không có đề bài nào không có ràng buộc.
+      </p>
+
+      <div class="chip-row mt-4">
+        <span class="chip chip-blue">2 bài có sẵn</span>
+        <span class="chip">Có diagram</span>
+        <span class="chip">45 phút/bài</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+
+      <div class="callout callout-warn mb-6">
+        <div class="callout-ico">!</div>
+        <div class="callout-body">
+          <div class="callout-title">Quy tắc: làm trước, xem đáp án sau</div>
+          <p>
+            Đừng đọc lời giải trước. Bạn sẽ thấy nó "hiển nhiên" và đánh giá quá cao khả năng
+            của mình. Hãy bấm giờ 45 phút, vẽ ra giấy, nói to thành tiếng (ghi âm nếu được),
+            rồi mới mở đáp án. <span class="kw">Sự khác biệt giữa "hiểu" và "trình bày được"
+            là toàn bộ mục đích của bài tập này.</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+
+        <a class="card card-link" href="./01-url-shortener.md">
+          <div class="card-top">
+            <span class="chip chip-mono">Bài 01</span>
+            <span class="chip chip-green">Beginner</span>
+          </div>
+          <h3 class="card-title">URL Shortener</h3>
+          <p class="card-text">
+            100 triệu URL/ngày, tỉ lệ đọc/ghi 10:1, cần custom alias và analytics.
+            Thiết kế hệ thống rút gọn link có thể phục vụ 11.600 QPS đọc.
+          </p>
+
+          <div class="spec-grid">
+            <div class="spec">
+              <div class="spec-k">Ghi</div>
+              <div class="spec-v mono">100M / ngày</div>
+            </div>
+            <div class="spec">
+              <div class="spec-k">Đọc</div>
+              <div class="spec-v mono">~11.600 QPS</div>
+            </div>
+            <div class="spec">
+              <div class="spec-k">Dung lượng</div>
+              <div class="spec-v mono">36,5 TB / 10 năm</div>
+            </div>
+            <div class="spec">
+              <div class="spec-k">Latency</div>
+              <div class="spec-v mono">p99 &lt; 50ms</div>
+            </div>
+          </div>
+
+          <p class="card-note">
+            <strong>Thử thách chính:</strong> sinh short code không va chạm ở quy mô này, và
+            quyết định 301 hay 302 khi cần đếm click.
+          </p>
+        </a>
+
+        <a class="card card-link" href="./02-rate-limiter.md">
+          <div class="card-top">
+            <span class="chip chip-mono">Bài 02</span>
+            <span class="chip chip-yellow">Intermediate</span>
+          </div>
+          <h3 class="card-title">Rate Limiter phân tán</h3>
+          <p class="card-text">
+            10 instance API sau load balancer, cần limit theo user và theo IP, chịu được
+            50.000 QPS với sai số dưới 1%.
+          </p>
+
+          <div class="spec-grid">
+            <div class="spec">
+              <div class="spec-k">Instance</div>
+              <div class="spec-v mono">10</div>
+            </div>
+            <div class="spec">
+              <div class="spec-k">Tổng QPS</div>
+              <div class="spec-v mono">50.000</div>
+            </div>
+            <div class="spec">
+              <div class="spec-k">Limit</div>
+              <div class="spec-v mono">100 req/s / user</div>
+            </div>
+            <div class="spec">
+              <div class="spec-k">Thêm latency</div>
+              <div class="spec-v mono">&lt; 5ms</div>
+            </div>
+          </div>
+
+          <p class="card-note">
+            <strong>Thử thách chính:</strong> state chia sẻ giữa 10 instance, atomic increment,
+            và hành vi khi Redis chết.
+          </p>
+        </a>
+
+      </div>
+
+      <div class="callout callout-tip mt-8">
+        <div class="callout-ico">★</div>
+        <div class="callout-body">
+          <div class="callout-title">Cách tự đánh giá sau khi làm</div>
+          <p>
+            Chấm theo 6 mục, mỗi mục 0–2 điểm: <strong>(1)</strong> Có nêu yêu cầu và con số trước khi vẽ?
+            <strong>(2)</strong> Luồng chính rõ ràng, đọc hiểu được? <strong>(3)</strong> Có data model cụ thể?
+            <strong>(4)</strong> Có nêu ít nhất 3 trade-off? <strong>(5)</strong> Có nói bottleneck và cách xử lý?
+            <strong>(6)</strong> Có nói ít nhất 1 failure mode? Dưới 8/12 điểm thì nên làm lại sau 3 ngày.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Bổ sung</div>
+          <h2 class="section-title">Bài tập lấy từ đâu nếu muốn thêm</h2>
+        </div>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-ico bg-blue">5</div>
+          <h3 class="card-title">Module 5 — mười bài</h3>
+          <p class="card-text">
+            Mỗi section trong Module 5 là một bài thiết kế hoàn chỉnh, có thể dùng làm đề bài tập.
+            Che phần lời giải lại và tự làm.
+          </p>
+          <a class="section-link mt-3" href="../modules/5/index.html">Mở Module 5 →</a>
+        </div>
+
+        <div class="card">
+          <div class="card-ico bg-purple">6</div>
+          <h3 class="card-title">ADR — sáu quyết định</h3>
+          <p class="card-text">
+            Đọc ADR mẫu, sau đó tự viết ADR cho một quyết định trong dự án của bạn.
+            Đây là bài tập viết, không phải vẽ.
+          </p>
+          <a class="section-link mt-3" href="../adr/index.html">Mở ADR →</a>
+        </div>
+
+        <div class="card">
+          <div class="card-ico bg-green">∞</div>
+          <h3 class="card-title">Hệ thống bạn đang dùng</h3>
+          <p class="card-text">
+            Bài tập tốt nhất là hệ thống thật: chọn một tính năng ở công ty bạn và thiết kế lại nó.
+            Bạn biết ràng buộc thật, và bạn sẽ thấy thiết kế của mình có khả thi không.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-cta">
+    <div class="container">
+      <div class="cta-box">
+        <div class="cta-copy">
+          <h2 class="cta-title">Chưa chắc nên bắt đầu từ đâu?</h2>
+          <p class="cta-text">
+            Lộ trình 12 tuần sắp xếp mọi thứ theo thứ tự, kèm mốc tự đánh giá ở tuần 8 và tuần 12.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary btn-lg" href="../learning-path.html">Xem lộ trình →</a>
+          <a class="btn btn-lg" href="../modules/index.html">Tất cả module</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer id="siteFooter"></footer>
+
+<script src="../assets/js/app.js"></script>
+</body>
+</html>
