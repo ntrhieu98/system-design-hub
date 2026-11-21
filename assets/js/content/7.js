@@ -1,5 +1,5 @@
 /* ============================================================
-   Module 7 — Luyện phỏng vấn
+   Module 7 — Interview Practice
    ============================================================ */
 window.SD_CONTENT = window.SD_CONTENT || {};
 window.SD_CONTENT[7] = {

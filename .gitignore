@@ -13,12 +13,12 @@
 npm-debug.log*
 .tmp/
 
-# Python (nếu chạy server tĩnh bằng python)
+# Python (when serving the site with a local HTTP server)
 __pycache__/
 *.py[cod]
 .venv/
 
-# Node (nếu sau này thêm tooling)
+# Node (if tooling is added later)
 node_modules/
 .pnp.*
 .yarn/

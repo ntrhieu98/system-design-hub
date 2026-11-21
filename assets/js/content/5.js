@@ -1,5 +1,5 @@
 /* ============================================================
-   Module 5 — Bài toán kinh điển
+   Module 5 — Classic Design Problems
    ============================================================ */
 window.SD_CONTENT = window.SD_CONTENT || {};
 window.SD_CONTENT[5] = {

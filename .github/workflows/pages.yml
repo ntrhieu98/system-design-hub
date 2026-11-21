@@ -1,7 +1,7 @@
 name: Deploy to GitHub Pages
 
-# Site là HTML/CSS/JS thuần, không có build step.
-# Workflow này chỉ upload nguyên thư mục và publish lên Pages.
+# The site is plain HTML/CSS/JS with no build step.
+# This workflow just uploads the directory as-is and publishes it to Pages.
 
 on:
   push:
@@ -13,8 +13,8 @@ permissions:
   pages: write
   id-token: write
 
-# Chỉ giữ 1 deployment chạy tại một thời điểm; không huỷ deployment đang chạy
-# giữa chừng để tránh trạng thái Pages bị treo.
+# Keep a single deployment in flight at a time. Do not cancel an
+# in-progress deployment, otherwise the Pages environment can get stuck.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -35,7 +35,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Site nằm ở root của repo
+          # The site lives at the repository root
           path: '.'
 
       - name: Deploy to GitHub Pages

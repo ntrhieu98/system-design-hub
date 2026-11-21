@@ -489,8 +489,9 @@
     const host = document.getElementById('moduleGrid');
     if (!host) return;
     const done = STORE.get('done', {});
-    // Trên trang chủ, module nằm trong ./modules/; trên /modules/index.html
-    // thì chỉ cần ./{slug}/. Phải phân biệt, nếu không link sẽ 404.
+    // On the home page modules live under ./modules/, while on
+    // /modules/index.html only ./{slug}/ is needed. Branching on the path
+    // is required here, otherwise the card links 404.
     const modBase = /\/modules\//.test(location.pathname) ? './' : './modules/';
     host.innerHTML = MODULES.map(m => `
       <a class="mod-card" href="${modBase}${m.slug}/index.html"

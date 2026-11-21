@@ -1,5 +1,5 @@
 /* ============================================================
-   Module 6 — Cloud & Kiến trúc hiện đại
+   Module 6 — Cloud & Modern Architecture
    ============================================================ */
 window.SD_CONTENT = window.SD_CONTENT || {};
 window.SD_CONTENT[6] = {

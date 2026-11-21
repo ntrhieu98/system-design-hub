@@ -1,5 +1,5 @@
 /* ============================================================
-   Module 1 — Nền tảng System Design (Foundations)
+   Module 1 — System Design Foundations (Foundations)
    ============================================================ */
 window.SD_CONTENT = window.SD_CONTENT || {};
 window.SD_CONTENT[1] = {

@@ -1,5 +1,5 @@
 /* ============================================================
-   Module 0 — Kiến thức nền tảng (Prerequisites)
+   Module 0 — Prerequisites (Prerequisites)
    ============================================================ */
 window.SD_CONTENT = window.SD_CONTENT || {};
 window.SD_CONTENT[0] = {

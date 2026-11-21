@@ -1,5 +1,5 @@
 /* ============================================================
-   Module 4 — Hệ thống phân tán
+   Module 4 — Distributed Systems
    ============================================================ */
 window.SD_CONTENT = window.SD_CONTENT || {};
 window.SD_CONTENT[4] = {

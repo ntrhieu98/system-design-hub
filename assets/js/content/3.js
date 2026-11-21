@@ -1,5 +1,5 @@
 /* ============================================================
-   Module 3 — Dữ liệu & Lưu trữ
+   Module 3 — Data & Storage
    ============================================================ */
 window.SD_CONTENT = window.SD_CONTENT || {};
 window.SD_CONTENT[3] = {
