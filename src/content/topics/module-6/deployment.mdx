@@ -1,0 +1,107 @@
+---
+title: "Deployment & release — đưa code lên mà không gây sự cố"
+description: "Phần lớn sự cố production đến từ thay đổi, không phải từ tải. Vì vậy kỹ thuật release quan trọng ngang kiến trúc."
+module: 6
+order: 8
+num: "6.8"
+sectionId: "deployment"
+---
+<p>Phần lớn sự cố production đến từ <span class="kw-r">thay đổi</span>, không phải từ tải. Vì vậy kỹ thuật release quan trọng ngang kiến trúc. Mục tiêu: <span class="kw">giảm blast radius của mỗi lần deploy và có thể quay lại trong 60 giây</span>.</p>
+
+        <h3>Năm chiến lược release</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Chiến lược</th><th>Cách làm</th><th>Rollback</th><th>Dùng khi</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Recreate</strong></td><td>Tắt hết, bật mới</td><td>Chậm (deploy lại)</td><td>Dev/staging, hoặc app không chạy song song được</td></tr>
+              <tr><td><strong>Rolling</strong></td><td>Thay dần từng pod</td><td>Vài phút</td><td>Mặc định cho stateless service</td></tr>
+              <tr><td><strong>Blue-green</strong></td><td>Hai môi trường, switch traffic</td><td><span class="kw-g">Tức thời</span> (switch lại)</td><td>Cần rollback nhanh, DB migration tương thích</td></tr>
+              <tr><td><strong>Canary</strong></td><td>1–5% traffic vào version mới, theo dõi, tăng dần</td><td>Rất nhanh</td><td>Thay đổi rủi ro, cần đo thực tế</td></tr>
+              <tr><td><strong>Feature flag</strong></td><td>Code lên nhưng tắt, bật dần theo user/segment</td><td><span class="kw-g">Tắt cờ, không cần deploy</span></td><td>Tính năng mới, A/B test, kill switch</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 400" role="img" aria-label="So sánh rolling update, canary và feature flag với cách kiểm soát blast radius">
+            <defs>
+              <marker id="m6g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">ROLLING — 5% rủi ro trong 100% thời gian</text>
+            <rect x="16" y="34" width="728" height="34" rx="7" fill="#eef2f6" stroke="#151515" stroke-width="2"/>
+            <rect x="16" y="34" width="50" height="34" rx="7" fill="#fb923c" stroke="#151515" stroke-width="2"/>
+            <rect x="72" y="34" width="50" height="34" rx="7" fill="#fb923c" stroke="#151515" stroke-width="2"/>
+            <rect x="128" y="34" width="50" height="34" rx="7" fill="#fb923c" stroke="#151515" stroke-width="2"/>
+            <text x="380" y="56" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">mỗi pod mới nhận traffic ngay khi ready — lỗi ảnh hưởng ngay 1/N user</text>
+
+            <text x="16" y="102" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">CANARY — 5% rủi ro lúc đầu, tăng dần khi có bằng chứng</text>
+            <rect x="16" y="114" width="728" height="34" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <rect x="16" y="114" width="36" height="34" rx="7" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="136" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">5%</text>
+            <text x="380" y="136" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">so sánh error rate / p99 của canary vs baseline — tự động rollback nếu lệch</text>
+
+            <text x="16" y="182" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">FEATURE FLAG — deploy và release tách rời</text>
+            <rect x="16" y="194" width="230" height="46" rx="7" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="131" y="214" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" font-weight="800" fill="#151515">deploy (code lên production)</text>
+            <text x="131" y="230" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">flag = OFF, 0 user thấy</text>
+
+            <rect x="270" y="194" width="230" height="46" rx="7" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="385" y="214" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" font-weight="800" fill="#151515">release (bật theo % user)</text>
+            <text x="385" y="230" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">1% → 10% → 50% → 100%</text>
+
+            <rect x="524" y="194" width="220" height="46" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="634" y="214" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" font-weight="800" fill="#151515">kill switch</text>
+            <text x="634" y="230" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">tắt trong 5 giây, không cần deploy</text>
+
+            <path d="M246,217 L268,217" stroke="#505a68" stroke-width="2" marker-end="url(#m6g)"/>
+            <path d="M500,217 L522,217" stroke="#505a68" stroke-width="2" marker-end="url(#m6g)"/>
+
+            <rect x="16" y="262" width="360" height="124" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="286" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Expand–Contract cho migration</text>
+            <text x="34" y="308" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Đổi tên cột <code>name</code> → <code>full_name</code>:</text>
+            <text x="34" y="324" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">1. ADD cột mới (nullable)</text>
+            <text x="34" y="338" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">2. deploy code ghi CẢ HAI</text>
+            <text x="34" y="352" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">3. backfill dữ liệu cũ (batch)</text>
+            <text x="34" y="366" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">4. deploy code đọc cột mới</text>
+            <text x="34" y="380" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">5. DROP cột cũ (sau 2 tuần)</text>
+
+            <rect x="392" y="262" width="352" height="124" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="410" y="286" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Vì sao không thể "deploy + migrate cùng lúc"</text>
+            <text x="410" y="308" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Trong rolling deploy, version cũ và mới chạy</text>
+            <text x="410" y="324" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">CÙNG LÚC. Nếu migration xoá cột, version cũ</text>
+            <text x="410" y="340" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">sẽ crash ngay khi query → sập giữa deploy.</text>
+            <text x="410" y="362" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Quy tắc: mọi migration phải tương thích với</text>
+            <text x="410" y="378" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">CẢ version trước và sau. Đó là expand-contract.</text>
+          </svg>
+          <div class="diagram-cap">Hình 6.7 — Giảm blast radius: canary và feature flag cho code, expand-contract cho schema</div>
+        </div>
+
+        <h3>Ba thứ phải tách rời</h3>
+        <ul class="list-bullet">
+          <li><strong>Deploy ≠ Release.</strong> Deploy là đưa code lên server; release là cho user dùng. Tách bằng feature flag → deploy 20 lần/ngày an toàn, release khi sẵn sàng.</li>
+          <li><strong>Schema migration ≠ code deploy.</strong> Như hình trên: expand-contract để cả hai version cùng chạy được.</li>
+          <li><strong>Config ≠ build.</strong> Cùng một image chạy ở dev/staging/prod, khác nhau chỉ ở config (env var, secret). Nếu build riêng cho prod, bạn không test đúng thứ sẽ chạy.</li>
+        </ul>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">YAML</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># Argo Rollouts: canary tự động với phân tích metric</span>&#10;<span class="c-key">apiVersion</span>: argoproj.io/v1alpha1&#10;<span class="c-key">kind</span>: Rollout&#10;<span class="c-key">metadata</span>: &#123; <span class="c-key">name</span>: order-api &#125;&#10;<span class="c-key">spec</span>:&#10;  <span class="c-key">replicas</span>: <span class="c-num">10</span>&#10;  <span class="c-key">strategy</span>:&#10;    <span class="c-key">canary</span>:&#10;      <span class="c-key">steps</span>:&#10;        - <span class="c-key">setWeight</span>: <span class="c-num">5</span>          <span class="c-com"># 5% traffic</span>&#10;        - <span class="c-key">pause</span>: &#123; <span class="c-key">duration</span>: <span class="c-num">2m</span> &#125;  <span class="c-com"># đo metric 2 phút</span>&#10;        - <span class="c-key">analysis</span>:                <span class="c-com"># tự rollback nếu fail</span>&#10;            <span class="c-key">templates</span>: [&#123; <span class="c-key">templateName</span>: success-rate &#125;]&#10;        - <span class="c-key">setWeight</span>: <span class="c-num">25</span>&#10;        - <span class="c-key">pause</span>: &#123; <span class="c-key">duration</span>: <span class="c-num">5m</span> &#125;&#10;        - <span class="c-key">setWeight</span>: <span class="c-num">50</span>&#10;        - <span class="c-key">pause</span>: &#123;&#125;&#10;        - <span class="c-key">setWeight</span>: <span class="c-num">100</span>&#10;<span class="c-com">---</span>&#10;<span class="c-com"># AnalysisTemplate: điều kiện để tiếp tục</span>&#10;<span class="c-key">kind</span>: AnalysisTemplate&#10;<span class="c-key">spec</span>:&#10;  <span class="c-key">metrics</span>:&#10;    - <span class="c-key">name</span>: success-rate&#10;      <span class="c-key">interval</span>: <span class="c-num">30s</span>&#10;      <span class="c-key">failureLimit</span>: <span class="c-num">2</span>              <span class="c-com"># 2 lần fail → abort</span>&#10;      <span class="c-key">successCondition</span>: <span class="c-str">"result[0] >= 0.995"</span>&#10;      <span class="c-key">provider</span>:&#10;        <span class="c-key">prometheus</span>:&#10;          <span class="c-key">query</span>: |&#10;            sum(rate(http_requests_total&#123;job="canary",status!~"5.."&#125;[2m]))&#10;            / sum(rate(http_requests_total&#123;job="canary"&#125;[2m]))</code></pre>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Canary không có baseline là canary vô dụng</div>
+            <p>Nhiều team bật canary 5% rồi "chờ xem có lỗi không". Nhưng nếu bạn không so sánh với baseline (95% còn lại) một cách tự động, bạn sẽ không phát hiện: error rate tăng từ 0,1% lên 0,4% (vẫn "trông ổn" nhưng gấp 4 lần), p99 tăng 80ms, hay CPU cao hơn 30%. Canary đúng phải có <strong>phân tích so sánh</strong>: error rate canary vs stable, latency p99 canary vs stable, và ngưỡng cụ thể. Và phải <strong>tự động abort</strong> — nếu cần người quyết định, sự cố đã lan ra trước khi ai kịp xem dashboard. Đây là khác biệt giữa "có canary" và "canary hoạt động".</p>
+          </div>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba chỉ số của một quy trình release tốt</div>
+            <p><strong>Deployment frequency:</strong> nhiều lần/ngày (không phải tháng). <strong>Lead time for changes:</strong> từ commit đến production &lt; 1 giờ. <strong>Change failure rate:</strong> &lt; 15% deploy gây sự cố, và <strong>MTTR &lt; 1 giờ</strong>. Bốn chỉ số này (từ DORA) tương quan trực tiếp với hiệu quả tổ chức — và nghịch lý là: deploy <em>thường xuyên hơn</em> với batch nhỏ lại <em>an toàn hơn</em> deploy lớn mỗi tháng, vì mỗi thay đổi nhỏ dễ khoanh vùng và rollback. Trong phỏng vấn, nếu được hỏi về vận hành, nêu DORA metrics thể hiện bạn hiểu cả khía cạnh tổ chức.</p>
+          </div>
+        </div>

@@ -1,0 +1,142 @@
+---
+// /exercises — index of every practice exercise.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/Icon.astro';
+import { getCollection } from 'astro:content';
+
+const B = import.meta.env.BASE_URL;
+const exercises = (await getCollection('exercises')).sort((a, b) => a.data.order - b.data.order);
+
+const levelLabel: Record<string, { text: string; cls: string }> = {
+  beginner: { text: 'Cơ bản', cls: 'chip-green' },
+  intermediate: { text: 'Trung bình', cls: 'chip-yellow' },
+  advanced: { text: 'Nâng cao', cls: 'chip-blue' },
+  expert: { text: 'Chuyên sâu', cls: 'chip-blue' },
+};
+---
+
+<BaseLayout
+  title="Bài tập thực hành | System Design Hub"
+  description="Bài tập thiết kế hệ thống có gợi ý theo bước: yêu cầu, ước lượng, kiến trúc và tiêu chí tự đánh giá."
+  active="exercises"
+>
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href={`${B}/`}>Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <span>Bài tập</span>
+      </nav>
+      <h1 class="page-title">Bài tập thực hành</h1>
+      <p class="page-lead">
+        Đọc xong chưa chắc đã làm được. Mỗi bài tập cho bạn một đề bài mơ hồ có chủ đích, vài gợi ý
+        về cách ước lượng, rồi để bạn tự thiết kế trước khi so với đáp án.
+      </p>
+      <div class="chip-row mt-4">
+        <span class="chip chip-yellow">{exercises.length} bài</span>
+        <span class="chip">Có tiêu chí tự đánh giá</span>
+        <span class="chip">Gợi ý theo bước</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="callout callout-warn mb-6">
+        <div class="callout-ico">!</div>
+        <div class="callout-body">
+          <div class="callout-title">Làm trước, xem đáp án sau</div>
+          <p>
+            Tự vẽ sơ đồ và viết các con số ước lượng ra giấy trước khi mở phần gợi ý. Đọc đáp án
+            trước thì bài tập chỉ còn là bài đọc hiểu — và phỏng vấn không cho bạn đọc trước.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        {exercises.map((e) => {
+          const lv = levelLabel[e.data.level] ?? { text: e.data.level, cls: 'chip' };
+          return (
+            <a class="card card-link" href={`${B}/exercises/${e.data.id}`}>
+              <div class="card-top">
+                <span class="card-ico bg-green">{e.data.id}</span>
+                <span class:list={['chip', lv.cls]}>{lv.text}</span>
+              </div>
+              <h2 class="card-title">{e.data.title}</h2>
+              <p class="card-text">{e.data.summary}</p>
+              {e.data.specs.length > 0 && (
+                <div class="spec-grid mb-3">
+                  {e.data.specs.slice(0, 4).map((s) => (
+                    <div class="spec">
+                      <span class="spec-k">{s.k}</span>
+                      <span class="spec-v" set:html={s.v} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p class="card-note">
+                Bài tập {e.data.id} · Module {e.data.module ?? '—'}
+              </p>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Tự đánh giá</div>
+          <h2 class="section-title">Thế nào là làm xong một bài?</h2>
+        </div>
+      </div>
+      <div class="callout callout-tip">
+        <div class="callout-ico">✓</div>
+        <div class="callout-body">
+          <div class="callout-title">Sáu câu hỏi tự kiểm</div>
+          <ul class="list-check list-compact">
+            <li>Nêu được 3 yêu cầu chức năng và 3 yêu cầu phi chức năng có con số</li>
+            <li>Tính được QPS, storage, bandwidth bằng giấy, không cần máy tính</li>
+            <li>Vẽ được sơ đồ có luồng dữ liệu, không chỉ các hộp rời rạc</li>
+            <li>Chỉ ra được ít nhất một điểm nghẽn và cách xử lý</li>
+            <li>Nói được cái giá của lựa chọn mình đưa ra (trade-off)</li>
+            <li>Giải thích được điều gì xảy ra khi một thành phần chết</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="grid grid-3 mt-6">
+        <div class="card">
+          <div class="card-ico bg-blue">1</div>
+          <h3 class="card-title">Từ đề bài trong module</h3>
+          <p class="card-text">
+            Mỗi module có phần quiz và bài tập gợi ý ở cuối. Làm hết quiz trước để chắc bạn nắm
+            pattern, rồi mới thử bài tập đầy đủ.
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-ico bg-yellow">2</div>
+          <h3 class="card-title">Từ bài toán bạn gặp</h3>
+          <p class="card-text">
+            Lấy hệ thống bạn dùng hằng ngày rồi thiết kế lại nó. Đề bài tự nghĩ ra thường khó hơn
+            đề có sẵn, vì bạn phải tự đặt ra ràng buộc.
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-ico bg-green">3</div>
+          <h3 class="card-title">Từ lộ trình 12 tuần</h3>
+          <p class="card-text">
+            Lộ trình có bài tập nhỏ ở mỗi tuần và hai mốc kiểm tra lớn ở tuần 8 và tuần 12.
+          </p>
+          <p class="mt-3">
+            <a class="btn btn-sm btn-secondary" href={`${B}/learning-path`}>
+              <Icon name="git" size={14} /> Xem lộ trình
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,91 @@
+---
+title: "Idempotency & exactly-once — bài học tốn tiền nhất"
+description: "Đây là phần mà sai sót gây thiệt hại tài chính trực tiếp. Một API thanh toán không idempotent + một lần retry = user bị trừ tiền hai lần."
+module: 4
+order: 6
+num: "4.6"
+sectionId: "idempotency"
+---
+<p>Đây là phần mà sai sót gây thiệt hại tài chính trực tiếp. Một API thanh toán không idempotent + một lần retry = user bị trừ tiền hai lần. Không có cách nào "sửa" ngoài việc hoàn tiền và xin lỗi.</p>
+
+        <h3>Vì sao "exactly-once delivery" là bất khả thi</h3>
+        <p>Client gửi request, không nhận được response (mạng đứt sau khi server xử lý). Client có hai lựa chọn, cả hai đều sai:</p>
+        <ul class="list-bullet">
+          <li><strong>Gửi lại:</strong> nếu server đã xử lý → thực hiện 2 lần. (at-least-once)</li>
+          <li><strong>Không gửi lại:</strong> nếu server chưa xử lý → mất. (at-most-once)</li>
+        </ul>
+        <p>Đây là biểu hiện của <span class="kw">two generals problem</span>: không có giao thức nào trên mạng không tin cậy đảm bảo được cả hai bên cùng biết trạng thái. Nhưng — và đây là điểm quan trọng — <strong>exactly-once *processing* làm được</strong>, vì nó không phụ thuộc vào mạng mà vào việc ghi có điều kiện ở phía nhận.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 350" role="img" aria-label="Luồng xử lý idempotency key với bảng dedupe và các trạng thái in-progress completed">
+            <defs>
+              <marker id="m4g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="16" y="30" width="150" height="70" rx="9" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="91" y="54" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Client</text>
+            <text x="91" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">Idempotency-Key:</text>
+            <text x="91" y="88" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">uuid-abc-123</text>
+
+            <rect x="196" y="30" width="170" height="70" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="281" y="54" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">API Server</text>
+            <text x="281" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">tra bảng dedupe</text>
+
+            <rect x="396" y="30" width="180" height="70" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="486" y="54" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#151515">idempotency_keys</text>
+            <text x="486" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">UNIQUE(key, user_id)</text>
+            <text x="486" y="90" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">status, response_body</text>
+
+            <rect x="606" y="30" width="138" height="70" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="675" y="54" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Payment svc</text>
+            <text x="675" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">thực thi 1 lần</text>
+
+            <path d="M166,65 L194,65" stroke="#505a68" stroke-width="2" marker-end="url(#m4g)"/>
+            <path d="M366,65 L394,65" stroke="#505a68" stroke-width="2" marker-end="url(#m4g)"/>
+            <path d="M576,65 L604,65" stroke="#505a68" stroke-width="2" marker-end="url(#m4g)"/>
+
+            <rect x="16" y="126" width="352" height="96" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="150" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Lần gọi 1 — key chưa tồn tại</text>
+            <text x="34" y="170" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">INSERT ... status='in_progress'</text>
+            <text x="34" y="186" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">→ thực thi payment → 'completed' + lưu response</text>
+            <text x="34" y="206" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">✓ IPayment đã xong đúng 1 lần</text>
+
+            <rect x="388" y="126" width="356" height="96" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="406" y="150" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Lần gọi 2 — cùng key (retry)</text>
+            <text x="406" y="170" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">SELECT → status='completed'</text>
+            <text x="406" y="186" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">→ trả lại response_body đã lưu, KHÔNG thực thi</text>
+            <text x="406" y="206" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">✓ Client nhận cùng kết quả, không trừ tiền lần 2</text>
+
+            <rect x="16" y="238" width="728" height="96" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="262" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Ba trạng thái, ba cách xử lý</text>
+            <text x="34" y="284" font-family="JetBrains Mono, monospace" font-size="9" fill="#505a68">in_progress  → 409 Conflict "đang xử lý" (client chờ và thử lại sau 1s)</text>
+            <text x="34" y="302" font-family="JetBrains Mono, monospace" font-size="9" fill="#10b981">completed    → 200 + response gốc (kể cả khi response gốc là lỗi 4xx)</text>
+            <text x="34" y="320" font-family="JetBrains Mono, monospace" font-size="9" fill="#ef4444">failed       → cho phép thử lại với cùng key (hoặc yêu cầu key mới, tuỳ nghiệp vụ)</text>
+          </svg>
+          <div class="diagram-cap">Hình 4.7 — Idempotency key biến "at-least-once" thành "effectively-once" ở tầng ứng dụng</div>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">SQL</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">-- Bảng dedupe: tối giản và đúng</span>&#10;<span class="c-key">CREATE TABLE</span> idempotency_keys (&#10;  user_id       <span class="c-key">BIGINT</span>      <span class="c-key">NOT NULL</span>,&#10;  key           <span class="c-key">TEXT</span>        <span class="c-key">NOT NULL</span>,&#10;  request_hash  <span class="c-key">TEXT</span>        <span class="c-key">NOT NULL</span>,  <span class="c-com">-- phát hiện dùng lại key với body khác</span>&#10;  status        <span class="c-key">TEXT</span>        <span class="c-key">NOT NULL</span>,  <span class="c-com">-- in_progress | completed | failed</span>&#10;  response_code <span class="c-key">INT</span>,&#10;  response_body <span class="c-key">JSONB</span>,&#10;  created_at    <span class="c-key">TIMESTAMPTZ</span> <span class="c-key">DEFAULT</span> now(),&#10;  expires_at    <span class="c-key">TIMESTAMPTZ</span> <span class="c-key">NOT NULL</span>,   <span class="c-com">-- TTL 24h, dọn bằng job</span>&#10;  <span class="c-key">PRIMARY KEY</span> (user_id, key)&#10;);&#10;&#10;<span class="c-com">-- Bước 1: chiếm key (atomic nhờ PRIMARY KEY)</span>&#10;<span class="c-key">INSERT INTO</span> idempotency_keys (user_id, key, request_hash, status, expires_at)&#10;<span class="c-key">VALUES</span> (<span class="c-num">42</span>, <span class="c-str">'uuid-abc-123'</span>, <span class="c-str">'sha256:...'</span>, <span class="c-str">'in_progress'</span>, now() + <span class="c-key">interval</span> <span class="c-str">'24 hours'</span>)&#10;<span class="c-key">ON CONFLICT</span> (user_id, key) <span class="c-key">DO NOTHING</span>&#10;<span class="c-key">RETURNING</span> id;&#10;&#10;<span class="c-com">-- Không có row trả về = key đã tồn tại → đọc và trả kết quả cũ</span>&#10;<span class="c-com">-- Có row = ta thắng, được phép thực thi nghiệp vụ</span>&#10;&#10;<span class="c-com">-- Bước 2: sau khi nghiệp vụ xong, ghi kết quả (cùng transaction với nghiệp vụ!)</span>&#10;<span class="c-key">BEGIN</span>;&#10;  <span class="c-key">UPDATE</span> accounts <span class="c-key">SET</span> balance = balance - <span class="c-num">99000</span> <span class="c-key">WHERE</span> id = <span class="c-num">42</span>;&#10;  <span class="c-key">INSERT INTO</span> ledger (account_id, amount, ref) <span class="c-key">VALUES</span> (<span class="c-num">42</span>, -<span class="c-num">99000</span>, <span class="c-str">'uuid-abc-123'</span>);&#10;  <span class="c-key">UPDATE</span> idempotency_keys <span class="c-key">SET</span> status = <span class="c-str">'completed'</span>,&#10;         response_code = <span class="c-num">200</span>, response_body = <span class="c-str">'&#123;"ok":true&#125;'</span>&#10;   <span class="c-key">WHERE</span> user_id = <span class="c-num">42</span> <span class="c-key">AND</span> key = <span class="c-str">'uuid-abc-123'</span>;&#10;<span class="c-key">COMMIT</span>;</code></pre>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Bốn cái bẫy của idempotency</div>
+            <p><strong>1. Client tự sinh key mỗi lần retry:</strong> vô dụng hoàn toàn — key phải sinh một lần cho mỗi <em>ý định</em> nghiệp vụ (khi user bấm nút), rồi dùng lại cho mọi lần retry. <strong>2. Không có TTL:</strong> bảng phình vô hạn; đặt 24h và có job dọn. <strong>3. Không lưu response:</strong> lần retry thứ hai trả "đang xử lý" mãi mãi dù đã xong — phải lưu cả body. <strong>4. Không kiểm tra body hash:</strong> client lỡ dùng lại key cho request khác (bug) → bạn trả nhầm kết quả của giao dịch trước. Luôn so sánh hash và trả 422 nếu khác.</p>
+          </div>
+        </div>
+
+        <h3>Idempotency tự nhiên — khi không cần key</h3>
+        <p>Một số thao tác đã idempotent theo bản chất, không cần key:</p>
+        <ul class="list-check">
+          <li><code>SET balance = 100</code> (giá trị tuyệt đối) thay vì <code>balance += 10</code> (tương đối).</li>
+          <li><code>PUT /users/42 &#123;name: "An"&#125;</code> thay vì <code>POST /users</code>.</li>
+          <li><code>UPDATE orders SET status='shipped' WHERE id=1 AND status='packed'</code> — có điều kiện, lần 2 không match nên không đổi.</li>
+          <li><code>DELETE FROM x WHERE id=1</code> — xoá 2 lần kết quả như nhau.</li>
+          <li><code>ON CONFLICT DO NOTHING</code> / <code>UPSERT</code> thay vì INSERT thuần.</li>
+        </ul>
+        <p>Nhưng <code>balance += 10</code>, <code>POST /orders</code>, <code>count++</code> thì <strong>không</strong> — phải có key.</p>

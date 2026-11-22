@@ -1,0 +1,90 @@
+---
+id: "002"
+title: "Thiết kế Rate Limiter"
+status: proposed
+date: "2025-01-01"
+summary: "So sánh token bucket, leaky bucket và sliding window; chọn Redis + Lua để giữ tính nguyên tử khi nhiều instance cùng đếm."
+tags: ["rate-limiting", "redis", "token-bucket"]
+module: 2
+order: 2
+---
+
+## Bối cảnh
+
+Cần thiết kế rate limiter cho API để:
+- Ngăn chặn DoS attacks (intentional/unintentional)
+- Giảm chi phí (paid third-party APIs)
+- Ngăn server overload (bots, misbehavior)
+- Hỗ trợ distributed environment
+
+## Yêu cầu
+- Chính xác limit excessive requests
+- Low latency (không làm chậm HTTP response)
+- Ít memory nhất có thể
+- Distributed rate limiting (shared across servers)
+- Exception handling rõ ràng (429 Too Many Requests)
+- High fault tolerance (rate limiter fail không ảnh hưởng toàn hệ thống)
+
+## Yếu tố quyết định
+
+### 1. Vị trí đặt Rate Limiter
+**Quyết định:** Server-side API rate limiter (không client-side)
+- Client-side không đáng tin (requests có thể forged)
+- Không kiểm soát được client implementation
+
+**Phương án:** API Gateway / Middleware / Standalone service
+- **Chọn:** Middleware cho simplicity, có thể move sang standalone khi scale
+
+### 2. Thuật toán Rate Limiting
+**Quyết định:** Token bucket algorithm
+
+**Các thuật toán đã xem xét:**
+| Thuật toán | Ưu điểm | Nhược điểm |
+|-----------|---------|-----------|
+| Token bucket | Cho phép burst, đơn giản, memory-efficient | Cần tune params |
+| Leaky bucket | Smooth output, queue-based | Latency cao hơn |
+| Fixed window | Đơn giản | Boundary burst problem |
+| Sliding window log | Chính xác | Memory-heavy |
+| Sliding window counter | Balance tốt | Phức tạp hơn |
+
+**Chọn Token bucket vì:**
+- Cho phép burst (burst allowance = capacity)
+- Memory-efficient (chỉ lưu 2 values: tokens, last_refill)
+- Dễ implement với Redis
+
+### 3. Distributed Rate Limiting
+**Quyết định:** Redis với Lua scripts (atomic operations)
+
+**Implementation:**
+```
+INCR key (counter)
+EXPIRE key ttl
+If counter > limit → reject (429)
+```
+
+**Race condition handling:** Lua script đảm bảo atomic read-modify-write
+
+### 4. Throttling Rules
+**Quyết định:** Flexible rules based on IP, user ID, API endpoint, device
+
+## Hệ quả
+
+### Tích cực
+- Prevent DoS, reduce cost, protect servers
+- Low latency với Redis (< 1ms)
+- Flexible rules
+
+### Tiêu cực
+- Redis dependency (SPOF nếu không cluster)
+- Clock sync issues trong distributed environment
+- False positives nếu clock skew
+
+### Rủi ro
+- Redis down → rate limiter fail open (allow all) hoặc fail closed (block all)
+- Race conditions trong distributed counting
+- Memory usage tăng với nhiều unique keys
+
+## Tham khảo
+- Alex Xu "System Design Interview" Ch.4: Design a Rate Limiter
+- Token bucket: rate (r) tokens/sec, capacity (b) burst allowance
+- Google docs API limit: 300/user/60s (read), Twitter: 300 tweets/3 hours

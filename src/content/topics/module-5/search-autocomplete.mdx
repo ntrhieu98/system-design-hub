@@ -1,0 +1,152 @@
+---
+title: "Search & Autocomplete — trie, inverted index và ranking"
+description: "Hai bài toán khác nhau nhưng hay đi cùng: autocomplete (gõ tới đâu gợi ý tới đó, < 100ms, top 10) và full-text search (tìm trong hàng triệu document, có ranking)."
+module: 5
+order: 6
+num: "5.6"
+sectionId: "search-autocomplete"
+---
+<p>Hai bài toán khác nhau nhưng hay đi cùng: <span class="kw">autocomplete</span> (gõ tới đâu gợi ý tới đó, &lt; 100ms, top 10) và <span class="kw">full-text search</span> (tìm trong hàng triệu document, có ranking). Cả hai đều dựa trên index — câu hỏi là index nào.</p>
+
+        <h3>Autocomplete: trie với top-K tại mỗi node</h3>
+        <p>Ý tưởng cốt lõi: mỗi node trong trie lưu sẵn <strong>top-K truy vấn phổ biến nhất</strong> có prefix đó. Tra cứu chỉ là đi xuống theo ký tự (O(len)), rồi đọc top-K tại node — không cần duyệt cây con.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 400" role="img" aria-label="Trie autocomplete với top-K gợi ý lưu tại mỗi node cho các prefix">
+            <defs>
+              <marker id="m5f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="16" y="24" width="180" height="52" rx="8" fill="#151515" stroke="#151515" stroke-width="2"/>
+            <text x="106" y="46" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#f4d77c">root ("" )</text>
+            <text x="106" y="64" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#8b95a3">top: system design, s3, sql…</text>
+
+            <rect x="40" y="108" width="150" height="46" rx="7" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="115" y="128" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">s</text>
+            <text x="115" y="144" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">top: system, sql, s3</text>
+
+            <rect x="40" y="190" width="150" height="46" rx="7" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="115" y="210" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">sy</text>
+            <text x="115" y="226" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">top: system, syscall</text>
+
+            <rect x="40" y="272" width="150" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="115" y="292" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">sys</text>
+            <text x="115" y="308" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">top: system, syscall</text>
+
+            <rect x="40" y="336" width="150" height="46" rx="7" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="115" y="356" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">syst</text>
+            <text x="115" y="372" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">top: system design, system</text>
+
+            <path d="M106,76 L110,106" stroke="#505a68" stroke-width="2" marker-end="url(#m5f)"/>
+            <path d="M115,154 L115,188" stroke="#505a68" stroke-width="2" marker-end="url(#m5f)"/>
+            <path d="M115,236 L115,270" stroke="#505a68" stroke-width="2" marker-end="url(#m5f)"/>
+            <path d="M115,318 L115,334" stroke="#505a68" stroke-width="2" marker-end="url(#m5f)"/>
+
+            <rect x="228" y="108" width="150" height="46" rx="7" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="303" y="130" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">sq</text>
+            <text x="303" y="146" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">top: sql, sqs</text>
+
+            <rect x="228" y="190" width="150" height="46" rx="7" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="303" y="212" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">s3</text>
+            <text x="303" y="228" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">top: s3, s3 glacier</text>
+
+            <path d="M190,131 L226,131" stroke="#505a68" stroke-width="2" marker-end="url(#m5f)"/>
+            <path d="M190,131 C210,131 210,213 226,213" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m5f)"/>
+
+            <rect x="412" y="34" width="336" height="160" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="430" y="58" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Ba con số quyết định thiết kế</text>
+            <text x="430" y="82" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68"><strong>Latency budget:</strong> &lt; 100ms end-to-end</text>
+            <text x="430" y="100" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">(mỗi keystroke gửi 1 request → 5 keystroke = 5 request)</text>
+            <text x="430" y="124" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68"><strong>Kích thước trie:</strong> 100M query × ~30 byte prefix</text>
+            <text x="430" y="142" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">≈ 3GB — vừa RAM một node lớn, hoặc shard theo</text>
+            <text x="430" y="158" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">ký tự đầu (a–m / n–z → 2 shard).</text>
+            <text x="430" y="182" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68"><strong>Debounce:</strong> client chờ 50–100ms sau keystroke</text>
+
+            <rect x="412" y="212" width="336" height="80" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="430" y="236" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Không dùng được</text>
+            <text x="430" y="258" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">SELECT ... WHERE term LIKE 'sys%' ORDER BY count</text>
+            <text x="430" y="276" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#ef4444">Không có index cho prefix + count; 5.000 QPS sẽ sập.</text>
+
+            <rect x="412" y="308" width="336" height="74" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="430" y="332" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Cập nhật top-K thế nào?</text>
+            <text x="430" y="352" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Query log → Kafka → job tổng hợp mỗi 1–5 phút</text>
+            <text x="430" y="370" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">→ rebuild trie → swap atomic (double buffer).</text>
+          </svg>
+          <div class="diagram-cap">Hình 5.6 — Top-K tại mỗi node biến truy vấn prefix thành O(len) thay vì duyệt cây con</div>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba chi tiết ăn điểm về autocomplete</div>
+            <p><strong>1. Cá nhân hoá:</strong> top-K toàn cục không đúng cho mọi người. Giải: kết hợp (a) top-K toàn cục từ trie, (b) lịch sử tìm kiếm của user (Redis list 50 entry), (c) trending trong 1 giờ. Merge và re-rank ở read-time — chỉ trên ~40 ứng viên nên rẻ. <strong>2. Xử lý typo:</strong> dùng edit distance ≤ 2 trên trie (tìm kiếm mờ bằng cách duyệt nhiều nhánh) hoặc BK-tree. Chỉ bật khi không có kết quả, để không làm chậm đường nhanh. <strong>3. Ngôn ngữ:</strong> tiếng Việt có dấu — phải normalize (bỏ dấu để match, giữ dấu để hiển thị), và "ngân hàng" gõ không dấu "ngan hang" phải ra kết quả. Đây là chi tiết rất thực tế cho app Việt Nam.</p>
+          </div>
+        </div>
+
+        <h3>Full-text search: inverted index & BM25</h3>
+        <p>Với 10 triệu sản phẩm, bạn cần tìm theo nhiều từ khoá, xếp hạng theo độ liên quan. <span class="kw">Inverted index</span> map <code>term → posting list</code> (danh sách doc_id chứa term, kèm vị trí và tần suất).</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thành phần</th><th>Vai trò</th><th>Ví dụ</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Tokenizer</strong></td><td>Tách text thành term</td><td>"Áo thun nam" → ["áo", "thun", "nam"]</td></tr>
+              <tr><td><strong>Analyzer</strong></td><td>Lowercase, bỏ dấu, stemming, stopword</td><td>"Running" → "run"; "và" bị bỏ</td></tr>
+              <tr><td><strong>Posting list</strong></td><td>doc_id + term frequency + positions</td><td><code>["áo"] → [(doc1, tf=3), (doc7, tf=1)]</code></td></tr>
+              <tr><td><strong>BM25</strong></td><td>Công thức ranking: TF × IDF × chuẩn hoá độ dài</td><td>Từ hiếm (IDF cao) quan trọng hơn từ phổ biến</td></tr>
+              <tr><td><strong>Sharding</strong></td><td>Chia index theo document hoặc theo term</td><td>10M doc / 5 shard = 2M doc/shard</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Search index không phải source of truth</div>
+            <p>Elasticsearch không có transaction, không đảm bảo bền vững như DB, và có thể mất dữ liệu khi split-brain (đây là lý do ES 7+ có "split brain protection" với <code>discovery.zen.minimum_master_nodes</code> → nay là voting config). Luôn coi ES là <strong>bản sao dẫn xuất</strong>: source of truth ở Postgres, đồng bộ qua CDC (Module 3). Khi ES hỏng, bạn rebuild từ DB — mất vài giờ nhưng không mất dữ liệu. Nếu ai đó thiết kế ghi trực tiếp vào ES và coi nó là DB chính, đó là lỗi kiến trúc nghiêm trọng.</p>
+          </div>
+        </div>
+
+        <h3>Ranking — vì sao kết quả đầu tiên quan trọng</h3>
+        <ul class="list-bullet">
+          <li><strong>BM25 (text relevance):</strong> kết hợp term frequency (từ xuất hiện nhiều trong doc), inverse document frequency (từ hiếm có trọng số cao), và chuẩn hoá theo độ dài doc (doc ngắn không bị ưu tiên quá mức).</li>
+          <li><strong>Business signals:</strong> độ mới, lượt bán, rating, tồn kho, biên lợi nhuận. Không thể học hết từ text — phải cộng vào score có trọng số.</li>
+          <li><strong>Personalization:</strong> lịch sử click của user, category hay xem. Cần feature store và model nhẹ ở re-rank stage.</li>
+          <li><strong>Kiến trúc 2 tầng:</strong> retrieval (lấy 1.000 ứng viên bằng BM25/filter, phải &lt; 20ms) → re-rank (chấm điểm 1.000 ứng viên bằng model, &lt; 50ms) → trả 20. Không bao giờ chấm điểm toàn bộ 10 triệu doc.</li>
+        </ul>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">JSON</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">// Elasticsearch: tách filter (cache được) khỏi query (tính điểm)</span>&#10;&#123;&#10;  <span class="c-str">"query"</span>: &#123;&#10;    <span class="c-str">"bool"</span>: &#123;&#10;      <span class="c-str">"must"</span>: [&#10;        &#123; <span class="c-str">"multi_match"</span>: &#123;&#10;            <span class="c-str">"query"</span>: <span class="c-str">"áo thun nam"</span>,&#10;            <span class="c-str">"fields"</span>: [<span class="c-str">"name^3"</span>, <span class="c-str">"desc"</span>, <span class="c-str">"brand^2"</span>],&#10;            <span class="c-str">"type"</span>: <span class="c-str">"best_fields"</span>,&#10;            <span class="c-str">"fuzziness"</span>: <span class="c-str">"AUTO"</span>&#10;        &#125;&#125;&#10;      ],&#10;      <span class="c-str">"filter"</span>: [&#10;        &#123; <span class="c-str">"term"</span>:  &#123; <span class="c-str">"status"</span>: <span class="c-str">"active"</span> &#125; &#125;,&#10;        &#123; <span class="c-str">"range"</span>: &#123; <span class="c-str">"price"</span>: &#123; <span class="c-str">"gte"</span>: <span class="c-num">100000</span>, <span class="c-str">"lte"</span>: <span class="c-num">500000</span> &#125; &#125; &#125;,&#10;        &#123; <span class="c-str">"range"</span>: &#123; <span class="c-str">"stock"</span>: &#123; <span class="c-str">"gt"</span>: <span class="c-num">0</span> &#125; &#125; &#125;&#10;      ],&#10;      <span class="c-str">"should"</span>: [&#10;        &#123; <span class="c-str">"function_score"</span>: &#123; <span class="c-str">"field_value_factor"</span>: &#123;&#10;            <span class="c-str">"field"</span>: <span class="c-str">"sales_30d"</span>, <span class="c-str">"factor"</span>: <span class="c-num">0.1</span>, <span class="c-str">"modifier"</span>: <span class="c-str">"log1p"</span>&#10;        &#125;&#125;&#125;&#10;      ]&#10;    &#125;&#10;  &#125;,&#10;  <span class="c-str">"sort"</span>: [<span class="c-str">"_score"</span>, &#123; <span class="c-str">"created_at"</span>: <span class="c-str">"desc"</span> &#125;],&#10;  <span class="c-str">"size"</span>: <span class="c-num">20</span>,&#10;  <span class="c-str">"track_total_hits"</span>: <span class="c-num">false</span>&#10;&#125;</code></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Filter context vs query context — khác biệt về hiệu năng</div>
+            <p><strong>Query context</strong> (<code>must</code>): tính điểm BM25, không cache được, đắt. <strong>Filter context</strong> (<code>filter</code>): chỉ kiểm tra có/không, kết quả được cache trong filter cache, rẻ hơn nhiều. Vì vậy mọi điều kiện kiểu "status = active", "price &lt; X" phải đặt trong <code>filter</code>, chỉ phần text search đặt trong <code>must</code>. Với 50.000 QPS, đây là khác biệt giữa chạy được và không. Kèm theo: <code>track_total_hits: false</code> tránh đếm toàn bộ (ES mặc định đếm tới 10.000 với độ chính xác — nhưng vẫn tốn), và dùng <code>search_after</code> với cursor thay vì <code>from/size</code> khi phân trang sâu.</p>
+          </div>
+        </div>
+
+        <h3>Điểm nghẽn thật & quyết định gây tranh cãi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+            <tbody>
+              <tr><td>Truy vấn autocomplete</td><td>~10.000/s</td><td>Mỗi user gõ 5–10 ký tự, mỗi ký tự một request</td></tr>
+              <tr><td>Số prefix cần lưu</td><td>10 triệu term × 10 prefix = <strong>100 triệu entry</strong></td><td>Mỗi entry: prefix + top-10 + score ≈ 150 byte → ~15 GB</td></tr>
+              <tr><td>Ngân sách độ trễ</td><td>&lt; 100ms (tốt nhất &lt; 30ms)</td><td>Gõ phím phải thấy gợi ý gần như tức thì</td></tr>
+              <tr><td>Cache top query</td><td>~90% traffic</td><td>Query phổ biến lặp lại rất nhiều → cache prefix → list</td></tr>
+              <tr><td>Cập nhật trie</td><td>theo batch, 5–15 phút/lần</td><td>Rebuild một phần trie, không sửa từng node runtime</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm nghẽn là <span class="kw-r">kích thước trie và chi phí cập nhật</span>. Trie 100 triệu entry không thể build lại mỗi lần có query mới. Vì vậy kiến trúc thật tách hai đường: <strong>đường đọc</strong> từ một cấu trúc gần như bất biến (trie/shard theo prefix, cache ở Redis), và <strong>đường ghi</strong> là batch job đếm query từ log, chọn top-K mới, rồi publish một version mới của shard bị ảnh hưởng. Không có "update trie in place" ở quy mô này.</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Quyết định gây tranh cãi: trie hay Elasticsearch completion suggester?</div>
+            <p><strong>Trie tự xây:</strong> kiểm soát hoàn toàn, độ trễ thấp nhất (chỉ vài lần truy cập mảng), nhưng bạn phải tự lo sharding, rebuild, và versioning. <strong>Elasticsearch completion suggester:</strong> có sẵn FST, hỗ trợ fuzzy, weights, contexts; vận hành đơn giản hơn nhiều — nhưng tốn heap (FST nằm trong RAM), cập nhật chậm (phải reindex), và fuzzy matching rất tốn CPU. <strong>Ngưỡng thực dụng:</strong> dưới 10 triệu term, dùng Elasticsearch — tiết kiệm vài tháng công sức. Trên 10 triệu term hoặc cần độ trễ dưới 20ms, tự xây trie. Trong phỏng vấn, hãy nói rõ ngưỡng đó thay vì chọn một cái "vì nó nhanh hơn".</p>
+          </div>
+        </div>

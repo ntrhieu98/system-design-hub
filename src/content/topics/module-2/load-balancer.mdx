@@ -1,0 +1,74 @@
+---
+title: "Load Balancer — phân phối tải và giữ hệ thống sống"
+description: "Load balancer là building block đầu tiên bạn thêm khi một server không đủ. Nhưng nó có hai tầng hiểu biết: L4 (chỉ nhìn gói tin) và L7 (hiểu HTTP)."
+module: 2
+order: 2
+num: "2.2"
+sectionId: "load-balancer"
+---
+<p>Load balancer là building block đầu tiên bạn thêm khi một server không đủ. Nhưng nó có hai tầng hiểu biết: <span class="kw">L4</span> (chỉ nhìn gói tin) và <span class="kw">L7</span> (hiểu HTTP). Chọn sai tầng là lý do nhiều hệ thống không làm được routing thông minh.</p>
+
+        <h3>L4 vs L7 — khác biệt thực sự nằm ở đâu</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tiêu chí</th><th>L4 (Transport)</th><th>L7 (Application)</th></tr></thead>
+            <tbody>
+              <tr><td>Nhìn thấy</td><td>IP nguồn/đích, port, TCP flag</td><td>Toàn bộ HTTP: URL, method, header, cookie, body</td></tr>
+              <tr><td>Định tuyến theo</td><td>IP hash, round-robin, least-conn</td><td>Path (<code>/api/*</code>), host, header, cookie</td></tr>
+              <tr><td>TLS</td><td>Pass-through (không giải mã)</td><td>Terminate hoặc re-encrypt</td></tr>
+              <tr><td>Chi phí</td><td>Rất thấp, throughput rất cao</td><td>Cao hơn (parse HTTP), cần CPU</td></tr>
+              <tr><td>Ví dụ</td><td>AWS NLB, IPVS, HAProxy mode TCP</td><td>Nginx, Envoy, ALB, Traefik</td></tr>
+              <tr><td>Dùng khi</td><td>TCP/UDP thuần, DB proxy, game server</td><td>Web API, microservices, cần sticky/canary</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Các thuật toán cân bằng tải</h3>
+        <ul class="list-bullet">
+          <li><strong>Round robin</strong> — lần lượt từng server. Đơn giản, nhưng nếu request không đều nhau (1 request nặng 5s, 1 request nhẹ 5ms) thì server nhận request nặng sẽ nghẽn.</li>
+          <li><strong>Weighted round robin</strong> — server khoẻ nhận nhiều hơn. Dùng khi máy không đồng cấu hình (migration, mixed instance types).</li>
+          <li><strong>Least connections</strong> — chọn server ít kết nối đang mở nhất. Tốt cho request có thời gian xử lý biến thiên lớn (long-polling, WebSocket).</li>
+          <li><strong>Least response time</strong> — kết hợp số connection và latency đo được. Tốt nhất về mặt trải nghiệm nhưng cần LB theo dõi metric, phức tạp hơn.</li>
+          <li><strong>IP hash / consistent hash</strong> — cùng client (hoặc cùng key) luôn về cùng server. Cần cho cache local hoặc khi server giữ state. Nhược điểm: phân phối lệch nếu ít IP, và rebalance khi thêm/bớt node.</li>
+          <li><strong>Random (power of two choices)</strong> — chọn ngẫu nhiên 2 server rồi lấy cái ít tải hơn. Gần tối ưu, cực rẻ, được dùng nhiều trong service mesh.</li>
+        </ul>
+
+        <h3>Health check — phần bị đánh giá thấp nhất</h3>
+        <p>LB không tự biết server chết. Nó biết qua health check, và có hai kiểu:</p>
+        <ul class="list-bullet">
+          <li><span class="kw">Active health check</span> — LB gọi <code>GET /health</code> mỗi 5–10s. Nếu fail 3 lần liên tiếp → đánh dấu unhealthy, rút khỏi pool. Ưu điểm: phát hiện sớm. Nhược điểm: tốn request, và endpoint <code>/health</code> hay bị viết ẩu (chỉ <code>return 200</code> dù DB đã chết).</li>
+          <li><span class="kw">Passive health check</span> — LB quan sát traffic thật, thấy 5 lỗi 5xx trong 30s thì rút server ra. Không tốn request, phản ánh đúng trải nghiệm user, nhưng phát hiện chậm hơn.</li>
+        </ul>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">✕</div>
+          <div class="callout-body">
+            <div class="callout-title">Anti-pattern: health check chỉ trả 200</div>
+            <p>Nếu <code>/health</code> không kiểm tra DB connection pool và dependency quan trọng, LB sẽ tiếp tục đẩy traffic vào một instance đã mất kết nối DB. Kết quả: user thấy lỗi 500 dù LB báo "tất cả khoẻ". Health check phải kiểm tra đúng thứ quyết định khả năng phục vụ — nhưng đừng kiểm tra quá nhiều (gọi 5 service trong health check sẽ làm health check tự thành nguồn lỗi).</p>
+          </div>
+        </div>
+
+        <h3>Sticky session và cái bẫy phía sau</h3>
+        <p>Khi server giữ session trong memory (giỏ hàng, login state), bạn buộc phải ghim user vào server — thường bằng cookie <code>AWSALB</code> hoặc hash IP. Vấn đề:</p>
+        <ul class="list-bullet">
+          <li>Deploy rolling update → user bị đá ra ngoài (session mất).</li>
+          <li>Autoscaling không giúp được user đang ghim vào một server.</li>
+          <li>Server chết → toàn bộ session trên nó mất, user phải login lại hàng loạt.</li>
+        </ul>
+        <p>Cách sửa đúng là làm service <span class="kw-g">stateless</span>: đưa session ra Redis hoặc dùng JWT. Khi đó mọi thuật toán LB đều hoạt động và autoscaling mới thực sự hiệu quả.</p>
+
+        <h3>LB tự nó có phải single point of failure?</h3>
+        <p>Có. Vì vậy trong thực tế LB luôn đi theo cặp: DNS trả về nhiều IP (DNS round robin) hoặc dùng <code>anycast</code>, và mỗi LB có thể là một cluster (ví dụ AWS ALB tự scale bên trong). Với on-premise: 2 LB chạy VRRP/keepalived, một active một standby, dùng chung virtual IP.</p>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">nginx.conf</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># Cấu hình L7 tối thiểu nhưng đúng</span>&#10;<span class="c-key">upstream</span> api_backend &#123;&#10;    <span class="c-key">least_conn</span>;                        <span class="c-com"># request biến thiên → least_conn</span>&#10;    <span class="c-key">server</span> 10.0.1.11:8080 max_fails=3 fail_timeout=10s;&#10;    <span class="c-key">server</span> 10.0.1.12:8080 max_fails=3 fail_timeout=10s;&#10;    <span class="c-key">server</span> 10.0.1.13:8080 backup;       <span class="c-com"># chỉ nhận traffic khi 2 cái kia chết</span>&#10;    <span class="c-key">keepalive</span> 64;                       <span class="c-com"># tái sử dụng connection tới backend</span>&#10;&#125;&#10;&#10;<span class="c-key">server</span> &#123;&#10;    <span class="c-key">listen</span> 443 ssl http2;&#10;    <span class="c-key">location</span> /api/ &#123;&#10;        <span class="c-key">proxy_pass</span> http://api_backend;&#10;        <span class="c-key">proxy_http_version</span> 1.1;&#10;        <span class="c-key">proxy_set_header</span> Connection "";&#10;        <span class="c-key">proxy_connect_timeout</span> 2s;&#10;        <span class="c-key">proxy_read_timeout</span> 30s;&#10;        <span class="c-key">proxy_next_upstream</span> error timeout http_502;   <span class="c-com"># retry server khác</span>&#10;    &#125;&#10;&#125;</code></pre>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Câu trả lời phỏng vấn ăn điểm</div>
+            <p>"Em dùng L7 LB vì cần terminate TLS và route theo path. Em đặt <code>proxy_next_upstream</code> để retry sang instance khác khi 502, nhưng chỉ retry cho request idempotent — GET/PUT, không retry POST tạo đơn hàng vì có thể tạo trùng." — Chi tiết này cho thấy bạn hiểu cả tầng mạng và tầng nghiệp vụ.</p>
+          </div>
+        </div>

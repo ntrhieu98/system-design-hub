@@ -1,0 +1,125 @@
+---
+title: "Key-Value Store — bài toán của consistent hashing"
+description: "Đây là bài toán nơi consistent hashing thực sự toả sáng. Mục tiêu: lưu một cặp key→value với N node, thêm/bớt node mà không xáo toàn bộ dữ liệu, và vẫn đảm bảo được tính nhất quán khi có node chết."
+module: 5
+order: 3
+num: "5.3"
+sectionId: "kv-store"
+---
+<p>Đây là bài toán nơi <span class="kw">consistent hashing</span> thực sự toả sáng. Mục tiêu: lưu một cặp key→value với N node, thêm/bớt node mà không xáo toàn bộ dữ liệu, và vẫn đảm bảo được tính nhất quán khi có node chết.</p>
+
+        <h3>Vấn đề với <code>hash % N</code></h3>
+        <p>Với N=4 và 1 triệu key, mỗi node giữ 250.000 key. Tăng N lên 5: <code>hash(key) % 5</code> khác <code>% 4</code> với <strong>~80% key</strong>. Nghĩa là 800.000 key phải di chuyển — mất hàng giờ, và trong lúc di chuyển cache hit ratio sụp về 0, DB bị đánh sập. Đây là lý do consistent hashing ra đời.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 400" role="img" aria-label="Vòng consistent hashing với các node và virtual node, chỉ phần cung giữa hai node bị di chuyển khi thêm node">
+            <defs>
+              <marker id="m5c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <circle cx="250" cy="200" r="150" fill="none" stroke="#e7ebf1" stroke-width="10"/>
+            <circle cx="250" cy="200" r="150" fill="none" stroke="#5294ff" stroke-width="3" stroke-dasharray="4 6"/>
+
+            <text x="250" y="30" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#8b95a3">0 / 2³²</text>
+            <text x="250" y="378" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#8b95a3">2³¹</text>
+            <text x="86" y="204" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#8b95a3">2³⁰</text>
+            <text x="414" y="204" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#8b95a3">3·2³⁰</text>
+
+            <circle cx="250" cy="50" r="21" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="250" y="56" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">A</text>
+
+            <circle cx="394" cy="146" r="21" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="394" y="152" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">B</text>
+
+            <circle cx="340" cy="310" r="21" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="340" y="316" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">C</text>
+
+            <circle cx="160" cy="310" r="21" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="160" y="316" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">D</text>
+
+            <circle cx="106" cy="146" r="21" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="106" y="152" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">E</text>
+
+            <circle cx="500" cy="250" r="19" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="500" y="256" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#ef4444">F</text>
+            <text x="500" y="290" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">node mới</text>
+
+            <circle cx="424" cy="212" r="7" fill="#151515"/>
+            <text x="440" y="216" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">k1</text>
+            <circle cx="330" cy="76" r="7" fill="#151515"/>
+            <text x="346" y="80" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">k2</text>
+            <circle cx="196" cy="146" r="7" fill="#151515"/>
+            <text x="176" y="140" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">k3</text>
+
+            <path d="M424,212 C460,220 480,232 492,242" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#m5c)"/>
+            <text x="466" y="200" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">k1 chuyển sang F</text>
+
+            <path d="M340,289 C400,280 460,268 486,258" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5 3"/>
+
+            <rect x="536" y="34" width="212" height="332" rx="10" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="552" y="58" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Vì sao chỉ 1/N di chuyển</text>
+            <text x="552" y="80" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Thêm F vào vòng: chỉ những key</text>
+            <text x="552" y="96" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">nằm giữa E và F (theo chiều kim</text>
+            <text x="552" y="112" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">đồng hồ) đổi chủ.</text>
+            <text x="552" y="136" font-family="JetBrains Mono, monospace" font-size="9" fill="#10b981">hash % N   → di chuyển ~80%</text>
+            <text x="552" y="154" font-family="JetBrains Mono, monospace" font-size="9" fill="#10b981">consistent → di chuyển ~1/N</text>
+
+            <text x="552" y="182" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Vấn đề: phân bố không đều</text>
+            <text x="552" y="202" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">5 node trên vòng có thể chia</text>
+            <text x="552" y="218" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">thành các cung rất khác nhau →</text>
+            <text x="552" y="234" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">một node chịu 40% tải.</text>
+
+            <text x="552" y="262" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Giải: virtual node</text>
+            <text x="552" y="282" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Mỗi node vật lý có 150–200 điểm</text>
+            <text x="552" y="298" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">ảo: hash("A#1"), hash("A#2")…</text>
+            <text x="552" y="314" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Cung nhỏ lại, phân bố gần đều</text>
+            <text x="552" y="330" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">(sai lệch &lt; 5% với 200 vnode).</text>
+            <text x="552" y="352" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">Còn giúp node mạnh nhận nhiều hơn.</text>
+          </svg>
+          <div class="diagram-cap">Hình 5.3 — Consistent hashing: thêm node chỉ ảnh hưởng một cung, virtual node làm đều phân bố</div>
+        </div>
+
+        <h3>Kiến trúc KV store hoàn chỉnh</h3>
+        <ul class="list-bullet">
+          <li><strong>Client library:</strong> biết vòng hash, tính node đích trực tiếp — không qua proxy (giảm 1 hop, giảm SPOF). Nhưng phải xử lý khi vòng thay đổi.</li>
+          <li><strong>Coordinator node:</strong> nhận request, xác định replica set (thường N=3 node liền kề trên vòng), gửi write tới W node, đọc từ R node.</li>
+          <li><strong>Vector clock:</strong> mỗi value kèm vector để phát hiện xung đột giữa các replica. Khi đọc thấy 2 version không so sánh được → trả cả hai cho client merge (hoặc dùng CRDT).</li>
+          <li><strong>Hinted handoff:</strong> node đích down → coordinator ghi tạm vào node khác kèm "hint", gửi lại khi node kia sống.</li>
+          <li><strong>Merkle tree anti-entropy:</strong> so sánh cây hash giữa các replica để tìm khác biệt mà không cần so từng key.</li>
+        </ul>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">PYTHON</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-key">import</span> bisect, hashlib&#10;&#10;<span class="c-key">class</span> ConsistentHashRing:&#10;    <span class="c-key">def</span> __init__(self, nodes, vnodes=<span class="c-num">200</span>):&#10;        self.ring, self.sorted_keys, self.owner = [], [], &#123;&#125;&#10;        <span class="c-key">for</span> node <span class="c-key">in</span> nodes:&#10;            self.add_node(node, vnodes)&#10;&#10;    <span class="c-key">def</span> _hash(self, s):&#10;        <span class="c-key">return</span> int(hashlib.md5(s.encode()).hexdigest()[:<span class="c-num">8</span>], <span class="c-num">16</span>)&#10;&#10;    <span class="c-key">def</span> add_node(self, node, vnodes):&#10;        <span class="c-key">for</span> i <span class="c-key">in</span> range(vnodes):&#10;            h = self._hash(f<span class="c-str">"&#123;node&#125;#&#123;i&#125;"</span>)&#10;            self.ring.append(h)&#10;            self.owner[h] = node&#10;        self.sorted_keys = sorted(self.ring)&#10;&#10;    <span class="c-key">def</span> get_node(self, key):&#10;        <span class="c-com"># node đầu tiên theo chiều kim đồng hồ, wraparound về 0</span>&#10;        h = self._hash(key)&#10;        idx = bisect.bisect_right(self.sorted_keys, h)&#10;        <span class="c-key">if</span> idx == len(self.sorted_keys):&#10;            idx = <span class="c-num">0</span>&#10;        <span class="c-key">return</span> self.owner[self.sorted_keys[idx]]&#10;&#10;    <span class="c-key">def</span> get_replicas(self, key, n=<span class="c-num">3</span>):&#10;        h = self._hash(key)&#10;        idx = bisect.bisect_right(self.sorted_keys, h) % len(self.sorted_keys)&#10;        seen, out = set(), []&#10;        <span class="c-key">for</span> i <span class="c-key">in</span> range(len(self.sorted_keys)):&#10;            node = self.owner[self.sorted_keys[(idx + i) % len(self.sorted_keys)]]&#10;            <span class="c-key">if</span> node <span class="c-key">not in</span> seen:&#10;                seen.add(node); out.append(node)&#10;                <span class="c-key">if</span> len(out) == n:&#10;                    <span class="c-key">break</span>&#10;        <span class="c-key">return</span> out</code></pre>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Bốn câu phải nói về KV store</div>
+            <p><strong>1.</strong> "Consistent hashing với 200 virtual node mỗi node vật lý, N=3 replica." <strong>2.</strong> "W=2, R=2 để R+W &gt; N — strong-ish consistency; nếu read-heavy thì R=1 và chấp nhận cũ." <strong>3.</strong> "Vector clock phát hiện xung đột, client merge hoặc dùng CRDT cho counter/set." <strong>4.</strong> "Hinted handoff + Merkle tree repair để hội tụ sau khi node chết." Bốn câu này là toàn bộ bài thi.</p>
+          </div>
+        </div>
+
+        <h3>Điểm nghẽn thật & quyết định gây tranh cãi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Hệ quả</th></tr></thead>
+            <tbody>
+              <tr><td>Dung lượng</td><td>100 TB</td><td>Với node 2 TB dùng được → tối thiểu 50 node, thực tế 60–70 để có dư địa compaction</td></tr>
+              <tr><td>Đọc/ghi</td><td>50.000 / 50.000 ops/s</td><td>R+W &gt; N, N=3, R=2, W=2 → mỗi thao tác chạm 2 node</td></tr>
+              <tr><td>Tải mỗi node</td><td>~1.500 ops/s</td><td>Rất nhẹ với SSD; nghẽn sẽ đến từ compaction chứ không từ QPS</td></tr>
+              <tr><td>Rebalance khi thêm node</td><td>~1,7 TB phải chuyển</td><td>Consistent hashing chuyển 1/N dữ liệu, không phải toàn bộ</td></tr>
+              <tr><td>Hinted handoff buffer</td><td>vài giờ ghi</td><td>Node chết quá lâu thì buffer tràn → phải chuyển sang full repair</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm nghẽn của KV store không phải QPS mà là <span class="kw-r">thời gian hội tụ sau sự cố</span>. Một node 2 TB chết 30 phút: nó nhận 30 phút ghi qua hinted handoff (hàng trăm GB), và khi sống lại phải replay toàn bộ trước khi phục vụ đúng. Trong lúc đó, mọi read tới node này trả dữ liệu cũ. Vì vậy câu hỏi thiết kế thật là: "chấp nhận đọc cũ trong bao lâu?" — không phải "dùng thuật toán nào".</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Quyết định gây tranh cãi: vector clock hay last-write-wins?</div>
+            <p><strong>Vector clock:</strong> phát hiện được xung đột thật, không mất dữ liệu, nhưng client phải có logic merge — và với 10 key mỗi request, vector clock có thể lớn hơn cả value. Đây là lý do Dynamo (bản gốc) làm được nhưng rất ít người dùng đúng. <strong>Last-write-wins theo timestamp:</strong> đơn giản, vector clock biến mất, nhưng <strong>âm thầm mất dữ liệu</strong> khi hai client ghi gần nhau và đồng hồ lệch — và trong hệ phân tán, đồng hồ luôn lệch. Cách thực tế đang thắng: <strong>CRDT cho kiểu dữ liệu cụ thể</strong> (counter dùng G-Counter, set dùng OR-Set, text dùng RGA) — không cần merge thủ công, hội tụ tự động, và mỗi kiểu dữ liệu chỉ trả giá cho đúng cái nó cần. Nói được ba lựa chọn này kèm cái giá của từng cái là đủ điểm phần này.</p>
+          </div>
+        </div>

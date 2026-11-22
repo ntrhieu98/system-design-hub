@@ -1,0 +1,109 @@
+---
+title: "SRE — SLO, error budget và on-call"
+description: "SRE không phải \"đội vận hành\". Nó là cách áp dụng tư duy kỹ thuật vào vận hành, với một công cụ trung tâm: error budget — biến \"hệ thống có đủ tốt không\" thành câu hỏi có số."
+module: 6
+order: 4
+num: "6.4"
+sectionId: "sre"
+---
+<p>SRE không phải "đội vận hành". Nó là cách áp dụng tư duy kỹ thuật vào vận hành, với một công cụ trung tâm: <span class="kw">error budget</span> — biến "hệ thống có đủ tốt không" thành câu hỏi có số.</p>
+
+        <h3>SLI → SLO → SLA → error budget</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Khái niệm</th><th>Định nghĩa</th><th>Ví dụ cụ thể</th></tr></thead>
+            <tbody>
+              <tr><td><strong>SLI</strong></td><td>Số đo thực tế</td><td>"Tỉ lệ request <code>/checkout</code> trả 200 trong &lt; 500ms" = 99,95%</td></tr>
+              <tr><td><strong>SLO</strong></td><td>Mục tiêu nội bộ cho SLI</td><td>"99,9% trong cửa sổ 28 ngày"</td></tr>
+              <tr><td><strong>SLA</strong></td><td>Cam kết pháp lý với khách</td><td>"99,5%, vi phạm → hoàn 10% phí"</td></tr>
+              <tr><td><strong>Error budget</strong></td><td>100% − SLO</td><td>0,1% của 28 ngày = <strong>40 phút 19 giây</strong> downtime được phép</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-note">
+          <div class="callout-ico">∑</div>
+          <div class="callout-body">
+            <div class="callout-title">Bảng quy đổi nhanh — học thuộc</div>
+            <p><strong>99%</strong> / 30 ngày = 7 giờ 18 phút. <strong>99,9%</strong> = 43 phút 50 giây. <strong>99,95%</strong> = 21 phút 55 giây. <strong>99,99%</strong> = 4 phút 23 giây. <strong>99,999%</strong> = 26 giây. Đây là con số nên nhớ vì nó xuất hiện trong hầu hết buổi phỏng vấn khi bàn về reliability. Và một hệ thống gồm 5 service nối tiếp, mỗi cái 99,9%, cho SLI tổng chỉ <strong>99,5%</strong> (0,999⁵) — tức 3,6 giờ/tháng. Đó là lý do "chuỗi phụ thuộc" là kẻ thù của reliability.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 380" role="img" aria-label="Error budget theo thời gian với các sự cố tiêu thụ budget và quyết định đóng băng feature">
+            <defs>
+              <marker id="m6c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">28 NGÀY — BUỘC PHẢI CÓ 99,9% ⇒ 40 PHÚT BUDGET</text>
+
+            <rect x="16" y="34" width="728" height="80" rx="9" fill="#f8fafc" stroke="#151515" stroke-width="2"/>
+            <line x1="16" y1="74" x2="744" y2="74" stroke="#e7ebf1" stroke-width="1"/>
+
+            <rect x="16" y="34" width="180" height="80" rx="9" fill="#dcfce7" fill-opacity="0.7" stroke="none"/>
+            <text x="106" y="106" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#10b981">tuần 1 — tiêu 2 phút</text>
+
+            <rect x="220" y="34" width="120" height="80" rx="4" fill="#fee2e2" fill-opacity="0.8" stroke="none"/>
+            <text x="280" y="106" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">sự cố A</text>
+            <text x="280" y="118" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">18 phút</text>
+
+            <rect x="380" y="34" width="90" height="80" rx="4" fill="#fee2e2" fill-opacity="0.8" stroke="none"/>
+            <text x="425" y="106" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">B: 12 phút</text>
+
+            <rect x="510" y="34" width="234" height="80" rx="9" fill="#fef3c7" fill-opacity="0.6" stroke="none"/>
+            <text x="627" y="106" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#b45309">còn 8 phút budget</text>
+
+            <text x="16" y="152" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="700" fill="#505a68">Đã tiêu: 32/40 phút (80%)</text>
+
+            <rect x="16" y="166" width="728" height="14" rx="7" fill="#eef2f6" stroke="#151515" stroke-width="1.5"/>
+            <rect x="16" y="166" width="582" height="14" rx="7" fill="#fb923c" stroke="#151515" stroke-width="1.5"/>
+            <text x="606" y="178" font-family="JetBrains Mono, monospace" font-size="9" fill="#fb923c">80%</text>
+
+            <rect x="16" y="200" width="352" height="76" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="224" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Khi budget &lt; 25% còn lại</text>
+            <text x="34" y="246" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">→ Đóng băng feature mới</text>
+            <text x="34" y="262" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">→ Dồn toàn lực vào reliability</text>
+            <text x="34" y="274" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">Đây là quy tắc tổ chức, không phải kỹ thuật.</text>
+
+            <rect x="384" y="200" width="360" height="76" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="402" y="224" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Khi budget còn nhiều</text>
+            <text x="402" y="246" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">→ Đẩy feature nhanh hơn, chấp nhận rủi ro</text>
+            <text x="402" y="262" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">→ Có thể chạy chaos experiment</text>
+            <text x="402" y="274" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">Reliability không phải "càng cao càng tốt".</text>
+
+            <rect x="16" y="292" width="728" height="72" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="316" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Vì sao SLO 100% là sai lầm</text>
+            <text x="34" y="338" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Chi phí tăng phi tuyến: từ 99,9% lên 99,99% tốn gấp 10× công sức (redundancy, multi-region, testing). Không user nào phân biệt được 99,99% và 99,999%.</text>
+            <text x="34" y="356" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Và nếu SLO = 100%, error budget = 0 → mọi deploy đều "vi phạm" → quy tắc mất ý nghĩa. SLO phải đủ thấp để đạt được, đủ cao để user hài lòng.</text>
+          </svg>
+          <div class="diagram-cap">Hình 6.3 — Error budget biến reliability thành quyết định kinh doanh, không phải tranh luận cảm tính</div>
+        </div>
+
+        <h3>Chọn SLI nào — ba loại</h3>
+        <ol class="list-num">
+          <li><strong>Request-based:</strong> tỉ lệ request thành công / tổng request. Dễ đo, đúng cho API. Nhược điểm: không phản ánh user không gọi được (vì app crash trước khi gửi request).</li>
+          <li><strong>Window-based:</strong> tỉ lệ thời gian hệ thống "tốt" (ví dụ &lt; 1% request lỗi trong mỗi phút). Gần với trải nghiệm người dùng hơn request-based.</li>
+          <li><strong>User-journey-based:</strong> tỉ lệ user hoàn thành được flow (đăng nhập → tìm → mua). Đúng nhất nhưng khó đo, cần instrumentation đặc biệt.</li>
+        </ol>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">PROMQL</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># SLI: tỉ lệ request /checkout thành công trong 5 phút</span>&#10;<span class="c-key">sum</span>(rate(http_requests_total&#123;route=<span class="c-str">"/checkout"</span>, status!~<span class="c-str">"5.."</span>&#125;[<span class="c-num">5m</span>]))&#10;/&#10;<span class="c-key">sum</span>(rate(http_requests_total&#123;route=<span class="c-str">"/checkout"</span>&#125;[<span class="c-num">5m</span>]))&#10;&#10;<span class="c-com"># Multi-window, multi-burn-rate alert (Google SRE workbook)</span>&#10;<span class="c-com"># Cửa sổ ngắn bắt sự cố đột ngột, cửa sổ dài tránh false positive</span>&#10;&#10;<span class="c-com"># Burn rate = mức tiêu budget so với tốc độ bình thường</span>&#10;<span class="c-com"># 14.4x trong 1h + 5m  → đốt hết budget 30 ngày trong 2 ngày ⇒ PAGE</span>&#10;<span class="c-key">sum</span>(rate(http_requests_total&#123;status=~<span class="c-str">"5.."</span>&#125;[<span class="c-num">1h</span>]))&#10;/ <span class="c-key">sum</span>(rate(http_requests_total[<span class="c-num">1h</span>])) &gt; (<span class="c-num">14.4</span> * <span class="c-num">0.001</span>)&#10;&#10;<span class="c-com"># 6x trong 6h → đốt hết trong 5 ngày ⇒ TICKET (không đánh thức ai lúc 3h sáng)</span>&#10;<span class="c-key">sum</span>(rate(http_requests_total&#123;status=~<span class="c-str">"5.."</span>&#125;[<span class="c-num">6h</span>]))&#10;/ <span class="c-key">sum</span>(rate(http_requests_total[<span class="c-num">6h</span>])) &gt; (<span class="c-num">6</span> * <span class="c-num">0.001</span>)&#10;&#10;<span class="c-com"># Latency SLI: p99 dưới 500ms (dùng histogram bucket, không dùng average)</span>&#10;histogram_quantile(<span class="c-num">0.99</span>,&#10;  <span class="c-key">sum</span> <span class="c-key">by</span> (le) (rate(http_request_duration_seconds_bucket[<span class="c-num">5m</span>]))&#10;) &gt; <span class="c-num">0.5</span></code></pre>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba nguyên tắc alerting để không bị báo động giả</div>
+            <p><strong>1. Alert theo triệu chứng, không theo nguyên nhân.</strong> Alert "CPU &gt; 80%" là nguyên nhân — có thể hoàn toàn bình thường. Alert "error rate &gt; 1%" là triệu chứng người dùng đang đau. Chỉ page khi có triệu chứng; nguyên nhân để dashboard.<strong> 2. Mỗi alert phải có runbook.</strong> Nếu bạn không viết được "khi alert này cháy, làm 3 bước sau", alert đó chưa sẵn sàng — nó sẽ chỉ làm người trực hoang mang.<strong> 3. Alert phải actionable.</strong> Nếu alert cháy và câu trả lời là "chờ nó tự hết", xoá alert đi. Mỗi alert giả làm giảm độ tin cậy vào toàn bộ hệ thống alert — đến lúc có sự cố thật, người trực sẽ bỏ qua.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">On-call bền vững — những con số</div>
+            <p>Một rotation bền vững: tối đa <strong>2 sự cố/12h shift</strong>, tối đa <strong>1 tuần on-call mỗi 4–6 tuần</strong>, và <strong>không quá 25% thời gian</strong> dành cho vận hành (Google SRE: 50% là trần, 25% là mục tiêu). Nếu on-call liên tục bị đánh thức, đó là bug của hệ thống, không phải của người trực. Chỉ số cần theo dõi: <strong>số trang/tuần</strong>, <strong>tỉ lệ false positive</strong>, <strong>thời gian khôi phục trung bình (MTTR)</strong>. Và quy tắc quan trọng: sau mỗi sự cố, viết <strong>blameless postmortem</strong> với action item có owner và deadline — nếu không có action item, sự cố đó sẽ lặp lại.</p>
+          </div>
+        </div>

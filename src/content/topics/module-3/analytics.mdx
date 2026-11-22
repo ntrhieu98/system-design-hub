@@ -1,0 +1,154 @@
+---
+title: "Data warehouse & ML serving — khi dữ liệu phải phục vụ hai kiểu đọc khác nhau"
+description: "OLTP tối ưu cho ghi từng dòng và đọc theo khoá. OLAP tối ưu cho quét cột và tổng hợp. Ép một hệ làm cả hai là nguồn gốc của phần lớn sự cố hiệu năng ở quy mô lớn."
+module: 3
+order: 9
+num: "3.9"
+sectionId: "analytics"
+---
+<p>OLTP tối ưu cho <span class="kw">ghi từng dòng</span> và <span class="kw">đọc theo khoá</span>. OLAP tối ưu cho <span class="kw">quét cột</span> và <span class="kw">tổng hợp</span>. Ép một hệ làm cả hai là nguồn gốc của phần lớn sự cố hiệu năng ở quy mô lớn — và cũng là chỗ phân biệt người đã vận hành hệ thật với người mới đọc blog.</p>
+
+        <h3>Vì sao không thể dùng chung một database</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tiêu chí</th><th>OLTP (Postgres, MySQL)</th><th>OLAP (ClickHouse, BigQuery, Snowflake)</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Truy vấn điển hình</strong></td><td><code>SELECT * FROM orders WHERE id = ?</code></td><td><code>SELECT region, sum(total) FROM orders GROUP BY 1</code></td></tr>
+              <tr><td><strong>Lưu trữ</strong></td><td>Row-oriented: một dòng nằm liền nhau</td><td>Column-oriented: một cột nằm liền nhau</td></tr>
+              <tr><td><strong>Vì sao columnar nhanh</strong></td><td>—</td><td>Query chỉ đọc 3/50 cột → đọc ít hơn ~94% byte; cùng kiểu dữ liệu nên nén tốt hơn 5–20×</td></tr>
+              <tr><td><strong>Ghi</strong></td><td>Nhiều ghi nhỏ, transaction, khoá hàng</td><td>Ghi theo batch lớn (bulk insert); update rất đắt</td></tr>
+              <tr><td><strong>Số dòng mỗi query</strong></td><td>1–1.000</td><td>10⁶–10⁹</td></tr>
+              <tr><td><strong>Độ trễ chấp nhận</strong></td><td>1–20ms</td><td>0,5–60 giây</td></tr>
+              <tr><td><strong>Index</strong></td><td>B-tree trên khoá</td><td>Zone map / min-max, sparse index, partition pruning</td></tr>
+              <tr><td><strong>Điểm chết</strong></td><td>Chạy <code>GROUP BY</code> trên 500M dòng làm nghẽn cả hệ</td><td>Chạy <code>UPDATE ... WHERE id = 1</code> là một lần rewrite part</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Số liệu để thấy khác biệt không phải "hơi khác"</div>
+            <p>Bảng 200 triệu dòng, 50 cột. Query doanh thu theo vùng đọc 3 cột. Row store phải đọc cả 50 cột: <strong>~40 GB</strong>. Column store chỉ đọc 3 cột đã nén: <strong>~0,4 GB</strong> — nhanh hơn khoảng <strong>100×</strong>, chưa tính vector hoá. Cùng máy, cùng ổ đĩa. Đây là lý do "dùng Postgres cho analytics" chỉ chịu được tới vài chục triệu dòng.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 350" role="img" aria-label="Luồng dữ liệu từ OLTP qua CDC vào data lake và warehouse, rồi tới BI và ML serving với feature store">
+            <defs>
+              <marker id="m3an" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="20" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#8b95a3">MỘT NGUỒN GHI — NHIỀU CÁCH ĐỌC</text>
+
+            <rect x="16" y="36" width="150" height="62" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="91" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">OLTP</text>
+            <text x="91" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#505a68">orders · users</text>
+            <text x="91" y="88" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8.5" fill="#505a68">1–20ms, từng dòng</text>
+
+            <rect x="196" y="36" width="130" height="62" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="261" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">CDC</text>
+            <text x="261" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#505a68">binlog / WAL</text>
+            <text x="261" y="88" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8.5" fill="#505a68">Debezium → Kafka</text>
+
+            <rect x="356" y="36" width="160" height="62" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="436" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">Data lake</text>
+            <text x="436" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#505a68">S3 + Parquet</text>
+            <text x="436" y="88" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8.5" fill="#505a68">rẻ, để nguyên dữ liệu thô</text>
+
+            <rect x="546" y="36" width="198" height="62" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="645" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">Warehouse</text>
+            <text x="645" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#505a68">ClickHouse / BigQuery</text>
+            <text x="645" y="88" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8.5" fill="#505a68">đã mô hình hoá, query nhanh</text>
+
+            <path d="M166,67 L194,67" stroke="#505a68" stroke-width="2" marker-end="url(#m3an)"/>
+            <path d="M326,67 L354,67" stroke="#505a68" stroke-width="2" marker-end="url(#m3an)"/>
+            <path d="M516,67 L544,67" stroke="#505a68" stroke-width="2" marker-end="url(#m3an)"/>
+
+            <text x="436" y="120" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">ELT: nạp thô trước, transform sau — giữ được dữ liệu gốc để chạy lại</text>
+
+            <rect x="16" y="140" width="352" height="120" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="162" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">Batch — cho báo cáo</text>
+            <text x="34" y="182" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Chạy 1h/lần, quét toàn bộ partition mới</text>
+            <text x="34" y="198" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Đơn giản, dễ chạy lại khi sai</text>
+            <text x="34" y="214" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Kết quả trễ 1h — chấp nhận được cho BI</text>
+            <text x="34" y="236" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">dbt run --select daily_revenue</text>
+
+            <rect x="392" y="140" width="352" height="120" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="410" y="162" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">Streaming — cho dashboard realtime</text>
+            <text x="410" y="182" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Cửa sổ trượt, aggregation tăng dần</text>
+            <text x="410" y="198" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Phức tạp hơn: watermark, late event, exactly-once</text>
+            <text x="410" y="214" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Chỉ dùng khi trễ 1h thật sự gây thiệt hại</text>
+            <text x="410" y="236" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">Flink · Materialize · ksqlDB</text>
+
+            <rect x="16" y="280" width="352" height="56" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="302" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">BI / dashboard</text>
+            <text x="34" y="320" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Metabase, Superset — đọc từ warehouse</text>
+
+            <rect x="392" y="280" width="352" height="56" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="410" y="302" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">ML serving</text>
+            <text x="410" y="320" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Feature store: cùng feature cho train và serve</text>
+          </svg>
+          <div class="diagram-cap">Hình 3.9 — OLTP → CDC → lake → warehouse → BI và ML: một nguồn ghi, nhiều kiểu đọc</div>
+        </div>
+
+        <h3>Lake, warehouse, lakehouse — chọn cái nào</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th></th><th>Data lake</th><th>Data warehouse</th><th>Lakehouse</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Lưu gì</strong></td><td>Mọi thứ thô: JSON, log, ảnh, Parquet</td><td>Dữ liệu đã mô hình hoá, schema chặt</td><td>Parquet trên object storage + catalog + transaction log</td></tr>
+              <tr><td><strong>Chi phí</strong></td><td>Rẻ nhất (S3 ~0,023 USD/GB/tháng)</td><td>Đắt (compute tách rời, tính theo query hoặc slot)</td><td>Gần lake</td></tr>
+              <tr><td><strong>Ai query</strong></td><td>Data engineer, scientist — cần biết schema</td><td>Analyst, BI tool — SQL là đủ</td><td>Cả hai</td></tr>
+              <tr><td><strong>Điểm yếu</strong></td><td>Dễ thành "data swamp": không ai biết bảng nào đúng</td><td>Khoá nhà cung cấp; chi phí khó đoán</td><td>Mới hơn, công cụ chưa chín đều</td></tr>
+              <tr><td><strong>Ví dụ</strong></td><td>S3 + Athena, GCS + Dataproc</td><td>Snowflake, BigQuery, Redshift, ClickHouse</td><td>Delta Lake, Iceberg, Hudi</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><span class="kw">Iceberg</span> và Delta Lake giải quyết đúng vấn đề khó nhất của lake thuần: <em>transaction</em> trên object storage. Không có chúng, một job ghi dở là cả bảng đọc ra rác; có chúng, bạn có snapshot, time travel và schema evolution. Nếu phải chọn một thứ để học trong nhóm này, chọn Iceberg.</p>
+
+        <h3>Mô hình hoá: star schema vẫn thắng</h3>
+        <ul class="list-bullet">
+          <li><strong>Fact table</strong> — sự kiện đo được, chỉ chứa khoá ngoại và số: <code>fact_order(order_key, date_key, product_key, customer_key, qty, amount)</code>. Lớn nhất, tăng mãi.</li>
+          <li><strong>Dimension</strong> — ngữ cảnh để lọc và nhóm: <code>dim_product</code>, <code>dim_customer</code>, <code>dim_date</code>. Nhỏ, đổi chậm.</li>
+          <li><strong>Vì sao không chuẩn hoá 3NF:</strong> mỗi join trong OLAP là một lần quét thêm hàng chục triệu dòng. Denormalize có kiểm soát rẻ hơn nhiều so với join runtime. Đây là lý do ngược hoàn toàn với OLTP.</li>
+          <li><strong>Slowly changing dimension type 2</strong> — giữ lịch sử bằng cột <code>valid_from</code>/<code>valid_to</code>/<code>is_current</code>. Cần khi báo cáo phải trả lời "tháng 3 khách này thuộc vùng nào" — một câu hỏi rất hay bị bỏ sót.</li>
+        </ul>
+
+        <h3>ML serving — nơi dữ liệu và mô hình gặp nhau</h3>
+        <p>Một mô hình chạy tốt trong notebook và tệ trong production thường không phải vì mô hình, mà vì <span class="kw-r">training-serving skew</span> — feature lúc train tính bằng Spark trên dữ liệu lịch sử, lúc serve tính bằng Python trên request hiện tại, và hai bên lệch nhau ở cách xử lý null, múi giờ, hoặc đơn vị.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thành phần</th><th>Vai trò</th><th>Yêu cầu</th><th>Công cụ</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Offline store</strong></td><td>Tính feature trên dữ liệu lịch sử để train</td><td>Throughput lớn, chấp nhận trễ hàng giờ</td><td>Warehouse, Parquet trên S3</td></tr>
+              <tr><td><strong>Online store</strong></td><td>Trả feature trong vài ms lúc dự đoán</td><td>p99 &lt; 10ms, key-value, TTL</td><td>Redis, DynamoDB, Cassandra</td></tr>
+              <tr><td><strong>Feature pipeline</strong></td><td>Đảm bảo hai bên tính <em>cùng một định nghĩa</em></td><td>Một chỗ định nghĩa, hai chỗ thực thi</td><td>Feast, Tecton, hoặc tự viết</td></tr>
+              <tr><td><strong>Model server</strong></td><td>Nạp model, chạy inference</td><td>Batch cho 10.000 item; realtime cho 1 user</td><td>TorchServe, Triton, ONNX Runtime, vLLM</td></tr>
+              <tr><td><strong>Model registry</strong></td><td>Version, lineage, ai deploy bản nào</td><td>Rollback trong 1 phút</td><td>MLflow, SageMaker Registry</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Bốn sự cố ML production hay gặp nhất</div>
+            <p><strong>(1) Skew feature</strong> — như trên; cách chống là log feature vector thật sự dùng lúc serve, rồi so phân phối với lúc train hằng ngày. <strong>(2) Model mới tệ hơn model cũ</strong> — luôn có shadow mode hoặc canary 1% trước khi đổi 100%. <strong>(3) Point-in-time correctness</strong> — khi tạo tập train, phải dùng đúng giá trị feature tại thời điểm đó, không phải giá trị hiện tại; nếu không, mô hình học được tương lai và điểm offline đẹp mà online tệ. <strong>(4) Nhãn đến muộn</strong> — nhãn "khách có huỷ trong 30 ngày" chỉ có sau 30 ngày; pipeline phải chờ và backfill, không được train bằng nhãn rỗng.</p>
+          </div>
+        </div>
+
+        <h3>Chọn công cụ theo quy mô, không theo độ hot</h3>
+        <ul class="list-bullet">
+          <li><strong>&lt; 50 triệu dòng:</strong> Postgres + materialized view là đủ. Không cần warehouse, không cần Spark. Rất nhiều "data platform" chỉ là một Postgres replica và vài view.</li>
+          <li><strong>50 triệu – 5 tỷ dòng:</strong> ClickHouse hoặc BigQuery. ClickHouse rẻ và nhanh cho dashboard, nhưng join kém và update đắt; BigQuery không phải vận hành nhưng chi phí query khó đoán.</li>
+          <li><strong>Nhiều nguồn, nhiều định dạng, cần giữ thô:</strong> lake + Iceberg + một engine query (Trino, Athena, Spark). Đây là kiến trúc mặc định của công ty có hơn 10 nguồn dữ liệu.</li>
+          <li><strong>Cần realtime dưới 1 giây:</strong> thêm Flink hoặc Materialize. Nhưng trước khi thêm, hãy đo xem dashboard trễ 5 phút có thật sự làm mất tiền không — thường là không.</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Câu trả lời mẫu khi phỏng vấn hỏi về analytics hoặc ML</div>
+            <p>"OLTP giữ nguyên cho giao dịch. Tôi phát change qua CDC vào Kafka, đổ Parquet vào lake để giữ dữ liệu thô, rồi transform bằng dbt vào warehouse cho BI. Với ML, tôi định nghĩa feature một lần trong feature store, offline đọc từ lake, online nạp vào Redis với cùng định nghĩa — và log feature vector lúc serve để phát hiện skew. Model đi qua registry, canary 1%, rollback tự động nếu AUC giảm quá ngưỡng." — ba câu, nêu được cả luồng dữ liệu, cả bẫy skew, cả quy trình deploy.</p>
+          </div>
+        </div>

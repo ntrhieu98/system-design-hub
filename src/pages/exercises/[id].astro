@@ -1,0 +1,109 @@
+---
+// /exercises/[id] — one exercise, rendered inside the site shell.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/Icon.astro';
+import { getCollection, render } from 'astro:content';
+import { MODULES } from '../../data/modules.js';
+
+export async function getStaticPaths() {
+  const list = await getCollection('exercises');
+  return list.map((e) => ({ params: { id: e.data.id }, props: { exercise: e } }));
+}
+
+const { exercise } = Astro.props;
+const { Content } = await render(exercise);
+const B = import.meta.env.BASE_URL;
+const all = (await getCollection('exercises')).sort((a, b) => a.data.order - b.data.order);
+const i = all.findIndex((e) => e.data.id === exercise.data.id);
+const prev = i > 0 ? all[i - 1] : null;
+const next = i < all.length - 1 ? all[i + 1] : null;
+const meta = MODULES.find((m) => m.id === exercise.data.module);
+
+const levelLabel: Record<string, string> = {
+  beginner: 'Cơ bản',
+  intermediate: 'Trung bình',
+  advanced: 'Nâng cao',
+  expert: 'Chuyên sâu',
+};
+---
+
+<BaseLayout
+  title={`Bài tập ${exercise.data.id} — ${exercise.data.title} | System Design Hub`}
+  description={exercise.data.summary}
+  active="exercises"
+  ogType="article"
+>
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href={`${B}/`}>Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <a href={`${B}/exercises`}>Bài tập</a>
+        <span aria-hidden="true">/</span>
+        <span>Bài {exercise.data.id}</span>
+      </nav>
+
+      <div class="chip-row mb-3">
+        <span class="chip chip-yellow">Bài tập {exercise.data.id}</span>
+        <span class="chip">{levelLabel[exercise.data.level] ?? exercise.data.level}</span>
+        {meta && <span class="chip chip-blue">Module {meta.id}</span>}
+      </div>
+
+      <h1 class="page-title">{exercise.data.title}</h1>
+      <p class="page-lead">{exercise.data.summary}</p>
+
+      {exercise.data.specs.length > 0 && (
+        <div class="spec-grid mt-5">
+          {exercise.data.specs.map((s) => (
+            <div class="spec">
+              <span class="spec-k">{s.k}</span>
+              <span class="spec-v" set:html={s.v} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container doc-single">
+      <div class="doc-shell">
+        <div class="doc-main">
+          <article class="lesson" id={`ex-${exercise.data.id}`}>
+            <Content />
+          </article>
+
+          <nav class="pager" aria-label="Điều hướng bài tập">
+            {prev ? (
+              <a class="pager-link pager-prev" href={`${B}/exercises/${prev.data.id}`}>
+                <span class="dir">← Bài trước</span>
+                <span class="name">{prev.data.title}</span>
+              </a>
+            ) : (
+              <span />
+            )}
+            {next ? (
+              <a class="pager-link pager-next" href={`${B}/exercises/${next.data.id}`}>
+                <span class="dir">Bài tiếp →</span>
+                <span class="name">{next.data.title}</span>
+              </a>
+            ) : (
+              <span />
+            )}
+          </nav>
+
+          <p class="mt-6">
+            <a class="btn btn-sm btn-ghost" href={`${B}/exercises`}>
+              <Icon name="arrowLeft" size={14} /> Tất cả bài tập
+            </a>
+            {meta && (
+              <a class="btn btn-sm btn-secondary ml-2" href={`${B}/modules/${meta.id}`}>
+                <Icon name="book" size={14} /> Module {meta.id} — {meta.title}
+              </a>
+            )}
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

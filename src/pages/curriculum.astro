@@ -1,0 +1,71 @@
+---
+// /curriculum — the full syllabus as one page inside the site shell.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import { getEntry, render } from 'astro:content';
+import { SITE_STATS } from '../data/stats.js';
+
+const B = import.meta.env.BASE_URL;
+const entry = await getEntry('pages', 'curriculum');
+const { Content } = await render(entry);
+
+// Collect the H2s so the page can offer a jump list; the markdown has one per
+// module plus the timeline.
+const headings = [...entry.body.matchAll(/^##\s+(.+)$/gm)].map((m) => {
+  const text = m[1].trim();
+  const id = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  return { text, id };
+});
+---
+
+<BaseLayout
+  title="Giáo trình System Design | System Design Hub"
+  description={entry.data.description}
+  active="path"
+>
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href={`${B}/`}>Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <span>Giáo trình</span>
+      </nav>
+      <h1 class="page-title">{entry.data.title}</h1>
+      <p class="page-lead">
+        Bản giáo trình đầy đủ dưới dạng một trang duy nhất — dùng khi bạn muốn nhìn toàn cảnh, hoặc
+        in ra để đánh dấu. Nội dung chi tiết nằm ở từng module.
+      </p>
+      <div class="chip-row mt-4">
+        <span class="chip chip-yellow">{SITE_STATS.modules} module</span>
+        <span class="chip">{SITE_STATS.topics} chủ đề</span>
+        <span class="chip">{SITE_STATS.weeks} tuần</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container doc-single">
+      <div class="doc-shell">
+        <div class="doc-main">
+          <article class="lesson" id="curriculum">
+            <Content />
+          </article>
+
+          <p class="mt-6">
+            <a class="btn btn-sm btn-ghost" href={`${B}/learning-path`}>
+              <Icon name="git" size={14} /> Xem lộ trình 12 tuần
+            </a>
+            <a class="btn btn-sm btn-secondary ml-2" href={`${B}/modules`}>
+              <Icon name="book" size={14} /> Mở danh sách module
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

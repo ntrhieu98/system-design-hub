@@ -1,0 +1,82 @@
+---
+title: "API Gateway, Service Discovery và ID Generator"
+description: "Ba building block cuối thường xuất hiện cùng nhau trong kiến trúc microservices. Chúng không hào nhoáng như Kafka hay Redis nhưng thiếu chúng thì hệ thống không vận hành được."
+module: 2
+order: 8
+num: "2.8"
+sectionId: "gateway-id"
+---
+<p>Ba building block cuối thường xuất hiện cùng nhau trong kiến trúc microservices. Chúng không hào nhoáng như Kafka hay Redis nhưng thiếu chúng thì hệ thống không vận hành được.</p>
+
+        <h3>API Gateway — cửa ngõ duy nhất</h3>
+        <p>Không có gateway, mỗi service phải tự làm auth, rate limit, logging, CORS, versioning. Kết quả: 12 service × 12 cách làm khác nhau, và một lỗ hổng auth ở service nào đó là đủ để mất toàn bộ hệ thống.</p>
+        <p>Gateway tập trung những việc <span class="kw">cross-cutting</span>:</p>
+        <ul class="list-bullet">
+          <li>Xác thực (verify JWT, introspect token) và phân quyền thô.</li>
+          <li>Rate limiting, quota theo API key (như mục 2.4).</li>
+          <li>Routing: <code>/api/users/*</code> → user-service, <code>/api/orders/*</code> → order-service.</li>
+          <li>Request/response transformation: gộp N service thành 1 response (BFF pattern).</li>
+          <li>Observability: gắn trace ID, đo latency per route.</li>
+          <li>Circuit breaking, retry, timeout — chặn lỗi lan rộng.</li>
+        </ul>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Gateway có thể trở thành monolith mới</div>
+            <p>Nếu bạn bắt đầu nhét business logic vào gateway ("nếu user là VIP thì tính giá khác"), nó sẽ phình thành nơi không ai dám sửa và trở thành single point of failure về cả hiệu năng lẫn tổ chức. Nguyên tắc: gateway chỉ làm việc <em>cross-cutting</em>, không làm nghiệp vụ. Và luôn chạy ≥2 instance sau load balancer.</p>
+          </div>
+        </div>
+
+        <h3>Service Discovery — khi IP không còn cố định</h3>
+        <p>Trong Kubernetes hay autoscaling, instance sinh ra và chết liên tục với IP mới. Hard-code IP là tự sát. Có hai mô hình:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mô hình</th><th>Cách hoạt động</th><th>Ví dụ</th><th>Nhận xét</th></tr></thead>
+            <tbody>
+              <tr><td>Client-side discovery</td><td>Client query registry, tự chọn instance, tự LB</td><td>Eureka + Ribbon, Consul + client LB</td><td>Ít hop, nhanh; client phức tạp</td></tr>
+              <tr><td>Server-side discovery</td><td>Client gọi DNS/LB, LB tìm instance</td><td>K8s Service, AWS ALB</td><td>Client đơn giản; thêm 1 hop</td></tr>
+              <tr><td>Service mesh</td><td>Sidecar proxy lo toàn bộ (mTLS, retry, LB)</td><td>Istio, Linkerd, Envoy</td><td>Mạnh nhất, nhưng vận hành nặng</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Với Kubernetes, bạn gần như không cần nghĩ về service discovery: gọi <code>http://user-service:8080</code> và DNS nội bộ + kube-proxy lo phần còn lại. Đây là lý do K8s phổ biến đến vậy.</p>
+
+        <h3>ID Generator — bài toán nhỏ nhưng hay bị hỏi</h3>
+        <p>Tại sao không dùng auto-increment? Vì (1) một DB không scale ghi, (2) ID lộ thông tin kinh doanh (đơn hàng #1000 nghĩa là mới có 1000 đơn — đối thủ đọc được), (3) không merge được dữ liệu từ nhiều shard.</p>
+
+        <h4>Các lựa chọn</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cách</th><th>Ví dụ</th><th>Ưu</th><th>Nhược</th></tr></thead>
+            <tbody>
+              <tr><td>UUID v4</td><td><code>550e8400-e29b-41d4-a716-446655440000</code></td><td>Không cần phối hợp, 128-bit</td><td>Random hoàn toàn → phá locality của B+ tree, index phình to</td></tr>
+              <tr><td>UUID v7</td><td>Timestamp ở đầu + random</td><td>Sortable theo thời gian, vẫn phân tán</td><td>Mới, chưa phổ biến ở mọi thư viện</td></tr>
+              <tr><td>Snowflake</td><td>41 bit timestamp + 10 bit machine + 12 bit sequence</td><td>64-bit, sortable, 4096 ID/ms/máy</td><td>Cần đồng bộ clock; hết chỗ nếu >1024 máy</td></tr>
+              <tr><td>Segment/range allocator</td><td>Mỗi service xin một dải 10.000 ID</td><td>Ít round-trip, đơn giản</td><td>ID lộ thứ tự; restart làm mất dải</td></tr>
+              <tr><td>ULID</td><td>48-bit timestamp + 80-bit random, base32</td><td>Sortable, không cần coordination, 26 ký tự</td><td>Hơi dài hơn Snowflake</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">Snowflake — bố cục 64 bit</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">┌─ 1 bit ─┬──── 41 bit ────┬── 10 bit ──┬── 12 bit ──┐</span>&#10;<span class="c-com">│  dấu 0  │  timestamp ms  │ machine id │  sequence  │</span>&#10;<span class="c-com">└─────────┴────────────────┴────────────┴────────────┘</span>&#10;&#10;<span class="c-com">// 41 bit ms = 2^41 / 1000 / 86400 / 365 ≈ 69 năm kể từ epoch tuỳ chọn</span>&#10;<span class="c-com">// 10 bit machine = 1024 node</span>&#10;<span class="c-com">// 12 bit sequence = 4096 ID mỗi ms mỗi node = 4.096 triệu ID/s/node</span>&#10;&#10;<span class="c-key">def</span> <span class="c-fn">next_id</span>(machine_id):&#10;    now = time_ms()&#10;    <span class="c-key">if</span> now == last_ts:&#10;        seq = (seq + <span class="c-num">1</span>) &amp; <span class="c-num">0xFFF</span>&#10;        <span class="c-key">if</span> seq == <span class="c-num">0</span>:                    <span class="c-com"># hết 4096 trong cùng 1ms</span>&#10;            now = wait_next_ms()          <span class="c-com"># busy-wait tới ms kế tiếp</span>&#10;    <span class="c-key">else</span>:&#10;        seq = <span class="c-num">0</span>&#10;    last_ts = now&#10;    <span class="c-key">return</span> ((now - EPOCH) &lt;&lt; <span class="c-num">22</span>) | (machine_id &lt;&lt; <span class="c-num">12</span>) | seq</code></pre>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">✕</div>
+          <div class="callout-body">
+            <div class="callout-title">Snowflake và clock skew</div>
+            <p>Nếu đồng hồ máy bị lùi (NTP điều chỉnh), ID sinh ra có thể <em>trùng</em> hoặc <em>nhỏ hơn</em> ID trước đó. Cách xử lý: (1) phát hiện <code>now &lt; last_ts</code> và từ chối sinh ID trong lúc chờ đồng hồ đuổi kịp; (2) hoặc dùng hybrid logical clock. Đây là chi tiết nhỏ nhưng người phỏng vấn senior rất thích hỏi.</p>
+          </div>
+        </div>
+
+        <h3>Bảng chọn nhanh</h3>
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Nếu chỉ nhớ 5 dòng</div>
+            <p><strong>LB</strong> L7 cho web, L4 cho TCP thuần, luôn ≥2 instance + health check thật. <strong>Cache</strong> cache-aside mặc định, TTL có jitter, chống stampede bằng single-flight. <strong>Rate limit</strong> token bucket hoặc sliding window counter, đặt ở gateway. <strong>Queue</strong> at-least-once + consumer idempotent, luôn có DLQ. <strong>CDN</strong> chỉ cache nội dung giống nhau cho mọi người, versioned URL thay vì purge.</p>
+          </div>
+        </div>

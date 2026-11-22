@@ -1,0 +1,119 @@
+---
+title: "Event-driven architecture — khi nào và khi nào không"
+description: "Event-driven là mô hình mặc định của kiến trúc hiện đại, và cũng là nguồn gốc của nhiều hệ thống không ai hiểu nổi."
+module: 6
+order: 7
+num: "6.7"
+sectionId: "event-driven"
+---
+<p>Event-driven là mô hình mặc định của kiến trúc hiện đại, và cũng là nguồn gốc của nhiều hệ thống không ai hiểu nổi. Khác biệt cốt lõi so với gọi hàm: <span class="kw">producer không biết ai sẽ xử lý, và không chờ kết quả</span>.</p>
+
+        <h3>Event notification vs event-carried state vs event sourcing</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Kiểu</th><th>Nội dung message</th><th>Consumer làm gì</th><th>Coupling</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Notification</strong></td><td>Chỉ id + loại sự kiện</td><td>Gọi lại API để lấy dữ liệu</td><td>Cao — consumer phụ thuộc API producer</td></tr>
+              <tr><td><strong>Event-carried state</strong></td><td>Toàn bộ dữ liệu cần thiết</td><td>Dùng trực tiếp, không gọi lại</td><td><span class="kw-g">Thấp</span> — consumer tự chủ</td></tr>
+              <tr><td><strong>Event sourcing</strong></td><td>Chuỗi event là nguồn sự thật</td><td>Replay để dựng trạng thái</td><td>Thấp, nhưng phức tạp: cần versioning, snapshot</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Notification event tạo ra cascade phụ thuộc ngầm</div>
+            <p>Nếu mỗi event chỉ chứa <code>order_id</code> và mọi consumer gọi lại <code>GET /orders/&#123;id&#125;</code>, bạn đã tạo ra <strong>fan-out đọc</strong> vào service producer: 20 consumer × 1 event = 20 lần gọi API. Khi order service chậm, 20 consumer cùng chậm, và hàng đợi tích tụ. Đây là "event-driven" trên danh nghĩa nhưng thực chất là <span class="kw-r">synchronous coupling</span> che bằng Kafka. Ưu tiên <strong>event-carried state</strong>: đưa đủ dữ liệu vào event để consumer không phải gọi lại. Cái giá là event to hơn (vài KB) và phải xử lý schema evolution — nhưng rẻ hơn nhiều so với cascade.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 400" role="img" aria-label="So sánh event notification gây fan-out đọc với event-carried state tự chủ và mô hình outbox">
+            <defs>
+              <marker id="m6f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+              <marker id="m6fr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#ef4444">✗ NOTIFICATION EVENT — fan-out đọc trở lại</text>
+
+            <rect x="16" y="36" width="110" height="46" rx="7" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="71" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">order svc</text>
+            <text x="71" y="72" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">publish &#123;id&#125;</text>
+
+            <rect x="160" y="36" width="80" height="46" rx="7" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="200" y="64" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">Kafka</text>
+
+            <rect x="274" y="20" width="96" height="30" rx="6" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="322" y="40" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#151515">notify</text>
+            <rect x="274" y="56" width="96" height="30" rx="6" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="322" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#151515">search index</text>
+            <rect x="274" y="92" width="96" height="30" rx="6" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="322" y="112" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#151515">analytics</text>
+
+            <path d="M126,59 L158,59" stroke="#505a68" stroke-width="2" marker-end="url(#m6f)"/>
+            <path d="M240,59 L258,59 L258,35 L272,35" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m6f)"/>
+            <path d="M240,59 L258,59 L258,71 L272,71" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m6f)"/>
+            <path d="M240,59 L258,59 L258,107 L272,107" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m6f)"/>
+
+            <path d="M322,20 C322,4 100,4 76,34" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#m6fr)"/>
+            <path d="M276,56 C260,44 120,20 80,34" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#m6fr)"/>
+            <path d="M276,92 C250,70 130,30 84,36" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#m6fr)"/>
+            <text x="150" y="140" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">3 consumer × mỗi event = 3 lần GET /orders/&#123;id&#125; → cascade</text>
+
+            <line x1="16" y1="160" x2="744" y2="160" stroke="#e7ebf1" stroke-width="2" stroke-dasharray="5 4"/>
+
+            <text x="16" y="186" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#10b981">✓ EVENT-CARRIED STATE — consumer tự chủ</text>
+
+            <rect x="16" y="200" width="150" height="72" rx="7" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="91" y="222" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">order svc</text>
+            <text x="91" y="238" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">BEGIN</text>
+            <text x="91" y="250" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">  insert order</text>
+            <text x="91" y="262" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">  insert outbox</text>
+
+            <rect x="190" y="200" width="110" height="72" rx="7" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="245" y="222" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">outbox</text>
+            <text x="245" y="238" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">cùng transaction</text>
+            <text x="245" y="252" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">với business data</text>
+
+            <rect x="324" y="200" width="110" height="72" rx="7" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="379" y="222" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">relay worker</text>
+            <text x="379" y="238" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">poll / CDC</text>
+            <text x="379" y="252" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">publish + mark</text>
+
+            <rect x="458" y="200" width="286" height="72" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="476" y="222" font-family="Plus Jakarta Sans, sans-serif" font-size="8" font-weight="800" fill="#151515">Event chứa đủ dữ liệu</text>
+            <text x="476" y="238" font-family="JetBrains Mono, monospace" font-size="7" fill="#151515">&#123;v:2, order_id, user_id, total, items[..], ts&#125;</text>
+            <text x="476" y="254" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">Consumer chỉ cần đọc, không gọi lại API.</text>
+            <text x="476" y="266" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#10b981">Không cascade. Producer chết → consumer vẫn chạy.</text>
+
+            <path d="M166,236 L188,236" stroke="#505a68" stroke-width="2" marker-end="url(#m6f)"/>
+            <path d="M300,236 L322,236" stroke="#505a68" stroke-width="2" marker-end="url(#m6f)"/>
+            <path d="M434,236 L456,236" stroke="#505a68" stroke-width="2" marker-end="url(#m6f)"/>
+
+            <rect x="16" y="292" width="728" height="94" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="316" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Vì sao outbox chứ không phải "gọi Kafka sau khi commit"</text>
+            <text x="34" y="338" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Nếu gọi Kafka <em>sau</em> khi COMMIT: nếu process crash giữa COMMIT và publish → event mất vĩnh viễn, consumer không bao giờ biết. Nếu gọi <em>trước</em> COMMIT: event có thể publish nhưng transaction rollback → consumer xử lý dữ liệu không tồn tại.</text>
+            <text x="34" y="358" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Outbox giải quyết cả hai: business data và event intent nằm trong <strong>cùng một transaction</strong>. Chỉ có hai khả năng: cả hai cùng tồn tại, hoặc cả hai cùng không. Relay worker gửi với retry vô hạn (at-least-once), consumer phải idempotent.</text>
+            <text x="34" y="378" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">Đây là pattern bắt buộc cho mọi microservices publish event từ DB. Không có nó, bạn có eventual consistency "có thể mất event".</text>
+          </svg>
+          <div class="diagram-cap">Hình 6.6 — Event mang dữ liệu (không chỉ id), và outbox để publish an toàn</div>
+        </div>
+
+        <h3>Event sourcing — mạnh nhưng đắt</h3>
+        <p>Thay vì lưu trạng thái hiện tại, lưu <em>chuỗi sự kiện</em> đã dẫn đến trạng thái đó. Trạng thái = replay toàn bộ event (hoặc snapshot + event sau đó).</p>
+        <ul class="list-check">
+          <li><strong>Lợi:</strong> audit log hoàn hảo (miễn phí), có thể "time travel" xem trạng thái tại bất kỳ thời điểm nào, có thể thêm projection mới bằng cách replay lại, và debug được "tại sao trạng thái này lại như vậy".</li>
+          <li><strong>Giá:</strong> mọi thay đổi schema phải tương thích ngược vĩnh viễn (event cũ phải replay được mãi); query trạng thái phải qua projection (thêm độ trễ và hệ thống); snapshot + compaction phức tạp; và <span class="kw-r">GDPR xoá dữ liệu cực khó</span> vì bạn không được xoá lịch sử.</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Khi nào KHÔNG nên event-driven</div>
+            <p>Bốn trường hợp: <strong>(1)</strong> Khi user cần kết quả ngay và đơn giản — một hàm gọi đồng bộ rõ ràng hơn nhiều so với "publish rồi chờ webhook". <strong>(2)</strong> Khi cần transaction ACID đơn giản — event-driven biến một transaction thành Saga phức tạp. <strong>(3)</strong> Khi team chưa có observability tốt — debug hệ event-driven không có distributed tracing là ác mộng: bạn không biết event đã đi đâu, bị consume chưa, hay rơi vào DLQ. <strong>(4)</strong> Khi volume thấp — một bảng <code>jobs</code> trong Postgres + worker polling đơn giản hơn Kafka 100 lần và đủ cho &lt; 1.000 event/s. Trong phỏng vấn, nêu được "khi nào không" luôn ăn điểm hơn liệt kê tính năng.</p>
+          </div>
+        </div>

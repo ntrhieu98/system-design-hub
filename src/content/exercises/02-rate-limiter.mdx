@@ -1,0 +1,178 @@
+---
+id: "02"
+title: "Rate Limiter — chọn thuật toán và chống race condition"
+level: intermediate
+summary: "Thiết kế bộ giới hạn tần suất phân tán: so sánh bốn thuật toán, chọn khoá Redis và xử lý trường hợp nhiều instance cùng đếm một user."
+specs: [{ k: "Giới hạn", v: "100 request / phút / user" }, { k: "Số instance", v: "N ≥ 3 (phân tán)" }, { k: "Độ trễ thêm", v: "< 5ms" }, { k: "Thuật toán chính", v: "Sliding window counter" }, { k: "Module liên quan", v: "2 và 4" }]
+module: 2
+order: 2
+---
+
+## Mục tiêu
+
+Thiết kế hệ thống giới hạn tần suất (rate limiting) chống lạm dụng API. Bạn chọn thuật toán, giải thích được vì sao, và xử lý được trường hợp nhiều instance cùng đếm một client.
+
+## Yêu cầu
+
+### Yêu cầu chức năng
+
+1. **Đếm request theo client**: nhận diện client bằng IP hoặc API key
+2. **Áp giới hạn**: từ chối request vượt ngưỡng đã cấu hình
+3. **Cho phép burst**: chấp nhận burst tạm thời tới một ngưỡng tối đa
+4. **Nạp lại**: token nạp lại với tốc độ không đổi theo thời gian
+
+### Yêu cầu phi chức năng
+
+1. **Độ trễ**: bước kiểm tra phải xong trong dưới 1ms
+2. **Phân tán**: chạy được trên nhiều instance
+3. **Chính xác**: không được cho qua nhiều hơn hoặc chặn nhầm quá nhiều
+4. **Quan sát được**: có metric về tốc độ hiện tại, số lần từ chối, trạng thái bucket
+
+## Bốn thuật toán
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Thuật toán</th><th>Cách hoạt động</th><th>Burst</th><th>Nhược điểm</th></tr></thead>
+    <tbody>
+      <tr><td>Fixed window</td><td>Đếm theo cửa sổ cố định (mỗi phút)</td><td>Cho qua 2× ở ranh giới cửa sổ</td><td>Sai lệch lớn ở biên</td></tr>
+      <tr><td>Sliding window log</td><td>Lưu timestamp từng request</td><td>Chính xác</td><td>Tốn bộ nhớ O(số request)</td></tr>
+      <tr><td>Sliding window counter</td><td>Nội suy giữa hai cửa sổ liền kề</td><td>Gần đúng, sai số ~0,003%</td><td>Vẫn là xấp xỉ</td></tr>
+      <tr><td>Token bucket</td><td>Nạp token đều, mỗi request tiêu 1 token</td><td>Cho burst tới capacity</td><td>Cần lưu trạng thái bucket</td></tr>
+    </tbody>
+  </table>
+</div>
+
+## Token bucket
+
+### Tham số
+
+- **rate**: tốc độ nạp (token/giây)
+- **capacity**: số token tối đa bucket giữ được
+- **burst**: burst tối đa cho phép (thường bằng capacity)
+
+### Cách hoạt động
+
+1. Bucket khởi đầu đầy (capacity token)
+2. Mỗi request tiêu 1 token
+3. Token nạp lại với tốc độ `rate` token/giây
+4. Bucket đầy thì ngừng nạp
+5. Bucket rỗng thì từ chối request
+
+### Mô hình toán
+
+```
+tokens(t) = min(capacity, tokens(t-1) + rate × Δt)
+allowed    = tokens(t) > 0 && consume_token()
+```
+
+### Ví dụ cấu hình
+
+- rate = 10 token/giây (duy trì 10 req/giây)
+- capacity = 100 token (burst tới 100 request)
+- Bình thường: 10 req/giây
+- Burst: tối đa 100 request liên tiếp
+- Sau burst: 10 giây để nạp đầy lại
+
+## Ba cách triển khai
+
+### 1. Chỉ trong bộ nhớ (một instance)
+
+```python
+rate_limits = {}  # client_id -> {tokens, last_refill}
+
+def check_rate(client_id, rate, capacity):
+    now = time.time()
+    if client_id not in rate_limits:
+        rate_limits[client_id] = {"tokens": capacity, "last_refill": now}
+
+    limit = rate_limits[client_id]
+    # Nạp token theo thời gian đã trôi qua
+    elapsed = now - limit["last_refill"]
+    add_tokens = elapsed * rate
+    limit["tokens"] = min(capacity, limit["tokens"] + add_tokens)
+    limit["last_refill"] = now
+
+    if limit["tokens"] > 0:
+        limit["tokens"] -= 1
+        return True   # cho qua
+    return False      # từ chối
+```
+
+### 2. Dùng Redis (phân tán)
+
+- Dùng Lua script để gộp kiểm tra và tiêu token thành một thao tác nguyên tử
+- Khoá theo mẫu `rate_limit:{client_id}`
+- TTL tự hết hạn theo chu kỳ nạp token
+
+<div class="codeblock">
+<div class="codeblock-head"><span class="codeblock-lang">LUA</span><button class="codeblock-copy" type="button">Copy</button></div>
+<pre><code><span class="c-key">local</span> key     = KEYS[1]&#10;<span class="c-key">local</span> rate    = <span class="c-fn">tonumber</span>(ARGV[1])&#10;<span class="c-key">local</span> cap     = <span class="c-fn">tonumber</span>(ARGV[2])&#10;<span class="c-key">local</span> now     = <span class="c-fn">tonumber</span>(ARGV[3])&#10;&#10;<span class="c-key">local</span> b       = redis.<span class="c-fn">call</span>(<span class="c-str">'HMGET'</span>, key, <span class="c-str">'tokens'</span>, <span class="c-str">'ts'</span>)&#10;<span class="c-key">local</span> tokens  = <span class="c-fn">tonumber</span>(b[1]) <span class="c-key">or</span> cap&#10;<span class="c-key">local</span> ts      = <span class="c-fn">tonumber</span>(b[2]) <span class="c-key">or</span> now&#10;&#10;tokens = math.<span class="c-fn">min</span>(cap, tokens + (now - ts) * rate)&#10;&#10;<span class="c-key">if</span> tokens &lt; 1 <span class="c-key">then</span>&#10;  redis.<span class="c-fn">call</span>(<span class="c-str">'HMSET'</span>, key, <span class="c-str">'tokens'</span>, tokens, <span class="c-str">'ts'</span>, now)&#10;  <span class="c-key">return</span> 0&#10;<span class="c-key">end</span>&#10;&#10;redis.<span class="c-fn">call</span>(<span class="c-str">'HMSET'</span>, key, <span class="c-str">'tokens'</span>, tokens - 1, <span class="c-str">'ts'</span>, now)&#10;redis.<span class="c-fn">call</span>(<span class="c-str">'EXPIRE'</span>, key, math.<span class="c-fn">ceil</span>(cap / rate) + 1)&#10;<span class="c-key">return</span> 1</code></pre>
+</div>
+
+<div class="callout callout-info"><div class="callout-ico">i</div><div class="callout-body"><div class="callout-title">Vì sao phải dùng Lua</div><p>Đọc token, tính lại, rồi ghi là ba bước. Nếu hai request cùng chạy xen kẽ giữa bước đọc và bước ghi, cả hai đều thấy còn token và đều được cho qua — giới hạn bị vượt. Redis chạy script nguyên tử nên không có khe hở đó.</p></div></div>
+
+### 3. Lai
+
+- Cache trong bộ nhớ cho client nóng
+- Redis làm nguồn đúng cho client lạnh hoặc khi cần nhất quán giữa các instance
+
+## Tích hợp API gateway
+
+### Response 429
+
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json
+Retry-After: 3600
+{
+  "error": "rate_limit_exceeded",
+  "limit": 10,
+  "remaining": 0,
+  "reset": 1704067200
+}
+```
+
+### Header nên trả
+
+- `X-RateLimit-Limit`: tổng số request được phép trong chu kỳ
+- `X-RateLimit-Remaining`: số request còn lại trong chu kỳ hiện tại
+- `X-RateLimit-Reset`: mốc epoch khi bộ đếm reset
+
+## Quyết định thiết kế
+
+### 1. Khoá đếm theo cái gì
+
+**Quyết định:** theo client (IP hoặc API key)
+
+- Ưu điểm: cô lập từng client, dễ hiểu
+- Nhược điểm: nhiều user sau NAT dùng chung IP sẽ bị tính là một client
+- **Chọn:** theo client, vì giới hạn nhắm đúng đối tượng
+
+### 2. Chặn ở đâu
+
+**Quyết định:** ở API gateway / tầng edge
+
+- Ưu điểm: chặn sớm, tiết kiệm tài nguyên backend
+- Nhược điểm: thêm một hop, gateway phải đủ năng lực
+- **Chọn:** chặn ở edge
+
+### 3. Tính tất định
+
+**Quyết định:** nạp token tất định để kết quả đoán trước được
+
+- Rate limiter phải cho cùng kết quả với cùng chuỗi request
+- **Chọn:** công thức nạp tuyến tính theo thời gian, không dùng random
+
+## Sản phẩm cần nộp
+
+1. **Thiết kế**: đặc tả token bucket kèm tham số
+2. **Cài đặt**: pseudocode hoặc code thật cho bước kiểm tra
+3. **Metric**: theo dõi tỉ lệ từ chối, mức bucket trung bình
+4. **Kiểm thử**: test cho các biên (đúng bằng ngưỡng, ngay dưới, ngay trên)
+
+## Tiêu chí đạt
+
+- [ ] Tham số token bucket được định nghĩa rõ
+- [ ] Bước kiểm tra đúng ở các giá trị biên
+- [ ] Có mô tả cách tích hợp API gateway
+- [ ] Có chiến lược metric và giám sát

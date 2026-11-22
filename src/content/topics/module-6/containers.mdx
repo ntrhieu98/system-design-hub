@@ -1,0 +1,78 @@
+---
+title: "Container & Kubernetes — mô hình khai báo"
+description: "Sự thay đổi tư duy lớn nhất khi lên cloud-native không phải công nghệ mà là khai báo thay vì ra lệnh: bạn nói \"tôi muốn 3 replica đang chạy\", hệ thống tự lo phần còn lại."
+module: 6
+order: 2
+num: "6.2"
+sectionId: "containers"
+---
+<p>Sự thay đổi tư duy lớn nhất khi lên cloud-native không phải công nghệ mà là <span class="kw">khai báo thay vì ra lệnh</span>: bạn nói "tôi muốn 3 replica đang chạy", hệ thống tự lo phần còn lại. Kiểm tra nó đang chạy và sửa khi sai — đó là <span class="kw-y">reconcile loop</span>.</p>
+
+        <h3>Container vs VM</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tiêu chí</th><th>VM</th><th>Container</th></tr></thead>
+            <tbody>
+              <tr><td>Khởi động</td><td>30s – 2 phút (boot OS)</td><td><span class="kw-g">0,5 – 5s</span></td></tr>
+              <tr><td>Kích thước</td><td>GB (cả OS)</td><td>10–500 MB (chỉ app + lib)</td></tr>
+              <tr><td>Cô lập</td><td><span class="kw-g">Mạnh</span> (hypervisor, kernel riêng)</td><td>Yếu hơn (chung kernel, namespace + cgroup)</td></tr>
+              <tr><td>Mật độ</td><td>Vài chục/host</td><td>Hàng trăm/host</td></tr>
+              <tr><td>Phù hợp</td><td>Workload tin cậy thấp, cần kernel riêng, Windows</td><td>Hầu hết microservices, batch job, CI</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Image layers và tại sao build lại nhanh</div>
+            <p>Image là chồng layer bất biến. Dockerfile dòng nào cũng tạo một layer; nếu dòng đó và mọi dòng trước không đổi, layer được lấy từ cache. Vì vậy thứ tự Dockerfile quan trọng: <strong>copy <code>package.json</code> và chạy install TRƯỚC, copy source code SAU</strong>. Nếu copy source trước, mỗi lần sửa một dòng code là phải cài lại toàn bộ dependency — build từ 10s thành 5 phút. Đây là tối ưu #1 cho DX mà nhiều team vẫn làm sai.</p>
+          </div>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">DOCKERFILE</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># Multi-stage: image cuối không chứa build tool</span>&#10;<span class="c-key">FROM</span> node:22-alpine <span class="c-key">AS</span> build&#10;<span class="c-key">WORKDIR</span> /app&#10;<span class="c-com"># 1. Dependency trước — cache được khi chỉ đổi code</span>&#10;<span class="c-key">COPY</span> package.json pnpm-lock.yaml ./&#10;<span class="c-key">RUN</span> corepack enable &amp;&amp; pnpm install --frozen-lockfile&#10;<span class="c-com"># 2. Source sau</span>&#10;<span class="c-key">COPY</span> . .&#10;<span class="c-key">RUN</span> pnpm build&#10;&#10;<span class="c-key">FROM</span> node:22-alpine&#10;<span class="c-key">WORKDIR</span> /app&#10;<span class="c-key">RUN</span> addgroup -S app &amp;&amp; adduser -S app -G app&#10;<span class="c-key">COPY</span> --from=build --chown=app:app /app/dist ./dist&#10;<span class="c-key">COPY</span> --from=build --chown=app:app /app/node_modules ./node_modules&#10;<span class="c-com"># Không chạy root — bắt buộc cho production</span>&#10;<span class="c-key">USER</span> app&#10;<span class="c-key">EXPOSE</span> 3000&#10;<span class="c-com"># Exec form: signal (SIGTERM) tới đúng process, không qua shell</span>&#10;<span class="c-key">CMD</span> [<span class="c-str">"node"</span>, <span class="c-str">"dist/server.js"</span>]</code></pre>
+        </div>
+
+        <h3>Kubernetes — bốn khái niệm đủ dùng</h3>
+        <ul class="list-bullet">
+          <li><span class="kw">Pod:</span> đơn vị nhỏ nhất, chứa 1+ container chia sẻ network namespace. Thường 1 container chính + sidecar. Pod là <em>ephemeral</em> — không bao giờ giả định nó tồn tại.</li>
+          <li><span class="kw">Deployment:</span> quản lý replica của pod, hỗ trợ rolling update và rollback. Đây là thứ bạn dùng cho stateless app.</li>
+          <li><span class="kw">Service:</span> tên DNS + load balancing ổn định cho tập pod luôn thay đổi (ClusterIP, NodePort, LoadBalancer).</li>
+          <li><span class="kw">StatefulSet:</span> cho workload cần identity ổn định (DB, Kafka broker) — pod giữ tên, PVC giữ volume, khởi động theo thứ tự.</li>
+        </ul>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">YAML</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-key">apiVersion</span>: apps/v1&#10;<span class="c-key">kind</span>: Deployment&#10;<span class="c-key">metadata</span>:&#10;  <span class="c-key">name</span>: order-api&#10;<span class="c-key">spec</span>:&#10;  <span class="c-key">replicas</span>: <span class="c-num">3</span>&#10;  <span class="c-key">strategy</span>:&#10;    <span class="c-key">type</span>: RollingUpdate&#10;    <span class="c-key">rollingUpdate</span>: &#123; <span class="c-key">maxSurge</span>: <span class="c-num">1</span>, <span class="c-key">maxUnavailable</span>: <span class="c-num">0</span> &#125;  <span class="c-com"># không giảm capacity</span>&#10;  <span class="c-key">selector</span>: &#123; <span class="c-key">matchLabels</span>: &#123; <span class="c-key">app</span>: order-api &#125; &#125;&#10;  <span class="c-key">template</span>:&#10;    <span class="c-key">metadata</span>: &#123; <span class="c-key">labels</span>: &#123; <span class="c-key">app</span>: order-api &#125; &#125;&#10;    <span class="c-key">spec</span>:&#10;      <span class="c-key">terminationGracePeriodSeconds</span>: <span class="c-num">30</span>&#10;      <span class="c-key">containers</span>:&#10;        - <span class="c-key">name</span>: api&#10;          <span class="c-key">image</span>: registry/order-api:1.4.2      <span class="c-com"># tag cố định, không dùng :latest</span>&#10;          <span class="c-key">ports</span>: [&#123; <span class="c-key">containerPort</span>: <span class="c-num">3000</span> &#125;]&#10;          <span class="c-key">resources</span>:&#10;            <span class="c-key">requests</span>: &#123; <span class="c-key">cpu</span>: <span class="c-num">200m</span>, <span class="c-key">memory</span>: <span class="c-num">256Mi</span> &#125;   <span class="c-com"># scheduler dùng để chọn node</span>&#10;            <span class="c-key">limits</span>:   &#123; <span class="c-key">cpu</span>: <span class="c-num">1000m</span>, <span class="c-key">memory</span>: <span class="c-num">512Mi</span> &#125;  <span class="c-com"># vượt memory → OOMKilled</span>&#10;          <span class="c-key">readinessProbe</span>:                       <span class="c-com"># fail → rút khỏi Service</span>&#10;            <span class="c-key">httpGet</span>: &#123; <span class="c-key">path</span>: /health/ready, <span class="c-key">port</span>: <span class="c-num">3000</span> &#125;&#10;            <span class="c-key">initialDelaySeconds</span>: <span class="c-num">5</span>&#10;            <span class="c-key">periodSeconds</span>: <span class="c-num">5</span>&#10;          <span class="c-key">livenessProbe</span>:                        <span class="c-com"># fail → restart container</span>&#10;            <span class="c-key">httpGet</span>: &#123; <span class="c-key">path</span>: /health/live, <span class="c-key">port</span>: <span class="c-num">3000</span> &#125;&#10;            <span class="c-key">periodSeconds</span>: <span class="c-num">10</span>&#10;            <span class="c-key">failureThreshold</span>: <span class="c-num">3</span>&#10;          <span class="c-key">lifecycle</span>:&#10;            <span class="c-key">preStop</span>:&#10;              <span class="c-key">exec</span>: &#123; <span class="c-key">command</span>: [<span class="c-str">"sh"</span>, <span class="c-str">"-c"</span>, <span class="c-str">"sleep 5"</span>] &#125;  <span class="c-com"># chờ LB cập nhật</span></code></pre>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba lỗi Kubernetes làm sập production nhiều nhất</div>
+            <p><strong>1. Không có <code>preStop</code> sleep:</strong> khi pod bị xoá, K8s gửi SIGTERM và rút pod khỏi Service <em>gần như đồng thời</em>. Nhưng load balancer cần 1–5 giây để cập nhật. Trong khoảng đó, traffic vẫn được đẩy tới pod đang tắt → <span class="kw-r">502 hàng loạt mỗi lần deploy</span>. Sửa: thêm <code>preStop: sleep 5</code>. <strong>2. Liveness probe kiểm tra dependency:</strong> nếu <code>/health/live</code> ping DB, DB chậm 30s → tất cả pod bị restart <em>cùng lúc</em> → toàn hệ thống sập vì một DB chậm. Liveness chỉ nên kiểm tra process còn phản hồi, không kiểm tra dependency. <strong>3. CPU limit quá thấp:</strong> CPU limit gây throttling, không chỉ giới hạn mà còn làm chậm đột ngột. Với app latency-sensitive, đặt CPU limit = 2–3× request hoặc bỏ limit (chỉ đặt request). Đây là chủ đề gây tranh cãi nhưng với hầu hết workload, <code>request</code> là đủ để scheduler hoạt động đúng.</p>
+          </div>
+        </div>
+
+        <h3>Autoscaling — metric nào mới đúng</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cách scale</th><th>Metric</th><th>Vấn đề</th></tr></thead>
+            <tbody>
+              <tr><td>HPA theo CPU</td><td><code>cpu utilization 70%</code></td><td>CPU không tương quan với tải thật với app I/O-bound. App chờ DB ở 15% CPU sẽ không scale dù latency tăng.</td></tr>
+              <tr><td><span class="kw-g">HPA theo RPS</span></td><td>requests per second per pod</td><td>Tốt nhất cho API — tương quan trực tiếp. Cần Prometheus adapter.</td></tr>
+              <tr><td><span class="kw-g">KEDA theo queue</span></td><td>queue depth / lag</td><td>Đúng cho worker. Scale theo Kafka lag là chuẩn mực.</td></tr>
+              <tr><td>Scale theo lịch</td><td>Cron</td><td>Hiệu quả cho traffic biết trước (giờ làm việc). Kết hợp với HPA, không thay thế.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Scale-out không cứu được app bị nghẽn ở DB</div>
+            <p>Nếu bottleneck là DB connection pool (ví dụ max 100 connection, mỗi pod giữ 10), thì scale từ 5 lên 20 pod sẽ làm 200 connection cùng tranh 100 slot → <strong>tệ hơn trước</strong>: nhiều pod hơn, mỗi pod chờ lâu hơn, timeout nhiều hơn. Đây là lý do phải biết bottleneck thật trước khi bật autoscaling. Kiểm tra: tăng pod gấp đôi, nếu throughput không tăng mà latency tăng → nghẽn ở tài nguyên chia sẻ (DB, Redis, downstream API). Giải pháp đúng là connection pooler (PgBouncer), cache, hoặc đọc từ replica — không phải thêm pod.</p>
+          </div>
+        </div>

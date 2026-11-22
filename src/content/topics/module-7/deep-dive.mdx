@@ -1,0 +1,78 @@
+---
+title: "Deep dive — đi sâu 2 thành phần mà không lạc"
+description: "Sau high-level, interviewer sẽ chọn 1–2 chỗ để hỏi sâu. Đây là lúc phân biệt người biết tên công nghệ với người đã vận hành thật."
+module: 7
+order: 4
+num: "7.4"
+sectionId: "deep-dive"
+---
+<p>Sau high-level, interviewer sẽ chọn 1–2 chỗ để hỏi sâu. Đây là lúc phân biệt người <span class="kw">biết tên công nghệ</span> với người <span class="kw-y">đã vận hành thật</span>. Bạn cần đi từ data model → con số → failure mode, không chỉ nói "dùng Redis".</p>
+
+        <h3>Chọn gì để deep dive</h3>
+        <ol class="list-num">
+          <li><strong>Thành phần chịu tải lớn nhất</strong> — thường là read path hoặc write path chính. Đây là nơi có nhiều quyết định nhất.</li>
+          <li><strong>Thành phần có tính nhất quán phức tạp</strong> — ví dụ đồng bộ giữa DB và search index, hoặc chuyển tiền.</li>
+          <li><strong>Thành phần dễ hỏng nhất</strong> — nơi có SPOF tiềm ẩn hoặc phụ thuộc bên thứ ba.</li>
+        </ol>
+        <p>Nếu bạn được chọn, hãy nói rõ: "Tôi muốn đi sâu vào phần X vì đó là nơi tôi thấy nhiều rủi ro nhất." Điều này thể hiện bạn có phán đoán.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 340" role="img" aria-label="Cấu trúc năm lớp của một phần deep dive từ mục đích đến failure mode và monitoring">
+            <defs>
+              <marker id="m7b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="16" y="30" width="720" height="44" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="50" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">1. MỤC ĐÍCH — nó giải quyết vấn đề gì, nếu bỏ đi thì sao</text>
+            <text x="34" y="66" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">"Lớp này tồn tại để giảm 95% tải đọc vào DB. Bỏ đi → DB quá tải ở 11,6k QPS."</text>
+
+            <rect x="16" y="84" width="720" height="44" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="104" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">2. DATA MODEL — schema, key design, index</text>
+            <text x="34" y="120" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">urls(code PK, long_url, user_id, created_at) · index: (user_id, created_at DESC)</text>
+
+            <rect x="16" y="138" width="720" height="44" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="158" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">3. CON SỐ — capacity, latency, sizing</text>
+            <text x="34" y="174" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">"Redis 64GB cho 10M key hot, p99 1,2ms. Postgres 500GB, p99 8ms. Cache hit 90% → DB chỉ 1.160 QPS."</text>
+
+            <rect x="16" y="192" width="720" height="44" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="212" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">4. FAILURE MODE — điều gì xảy ra khi nó hỏng</text>
+            <text x="34" y="228" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">"Redis chết → fallback DB, sẽ quá tải. Giảm nhẹ: fail-open cho read không quan trọng + circuit breaker để không đánh sập DB."</text>
+
+            <rect x="16" y="246" width="720" height="44" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="266" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">5. MONITORING — bạn biết nó đang khoẻ bằng cách nào</text>
+            <text x="34" y="282" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">"Alert khi hit ratio &lt; 85%, p99 &gt; 5ms, hoặc evicted_keys &gt; 0 — ba dấu hiệu cache sắp mất tác dụng."</text>
+
+            <text x="16" y="316" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">Lớp 4 và 5 là thứ phân biệt senior với middle — hầu hết ứng viên dừng ở lớp 3.</text>
+          </svg>
+          <div class="diagram-cap">Hình 7.2 — Năm lớp của một deep dive tốt; đừng dừng ở "tôi dùng Redis"</div>
+        </div>
+
+        <h3>Năm deep dive phổ biến và những gì phải nói</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Chủ đề</th><th>Điểm phải nói</th><th>Câu hỏi interviewer hay hỏi tiếp</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Cache</strong></td><td>Key design, TTL + jitter, chiến lược (aside/through), chống stampede/penetration/avalanche, eviction policy</td><td>"Key hot hết hạn cùng lúc thì sao?" → single-flight</td></tr>
+              <tr><td><strong>Sharding</strong></td><td>Shard key + lý do, resharding, cross-shard query, hotspot</td><td>"Thêm node thì sao?" → consistent hashing / fixed partitions</td></tr>
+              <tr><td><strong>Rate limiter</strong></td><td>Thuật toán, state ở đâu, atomic, phân tán</td><td>"10 instance đếm riêng thì sao?" → Redis + Lua</td></tr>
+              <tr><td><strong>Consistency</strong></td><td>Mức nào cho entity nào, replication lag, read-your-writes</td><td>"User vừa ghi không thấy dữ liệu?" → route về leader</td></tr>
+              <tr><td><strong>Queue</strong></td><td>At-least-once, idempotency, DLQ, ordering, lag monitoring</td><td>"Consumer chết giữa chừng?" → offset + idempotent</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Mẹo: dùng con số để neo câu chuyện</div>
+            <p>Khi nói về một thành phần, luôn gắn con số: "Cache này phục vụ 90% của 11.600 QPS, tức ~10.400 QPS, với p99 1ms — nghĩa là 10.400 request mỗi giây không chạm DB." Con số làm câu trả lời có sức nặng và chứng minh bạn đã tính toán chứ không đọc thuộc. Ngược lại, nói "cache giúp giảm tải DB" mà không có số là câu trả lời của người chưa thiết kế hệ thống thật.</p>
+          </div>
+        </div>
+
+        <h3>Ba câu hỏi "khó" và cách xử lý</h3>
+        <ul class="list-bullet">
+          <li><strong>"Nếu tôi tăng traffic lên 10 lần thì sao?"</strong> — Đừng nói "thêm server". Đi qua từng tầng: LB (scale ngang được), app (stateless → scale), cache (shard Redis), DB (read replica cho đọc, shard cho ghi, hoặc queue để làm phẳng write). Nêu tầng nào sẽ vỡ trước: thường là DB ghi. Nói rõ ngưỡng bạn sẽ shard.</li>
+          <li><strong>"Tại sao không dùng [công nghệ khác]?"</strong> — Không phủ nhận. "Cách đó cũng hợp lý. Tôi chọn cách này vì [ràng buộc cụ thể]. Nếu [điều kiện khác] thì tôi sẽ chọn cách kia." Thể hiện bạn biết cả hai và có lý do chọn.</li>
+          <li><strong>"Chi phí thì sao?"</strong> — Hầu hết ứng viên không nghĩ đến. Nói: "Ước tính ~$X/tháng cho compute, $Y cho storage, $Z cho egress. Chi phí lớn nhất là egress/observability, nên tôi giảm bằng cache + sample traces + S3 tiering." Đây là câu trả lời gây ấn tượng mạnh.</li>
+        </ul>

@@ -1,0 +1,88 @@
+---
+title: "Tám ngộ nhận chết người & mô hình lỗi"
+description: "Peter Deutsch đúc kết tám ngộ nhận mà mọi kỹ sư mới làm hệ phân tán đều mắc. Chúng không sai vì lý thuyết — chúng sai vì đúng 99% thời gian, và 1% còn lại tạo ra sự cố production."
+module: 4
+order: 1
+num: "4.1"
+sectionId: "fallacies"
+---
+<p>Peter Deutsch đúc kết tám ngộ nhận mà mọi kỹ sư mới làm hệ phân tán đều mắc. Chúng không sai vì lý thuyết — chúng sai vì <span class="kw">đúng 99% thời gian</span>, và 1% còn lại tạo ra sự cố production.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Ngộ nhận</th><th>Thực tế</th><th>Hệ quả nếu tin</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Mạng luôn tin cậy</td><td>Packet mất, trễ, nhân đôi, đảo thứ tự</td><td>Không có retry/idempotency → mất hoặc trùng dữ liệu</td></tr>
+              <tr><td>2</td><td>Latency bằng 0</td><td>Cross-AZ ~0,5ms, cross-region 50–200ms</td><td>Chatty API: 50 call × 5ms = 250ms chỉ để nói chuyện nội bộ</td></tr>
+              <tr><td>3</td><td>Băng thông vô hạn</td><td>1 Gbps = 125 MB/s; cross-AZ tính tiền</td><td>Broadcast lớn, fan-out không giới hạn, hoá đơn egress</td></tr>
+              <tr><td>4</td><td>Mạng an toàn</td><td>Zero trust: mọi traffic phải xác thực</td><td>Bị lateral movement sau khi một pod bị chiếm</td></tr>
+              <tr><td>5</td><td>Topology không đổi</td><td>Autoscaling, pod restart, IP đổi liên tục</td><td>Hard-code IP; DNS cache TTL dài gây lỗi sau deploy</td></tr>
+              <tr><td>6</td><td>Chỉ có một admin</td><td>Nhiều team, nhiều tool cùng đổi cấu hình</td><td>Cấu hình bị ghi đè, không ai biết ai đổi gì</td></tr>
+              <tr><td>7</td><td>Chi phí vận chuyển bằng 0</td><td>Serialization, egress, cross-AZ đều tốn</td><td>Chọn JSON cho 1M message/s thay vì Protobuf</td></tr>
+              <tr><td>8</td><td>Mạng đồng nhất</td><td>MTU, IPv6, proxy, TLS termination khác nhau</td><td>Bug chỉ xuất hiện ở một AZ hoặc sau một load balancer</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Đồng hồ nói dối — ví dụ cụ thể nhất</h3>
+        <p>Hai node NTP sync. Node A có đồng hồ nhanh 30ms. Client ghi <code>x=1</code> vào A lúc <code>10:00:00.000</code> (giờ thật <code>09:59:59.970</code>), rồi ghi <code>x=2</code> vào B lúc <code>10:00:00.010</code> (giờ thật <code>10:00:00.010</code>). Dùng LWW theo timestamp: bản ghi <code>x=1</code> thắng dù nó xảy ra <em>trước</em>. Không có lỗi nào được báo — chỉ là dữ liệu sai.</p>
+        <ul class="list-bullet">
+          <li><strong>Đồng hồ vật lý</strong> (wall clock) không đơn điệu: NTP chỉnh lùi được, VM live-migration làm nhảy, leap second. Không bao giờ dùng để sắp thứ tự event.</li>
+          <li><strong>Đồng hồ đơn điệu</strong> (<code>performance.now</code>, <code>clock_gettime(CLOCK_MONOTONIC)</code>) chỉ dùng đo khoảng thời gian, không so giữa hai máy.</li>
+          <li><strong>Lamport clock</strong> cho thứ tự nhân quả (nếu A → B thì L(A) &lt; L(B)) nhưng không so được hai event độc lập.</li>
+          <li><strong>Vector clock</strong> phát hiện được xung đột thật nhưng kích thước tăng theo số node — không scale cho 1000 node.</li>
+          <li><strong>HLC (Hybrid Logical Clock)</strong> là thực dụng nhất: kết hợp vật lý + logic để giữ thứ tự nhân quả, vẫn gần giờ thật để debug. CockroachDB, MongoDB dùng.</li>
+        </ul>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 330" role="img" aria-label="So sánh ba mức độ mô hình lỗi từ crash-stop đến Byzantine và chi phí tương ứng">
+            <defs>
+              <marker id="m4a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="20" y="26" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Mô hình lỗi — càng giả định ít, càng đắt</text>
+
+            <rect x="20" y="44" width="232" height="112" rx="10" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="136" y="70" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Crash-stop</text>
+            <text x="136" y="92" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Node chết và im lặng mãi mãi</text>
+            <text x="136" y="112" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Dễ nhất để suy luận</text>
+            <text x="136" y="136" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#10b981">Raft, Paxos, 2PC</text>
+
+            <rect x="264" y="44" width="232" height="112" rx="10" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="380" y="70" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Crash-recovery</text>
+            <text x="380" y="92" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Chết rồi sống lại, mất RAM,</text>
+            <text x="380" y="112" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">giữ được disk</text>
+            <text x="380" y="136" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#b45309">Cần WAL + replay</text>
+
+            <rect x="508" y="44" width="232" height="112" rx="10" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="624" y="70" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Byzantine</text>
+            <text x="624" y="92" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Node nói dối, gửi message sai,</text>
+            <text x="624" y="112" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">bị compromise</text>
+            <text x="624" y="136" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#ef4444">Cần 3f+1 node</text>
+
+            <path d="M252,100 L262,100" stroke="#505a68" stroke-width="2" marker-end="url(#m4a)"/>
+            <path d="M496,100 L506,100" stroke="#505a68" stroke-width="2" marker-end="url(#m4a)"/>
+
+            <rect x="20" y="180" width="720" height="60" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="38" y="204" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Trong phỏng vấn, hãy nói rõ model bạn giả định</text>
+            <text x="38" y="224" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">"Tôi giả định crash-recovery và mạng có thể partition, không giả định Byzantine vì các node nằm trong VPC do ta kiểm soát." — một câu như vậy thể hiện chiều sâu hơn 10 phút vẽ diagram.</text>
+
+            <rect x="20" y="252" width="352" height="60" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="38" y="276" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Fault ≠ Failure</text>
+            <text x="38" y="296" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">1 ổ đĩa chết = fault. Hệ thống vẫn phục vụ = chưa failure.</text>
+
+            <rect x="388" y="252" width="352" height="60" rx="9" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="406" y="276" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Cascading failure</text>
+            <text x="406" y="296" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">Một service chậm → thread pool đầy → cả hệ thống sập.</text>
+          </svg>
+          <div class="diagram-cap">Hình 4.1 — Chọn mô hình lỗi quyết định thuật toán và chi phí hạ tầng</div>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Timeout là công cụ, không phải giải pháp</div>
+            <p>Timeout là cách duy nhất để một hệ bất đồng bộ đưa ra quyết định, nhưng nó <strong>luôn đoán sai một phần</strong>: timeout quá ngắn → coi node sống là chết, gây failover không cần thiết; quá dài → chờ đợi trong vô vọng. Quy tắc thực dụng: đặt timeout theo <code>p99.9</code> của dependency, không theo trung bình; dùng <strong>exponential backoff + jitter</strong> khi retry (không có jitter, 10.000 client retry cùng lúc tạo ra <span class="kw-r">thundering herd</span> đánh sập dependency vừa hồi phục); và giới hạn số lần retry (3 là đủ; retry vô hạn biến lỗi tạm thời thành lỗi vĩnh viễn).</p>
+          </div>
+        </div>

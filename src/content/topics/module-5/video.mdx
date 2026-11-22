@@ -1,0 +1,127 @@
+---
+title: "Video Streaming — pipeline encode và segment"
+description: "Video là bài toán băng thông nhiều hơn là bài toán dữ liệu. Một file 1GB phục vụ 1 triệu lượt xem là 1PB egress."
+module: 5
+order: 7
+num: "5.7"
+sectionId: "video"
+---
+<p>Video là bài toán <span class="kw">băng thông</span> nhiều hơn là bài toán dữ liệu. Một file 1GB phục vụ 1 triệu lượt xem là 1PB egress. Thiết kế đúng phải giải quyết: encode nhiều bitrate, chia segment, cache ở CDN, và chọn bitrate theo mạng của client.</p>
+
+        <h3>Pipeline từ upload tới phát</h3>
+        <div class="diagram">
+          <svg viewBox="0 0 760 440" role="img" aria-label="Pipeline video từ upload qua transcode thành các segment HLS nhiều bitrate rồi phục vụ qua CDN với adaptive bitrate">
+            <defs>
+              <marker id="m5g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="16" y="26" width="112" height="56" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="72" y="50" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Upload</text>
+            <text x="72" y="68" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">multipart / S3</text>
+
+            <rect x="154" y="26" width="120" height="56" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="214" y="50" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">S3 raw</text>
+            <text x="214" y="68" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">file gốc</text>
+
+            <rect x="300" y="26" width="130" height="56" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="365" y="46" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Kafka</text>
+            <text x="365" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">video.uploaded</text>
+            <text x="365" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#8b95a3">1 message/video</text>
+
+            <rect x="456" y="26" width="140" height="56" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="526" y="46" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Transcode workers</text>
+            <text x="526" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">FFmpeg, GPU/CPU</text>
+            <text x="526" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#ef4444">tốn nhất về compute</text>
+
+            <rect x="622" y="26" width="126" height="56" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="685" y="50" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">S3 processed</text>
+            <text x="685" y="68" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">segments + manifest</text>
+
+            <path d="M128,54 L152,54" stroke="#505a68" stroke-width="2" marker-end="url(#m5g)"/>
+            <path d="M274,54 L298,54" stroke="#505a68" stroke-width="2" marker-end="url(#m5g)"/>
+            <path d="M430,54 L454,54" stroke="#505a68" stroke-width="2" marker-end="url(#m5g)"/>
+            <path d="M596,54 L620,54" stroke="#505a68" stroke-width="2" marker-end="url(#m5g)"/>
+
+            <rect x="16" y="112" width="732" height="96" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="136" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Output: 1 video → nhiều rendition, mỗi rendition chia thành segment 4–10 giây</text>
+            <text x="34" y="160" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">240p (400kbps) · 360p (800k) · 480p (1.4M) · 720p (2.5M) · 1080p (5M) · 1440p (9M) · 4K (18M)</text>
+            <text x="34" y="180" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Ví dụ video 60 phút, segment 6s: 600 segment × 7 rendition = <strong>4.200 file</strong> cho một video.</text>
+            <text x="34" y="198" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Segment 6s vì: đủ dài để overhead thấp (1 request/6s), đủ ngắn để chuyển bitrate nhanh khi mạng đổi.</text>
+
+            <rect x="16" y="228" width="360" height="96" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="252" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Manifest (m3u8 / MPD)</text>
+            <text x="34" y="274" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">#EXT-X-STREAM-INF:BANDWIDTH=800000</text>
+            <text x="34" y="290" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">360p/index.m3u8</text>
+            <text x="34" y="306" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">#EXT-X-STREAM-INF:BANDWIDTH=2500000</text>
+            <text x="34" y="318" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">720p/index.m3u8</text>
+
+            <rect x="392" y="228" width="356" height="96" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="410" y="252" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Adaptive Bitrate (ABR) ở client</text>
+            <text x="410" y="274" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Client đo throughput + buffer level, tự chọn</text>
+            <text x="410" y="290" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">rendition cho segment tiếp theo.</text>
+            <text x="410" y="310" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">Server không quyết định — client quyết định.</text>
+            <text x="410" y="318" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">Đây là lý do HLS/DASH thắng RTMP cho VOD.</text>
+
+            <rect x="16" y="344" width="732" height="80" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="368" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Phục vụ: CDN là toàn bộ câu chuyện</text>
+            <text x="34" y="390" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Segment là file bất biến (immutable) → cache vĩnh viễn tại CDN, hit ratio &gt; 95%. Chỉ manifest cần TTL ngắn (live) hoặc cũng immutable (VOD).</text>
+            <text x="34" y="408" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Egress CDN rẻ hơn origin 5–10×. Với 1 triệu view/video, CDN là bắt buộc, không phải tối ưu.</text>
+          </svg>
+          <div class="diagram-cap">Hình 5.7 — Video: compute đắt ở transcode, băng thông đắt ở egress, cả hai đều giải bằng segment + CDN</div>
+        </div>
+
+        <h3>Ước lượng cho một nền tảng video</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Cách tính</th><th>Kết quả</th></tr></thead>
+            <tbody>
+              <tr><td>Upload</td><td>500 giờ video/phút (YouTube-scale)</td><td>720.000 giờ/ngày</td></tr>
+              <tr><td>Storage gốc</td><td>720.000 giờ × 3600s × 5 Mbps / 8</td><td>≈ 1,6 PB/ngày (gốc)</td></tr>
+              <tr><td>Storage sau transcode</td><td>× ~2× (nhiều rendition)</td><td>≈ 3,2 PB/ngày — cần tiering ngay</td></tr>
+              <tr><td>Egress</td><td>1 tỷ giờ xem/ngày × 3 Mbps / 8</td><td>≈ 1,35 PB/ngày → 125 Gbps trung bình</td></tr>
+              <tr><td>Peak egress</td><td>× 3 (giờ cao điểm)</td><td>~375 Gbps — cần nhiều CDN provider</td></tr>
+              <tr><td>Transcode compute</td><td>720.000 giờ video, mỗi giờ cần ~1 giờ CPU để encode 1 rendition</td><td>Hàng trăm nghìn core-giờ/ngày → phải queue + spot instance</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Chi tiết thực tế: transcode không làm ngay</div>
+            <p>Với 500 giờ upload/phút, không thể transcode đồng bộ. Kiến trúc đúng: upload → S3 raw → Kafka → <strong>priority queue</strong>. Video của creator lớn hoặc video mới có SLA thấp (xử lý trong 5 phút, chỉ 360p/720p); video cũ hoặc ít quan trọng xử lý sau vài giờ, đủ rendition. Dùng <strong>spot instance</strong> cho transcode (giảm 70% chi phí, chấp nhận bị thu hồi giữa chừng vì có thể retry). Chunk công việc theo segment để một instance bị thu hồi chỉ mất 1 segment, không mất cả video. Đây là ví dụ điển hình của "thiết kế cho lỗi" thay vì "tránh lỗi".</p>
+          </div>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Live streaming khác VOD ở ba điểm</div>
+            <p><strong>1. Latency:</strong> HLS chuẩn có độ trễ 15–30s (3 segment buffer). Low-latency HLS giảm xuống 2–5s bằng partial segment + blocking playlist reload. WebRTC cho &lt; 500ms nhưng không scale được cho hàng triệu viewer. <strong>2. Không có transcode trước:</strong> phải transcode realtime, chia làm 2 tầng (ingest server → ladder transcode → packager), và không thể dùng spot instance dễ dàng. <strong>3. Manifest thay đổi liên tục:</strong> không cache được lâu, cần TTL 1–2s; segment mới xuất hiện liên tục nên phải purge/push chủ động thay vì chờ hết hạn. Với live, CDN cần cơ chế "origin shield" để tránh hàng nghìn edge cùng kéo một segment từ origin.</p>
+          </div>
+        </div>
+
+        <h3>Điểm nghẽn thật & quyết định gây tranh cãi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+            <tbody>
+              <tr><td>Upload</td><td>500 giờ video/phút</td><td>YouTube 2019</td></tr>
+              <tr><td>Bản gốc mỗi phút</td><td>~36 GB/phút</td><td>500 giờ × 72 MB/phút (1080p, 10 Mbps)</td></tr>
+              <tr><td>Bản gốc mỗi ngày</td><td><strong>~52 TB/ngày</strong></td><td>36 GB × 1.440 phút</td></tr>
+              <tr><td>Sau transcode (5 độ phân giải)</td><td>~130 TB/ngày</td><td>Tổng bitrate 5 bản ≈ 2,5× bản gốc</td></tr>
+              <tr><td>Lưu trữ 1 năm</td><td>~47 PB</td><td>130 TB × 365</td></tr>
+              <tr><td>Thời gian transcode 1 giờ video</td><td>~2–5 phút</td><td>Trên một máy có GPU/ASIC; hàng đợi phải chịu được 500 giờ/phút</td></tr>
+              <tr><td>CDN egress</td><td>hàng trăm Gbps</td><td>Đây là dòng chi phí lớn nhất, không phải storage</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm nghẽn của video chia làm hai giai đoạn rất khác nhau. <strong>Lúc upload:</strong> nghẽn ở <span class="kw-r">transcode queue</span> — 500 giờ video mỗi phút cần hàng nghìn worker, và người dùng chờ. <strong>Lúc xem:</strong> nghẽn ở <span class="kw-r">băng thông CDN</span>, không phải ở server bạn. Vì vậy chi phí video gần như hoàn toàn là egress, và mọi tối ưu thật đều nhắm vào việc giảm byte phải gửi: chọn codec tốt hơn, adaptive bitrate, cache ở edge gần người xem.</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Quyết định gây tranh cãi: transcode xong mới cho xem, hay cho xem bản gốc ngay?</div>
+            <p><strong>Đợi transcode xong:</strong> mọi người xem đều có trải nghiệm tốt, CDN chỉ cache bản đã tối ưu. Nhưng người upload chờ 2–5 phút cho video ngắn, và hàng đợi dài vào giờ cao điểm. <strong>Cho xem bản gốc ngay:</strong> upload xong là xem được, nhưng bản gốc thường 10–50 Mbps — tốn egress gấp nhiều lần và người xem mạng yếu bị giật. <strong>Cách các nền tảng lớn làm:</strong> <em>progressive availability</em> — transcode bản 360p trước (nhanh nhất, đủ để xem), thông báo "video đang xử lý, chất lượng sẽ tăng", rồi thay bằng bản cao hơn khi xong. Người upload thấy kết quả trong vài chục giây, người xem không phải tải bản gốc, và CDN không bao giờ phục vụ file 50 Mbps. Đây là câu trả lời thể hiện hiểu cả sản phẩm lẫn hạ tầng.</p>
+          </div>
+        </div>

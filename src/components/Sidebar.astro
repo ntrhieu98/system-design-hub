@@ -1,0 +1,70 @@
+---
+// Auto-generated sidebar: one collapsible group per module, one link per topic.
+// It is rendered from the content collection, so adding an .mdx file is enough
+// to make a topic appear here — there is no list to keep in sync.
+import Icon from '../components/Icon.astro';
+
+interface TopicLink {
+  slug: string;
+  title: string;
+  num: string;
+}
+interface Group {
+  meta: { id: number; slug: string; title: string; badge: string; icon: string; color: string };
+  topics: TopicLink[];
+}
+
+interface Props {
+  groups: Group[];
+  currentModule: number;
+  currentSlug?: string;
+}
+
+const { groups, currentModule, currentSlug } = Astro.props;
+const B = import.meta.env.BASE_URL;
+---
+
+<nav class="sidebar" aria-label="Mục lục khoá học">
+  <div class="sidebar-head">Khoá học</div>
+
+  {groups.map((g) => {
+    const isOpen = g.meta.id === currentModule;
+    return (
+      <details class="sb-group" open={isOpen}>
+        <summary class="sb-summary">
+          <span class="sb-num" style={`background:${g.meta.color}`}>
+            <Icon name={g.meta.icon} size={13} />
+          </span>
+          <span class="sb-title">
+            <span class="sb-mod">Module {g.meta.id}</span>
+            <span class="sb-name">{g.meta.title}</span>
+          </span>
+          <span class="sb-count">{g.topics.length}</span>
+        </summary>
+
+        <ul class="sb-list">
+          {g.topics.map((t) => (
+            <li>
+              <a
+                href={`${B}/modules/${g.meta.id}/${t.slug}`}
+                class:list={['sb-link', { 'is-active': g.meta.id === currentModule && t.slug === currentSlug }]}
+              >
+                <span class="sb-link-num">{t.num}</span>
+                <span class="sb-link-title">{t.title}</span>
+              </a>
+            </li>
+          ))}
+          <li>
+            <a
+              href={`${B}/modules/${g.meta.id}`}
+              class:list={['sb-link', 'sb-link-overview', { 'is-active': g.meta.id === currentModule && !currentSlug }]}
+            >
+              <span class="sb-link-num">≡</span>
+              <span class="sb-link-title">Tổng quan module</span>
+            </a>
+          </li>
+        </ul>
+      </details>
+    );
+  })}
+</nav>

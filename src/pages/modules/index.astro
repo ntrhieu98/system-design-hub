@@ -1,0 +1,135 @@
+---
+// Module index: /modules — searchable, filterable grid of all eight modules.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/Icon.astro';
+import { MODULES, LEVELS } from '../../data/modules.js';
+import { getModulesWithTopics } from '../../lib/content.js';
+import { SITE_STATS } from '../../data/stats.js';
+
+const groups = await getModulesWithTopics();
+const B = import.meta.env.BASE_URL;
+const topicCount = (id: number) => groups.find((g) => g.meta.id === id)?.topics.length ?? 0;
+---
+
+<BaseLayout
+  title="Tất cả modules | System Design Hub"
+  description={`8 module, ${SITE_STATS.topics} chủ đề: từ kiến thức nền tảng, building blocks, dữ liệu, hệ thống phân tán đến cloud và luyện phỏng vấn.`}
+  active="modules"
+>
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href={`${B}/`}>Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <span>Module</span>
+      </nav>
+      <h1 class="page-title">Tám module</h1>
+      <p class="page-lead">
+        {SITE_STATS.modules} module, {SITE_STATS.topics} chủ đề, đi từ nền tảng mạng và cơ sở dữ liệu
+        đến thiết kế hệ thống cloud. Học theo thứ tự, hoặc nhảy tới module bạn cần.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="toolbar">
+        <div class="search-box">
+          <span class="search-ico"><Icon name="search" size={15} /></span>
+          <input
+            id="moduleSearch"
+            type="search"
+            placeholder="Tìm module, chủ đề, công nghệ… (vd: kafka, raft, sharding)"
+            aria-label="Tìm module"
+            autocomplete="off"
+          />
+        </div>
+        <div class="filter-row">
+          {LEVELS.map((lvl) => (
+            <button
+              class:list={['filter-btn', { 'is-active': lvl.id === 'all' }]}
+              data-level={lvl.id}
+              type="button"
+            >
+              {lvl.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div class="module-grid" id="moduleGrid">
+        {MODULES.map((m) => (
+          <a
+            class="mod-card"
+            href={`${B}/modules/${m.slug}`}
+            data-module-card
+            data-level={m.level.toLowerCase()}
+            data-search={`module ${m.id} ${m.title} ${m.short} ${m.desc} ${m.topics.join(' ')} ${m.level} ${(m.tags || []).join(' ')}`}
+          >
+            <div class="mod-card-top">
+              <span class="mod-icon" style={`background:${m.color}`}><Icon name={m.icon} size={17} /></span>
+              <span class="mod-num">MODULE {m.id}</span>
+            </div>
+            <h3 class="mod-title">{m.title}</h3>
+            <p class="mod-desc">{m.desc}</p>
+            <div class="chip-row mb-3">
+              {m.topics.slice(0, 3).map((t) => (
+                <span class="chip chip-mono">{t}</span>
+              ))}
+            </div>
+            <div class="mod-foot">
+              <span>
+                {m.time} · <span data-progress-label={`m${m.id}`}>{m.level}</span>
+              </span>
+              <span class="mod-arrow"><Icon name="arrow" size={14} /></span>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-ico"><Icon name="search" size={22} /></div>
+        <h3 class="empty-title">Không tìm thấy module nào</h3>
+        <p class="empty-text">Thử từ khoá khác, hoặc xoá bộ lọc để xem toàn bộ 8 module.</p>
+        <button class="btn btn-sm btn-secondary" id="resetFilters" type="button">Xoá bộ lọc</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Thứ tự đề xuất</div>
+          <h2 class="section-title">Học theo đường nào?</h2>
+        </div>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card-ico bg-yellow">A</div>
+          <h3 class="card-title">Mới bắt đầu</h3>
+          <p class="card-text">Chưa từng thiết kế hệ thống, hoặc mới đi làm dưới 1 năm.</p>
+          <p class="card-mono">0 → 1 → 2 → 3</p>
+          <p class="card-note">Khoảng 6 tuần. Đừng bỏ qua Module 0 dù nó có vẻ cơ bản.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-ico bg-blue">B</div>
+          <h3 class="card-title">Đã đi làm, cần ôn phỏng vấn</h3>
+          <p class="card-text">Có kinh nghiệm nhưng chưa hệ thống hoá, hoặc sắp phỏng vấn.</p>
+          <p class="card-mono">5 → 7 → 2 → 4</p>
+          <p class="card-note">Khoảng 4 tuần. Module 5 và 7 là trọng tâm.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-ico bg-green">C</div>
+          <h3 class="card-title">Đang vận hành hệ thống</h3>
+          <p class="card-text">Cần giải quyết vấn đề thật: scale, độ tin cậy, chi phí.</p>
+          <p class="card-mono">3 → 4 → 6</p>
+          <p class="card-note">Module 6 có phần SRE và cost optimization thực dụng nhất.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

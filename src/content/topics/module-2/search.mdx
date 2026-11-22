@@ -1,0 +1,232 @@
+---
+title: "Search — inverted index và tại sao LIKE \"%x%\" là sai"
+description: "Câu hỏi phỏng vấn kinh điển: \"thiết kế tính năng tìm kiếm cho 10 triệu sản phẩm\". Nếu bạn trả lời \"SELECT... WHERE name LIKE '%iphone%'\" thì đã sai ngay từ đầu, vì ba lý do."
+module: 2
+order: 7
+num: "2.7"
+sectionId: "search"
+---
+<p>Câu hỏi phỏng vấn kinh điển: "thiết kế tính năng tìm kiếm cho 10 triệu sản phẩm". Nếu bạn trả lời "SELECT ... WHERE name LIKE '%iphone%'" thì đã sai ngay từ đầu, vì ba lý do.</p>
+        <ul class="list-bullet">
+          <li>SQL <code>LIKE '%x%'</code> <strong>không dùng được index</strong> tiêu chuẩn (phải full scan), vì index sắp xếp theo prefix. 10 triệu dòng × 100.000 query/ngày = thảm hoạ.</li>
+          <li>Không có <strong>xếp hạng</strong> — mọi kết quả ngang nhau, user không tìm được kết quả tốt nhất.</li>
+          <li>Không có <strong>fuzzy</strong> — gõ "ipone" không ra gì. Không hỗ trợ stemming ("phones" không match "phone").</li>
+        </ul>
+
+        <h3>Inverted index — cách search engine thật sự hoạt động</h3>
+        <p>Thay vì map <em>document → words</em>, ta map <em>word → documents</em>. Đây là <span class="kw">inverted index</span>.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 720 330" role="img" aria-label="Cấu trúc inverted index từ tài liệu tới posting list">
+            <defs>
+              <marker id="m2s" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                <polygon points="0 0, 10 4, 0 8" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="120" y="22" text-anchor="middle" font-size="12" font-weight="800" fill="#151515">Documents</text>
+            <text x="370" y="22" text-anchor="middle" font-size="12" font-weight="800" fill="#151515">Index (inverted)</text>
+            <text x="620" y="22" text-anchor="middle" font-size="12" font-weight="800" fill="#151515">Posting list</text>
+
+            <g font-size="10.5" font-weight="700" fill="#151515">
+              <rect x="20" y="40" width="200" height="52" rx="7" fill="#ffffff" stroke="#151515" stroke-width="2"/>
+              <text x="32" y="60">D1: "iPhone 15 Pro Max"</text>
+              <text x="32" y="76" font-size="9.5" fill="#505a68">category: phone</text>
+
+              <rect x="20" y="104" width="200" height="52" rx="7" fill="#ffffff" stroke="#151515" stroke-width="2"/>
+              <text x="32" y="124">D2: "iPhone 14 giá rẻ"</text>
+              <text x="32" y="140" font-size="9.5" fill="#505a68">category: phone</text>
+
+              <rect x="20" y="168" width="200" height="52" rx="7" fill="#ffffff" stroke="#151515" stroke-width="2"/>
+              <text x="32" y="188">D3: "Samsung Galaxy S24"</text>
+              <text x="32" y="204" font-size="9.5" fill="#505a68">category: phone</text>
+
+              <rect x="20" y="232" width="200" height="52" rx="7" fill="#ffffff" stroke="#151515" stroke-width="2"/>
+              <text x="32" y="252">D4: "Ốp lưng iPhone"</text>
+              <text x="32" y="268" font-size="9.5" fill="#505a68">category: accessory</text>
+
+              <rect x="290" y="40" width="160" height="34" rx="6" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="370" y="61" text-anchor="middle" font-family="monospace">iphone</text>
+              <rect x="290" y="82" width="160" height="34" rx="6" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="370" y="103" text-anchor="middle" font-family="monospace">pro</text>
+              <rect x="290" y="124" width="160" height="34" rx="6" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="370" y="145" text-anchor="middle" font-family="monospace">giá</text>
+              <rect x="290" y="166" width="160" height="34" rx="6" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="370" y="187" text-anchor="middle" font-family="monospace">samsung</text>
+              <rect x="290" y="208" width="160" height="34" rx="6" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="370" y="229" text-anchor="middle" font-family="monospace">ốp</text>
+
+              <rect x="520" y="40" width="180" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="610" y="61" text-anchor="middle" font-family="monospace">D1, D2, D4</text>
+              <rect x="520" y="82" width="180" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="610" y="103" text-anchor="middle" font-family="monospace">D1</text>
+              <rect x="520" y="124" width="180" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="610" y="145" text-anchor="middle" font-family="monospace">D2</text>
+              <rect x="520" y="166" width="180" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="610" y="187" text-anchor="middle" font-family="monospace">D3</text>
+              <rect x="520" y="208" width="180" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="610" y="229" text-anchor="middle" font-family="monospace">D4</text>
+
+              <line x1="480" y1="57" x2="518" y2="57" stroke="#505a68" stroke-width="2" marker-end="url(#m2s)"/>
+              <line x1="480" y1="99" x2="518" y2="99" stroke="#505a68" stroke-width="2" marker-end="url(#m2s)"/>
+              <line x1="480" y1="141" x2="518" y2="141" stroke="#505a68" stroke-width="2" marker-end="url(#m2s)"/>
+              <line x1="480" y1="183" x2="518" y2="183" stroke="#505a68" stroke-width="2" marker-end="url(#m2s)"/>
+              <line x1="480" y1="225" x2="518" y2="225" stroke="#505a68" stroke-width="2" marker-end="url(#m2s)"/>
+            </g>
+            <text x="360" y="306" text-anchor="middle" font-size="10.5" fill="#505a68" font-weight="600">Query "iphone pro" → giao 2 posting list → D1 có cả hai → hạng 1</text>
+          </svg>
+          <div class="diagram-cap">Hình 4 — Inverted index: mỗi term trỏ tới danh sách document chứa nó</div>
+        </div>
+
+        <h3>Quá trình index một document</h3>
+        <ol class="list-num">
+          <li><strong>Tokenize</strong> — tách văn bản thành token. Tiếng Việt cần word segmentation (khó hơn tiếng Anh vì có dấu cách giữa âm tiết: "học sinh" là 1 từ, 2 âm tiết).</li>
+          <li><strong>Normalize</strong> — lowercase, bỏ dấu (tuỳ chọn), chuẩn hoá unicode (NFC/NFD).</li>
+          <li><strong>Stop words</strong> — bỏ "và", "của", "the", "a". Nhưng với tìm kiếm sản phẩm, đừng bỏ hết — "The North Face" là tên thương hiệu.</li>
+          <li><strong>Stemming / Lemmatization</strong> — "phones" → "phone", "running" → "run".</li>
+          <li><strong>Synonym</strong> — "điện thoại" ≈ "phone" ≈ "mobile".</li>
+        </ol>
+
+        <h3>Xếp hạng — BM25 thay vì TF-IDF thuần</h3>
+        <p>Ba yếu tố quyết định điểm:</p>
+        <ul class="list-bullet">
+          <li><strong>TF</strong> (term frequency) — term xuất hiện nhiều trong document thì quan trọng hơn. Nhưng có <em>bão hoà</em>: xuất hiện 100 lần không quan trọng gấp 10 lần so với 10 lần.</li>
+          <li><strong>IDF</strong> (inverse document frequency) — term hiếm thì có trọng số cao. "iphone" xuất hiện trong 90% document nên gần như vô dụng để phân biệt; "ống kính" hiếm nên rất có giá trị.</li>
+          <li><strong>Field boost</strong> — term trong title quan trọng hơn trong description (thường ×3–5).</li>
+        </ul>
+        <p><span class="kw">BM25</span> là công thức chuẩn hiện nay (mặc định của Elasticsearch/Lucene), cải tiến TF-IDF bằng cách thêm tham số <code>k1</code> (bão hoà TF) và <code>b</code> (chuẩn hoá theo độ dài document). Không cần nhớ công thức trong phỏng vấn, chỉ cần nêu được 3 yếu tố trên.</p>
+
+        <h3>Đồng bộ DB → search index</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cách</th><th>Độ trễ</th><th>Độ tin cậy</th><th>Nhận xét</th></tr></thead>
+            <tbody>
+              <tr><td>Dual write (ghi cả 2)</td><td>Thấp</td><td>Kém — 1 cái fail là lệch</td><td>Không nên dùng, trừ khi có saga bù trừ</td></tr>
+              <tr><td>Batch job định kỳ</td><td>Cao (phút/giờ)</td><td>Trung bình</td><td>Đơn giản, chấp nhận được với catalogue ít đổi</td></tr>
+              <tr><td>CDC (Debezium)</td><td>Thấp (giây)</td><td>Cao — đọc binlog</td><td>Cách chuẩn cho production</td></tr>
+              <tr><td>Application event qua Kafka</td><td>Thấp</td><td>Cao nếu outbox pattern</td><td>Cần transactional outbox để không mất event</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Search là eventual consistency — hãy nói ra điều này</div>
+            <p>User vừa tạo sản phẩm có thể chưa tìm thấy ngay (index trễ 1–5 giây). Đây là trade-off được chấp nhận. Nhưng nếu user <em>vừa sửa</em> sản phẩm và tìm lại thấy bản cũ, đó là trải nghiệm tệ — cách xử lý: dùng <code>refresh=wait_for</code> cho write quan trọng, hoặc hiển thị kết quả từ DB cho chính owner trong vài giây đầu.</p>
+          </div>
+        </div>
+
+        <h3>Bên trong Elasticsearch — segment, refresh, merge</h3>
+        <p>Elasticsearch không "cập nhật" một document trong inverted index. Nó <span class="kw">chỉ ghi thêm</span>, giống LSM tree. Hiểu cơ chế này giải thích được gần như mọi hành vi kỳ lạ của ES khi vận hành thật.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Khái niệm</th><th>Là gì</th><th>Ảnh hưởng</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Segment</strong></td><td>Một file index bất biến (immutable). Mỗi lần refresh sinh một segment mới</td><td>Mỗi segment tốn 1 file handle + bộ nhớ cho term dictionary; quá nhiều segment làm chậm search</td></tr>
+              <tr><td><strong>Refresh</strong></td><td>Mở segment mới cho search thấy. Mặc định <strong>1 giây/lần</strong></td><td>Đây là lý do ES là "near real-time" chứ không real-time. Refresh không phải flush: dữ liệu đã search được nhưng chưa an toàn trên disk</td></tr>
+              <tr><td><strong>Flush</strong></td><td>fsync segment + ghi translog, đảm bảo không mất khi mất điện</td><td>Mặc định theo kích thước translog (512MB) hoặc 30 phút</td></tr>
+              <tr><td><strong>Merge</strong></td><td>Gộp nhiều segment nhỏ thành ít segment lớn, xoá document đã đánh dấu deleted</td><td>Tốn I/O và CPU. Merge lớn đúng lúc traffic cao là nguyên nhân latency tăng vọt rất hay gặp</td></tr>
+              <tr><td><strong>Translog</strong></td><td>Write-ahead log cho mỗi shard</td><td>Đặt <code>index.translog.durability: request</code> nếu cần bền vững tuyệt đối, đổi lại chậm hơn</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba cấu hình quyết định ES sống hay chết</div>
+            <p><strong>(1) <code>refresh_interval</code></strong>: bulk index lớn thì đặt <code>-1</code> trong lúc nạp rồi bật lại — nhanh hơn nhiều lần, vì mỗi giây một segment mới là hàng nghìn segment phải merge sau đó. <strong>(2) Heap ≤ 50% RAM và ≤ 31GB</strong>, phần còn lại cho page cache (Lucene đọc segment từ disk qua OS cache; heap lớn không giúp search nhanh hơn, chỉ giúp GC lâu hơn). <strong>(3) Shard size 10–50GB</strong>: quá nhỏ thì mỗi query fan-out hàng nghìn shard, quá lớn thì merge và recovery rất chậm.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 330" role="img" aria-label="Vòng đời một document trong Elasticsearch qua translog, refresh sinh segment, merge gộp segment">
+            <defs>
+              <marker id="m2es" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#8b95a3">GHI LÀ CHỈ THÊM — KHÔNG SỬA TẠI CHỖ</text>
+
+            <rect x="16" y="40" width="150" height="52" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="91" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">index request</text>
+            <text x="91" y="78" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#505a68">doc id=42</text>
+
+            <rect x="196" y="40" width="150" height="52" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="271" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">translog</text>
+            <text x="271" y="78" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#505a68">append (WAL)</text>
+
+            <rect x="376" y="40" width="180" height="52" rx="8" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="466" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">in-memory buffer</text>
+            <text x="466" y="78" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#505a68">chưa search được</text>
+
+            <rect x="586" y="40" width="158" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="665" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="800" fill="#151515">segment mới</text>
+            <text x="665" y="78" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#505a68">search được</text>
+
+            <path d="M166,66 L194,66" stroke="#505a68" stroke-width="2" marker-end="url(#m2es)"/>
+            <path d="M346,66 L374,66" stroke="#505a68" stroke-width="2" marker-end="url(#m2es)"/>
+            <path d="M556,66 L584,66" stroke="#505a68" stroke-width="2" marker-end="url(#m2es)"/>
+            <text x="470" y="106" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#ef4444">refresh — mặc định 1 giây</text>
+            <text x="665" y="106" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#10b981">flush — fsync, an toàn</text>
+
+            <text x="16" y="140" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Sau nhiều lần refresh, mỗi shard có nhiều segment</text>
+
+            <rect x="16" y="154" width="86" height="34" rx="6" fill="#fef3c7" stroke="#151515" stroke-width="1.5"/>
+            <text x="59" y="175" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">seg 1</text>
+            <rect x="112" y="154" width="86" height="34" rx="6" fill="#fef3c7" stroke="#151515" stroke-width="1.5"/>
+            <text x="155" y="175" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">seg 2</text>
+            <rect x="208" y="154" width="86" height="34" rx="6" fill="#fef3c7" stroke="#151515" stroke-width="1.5"/>
+            <text x="251" y="175" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">seg 3</text>
+            <rect x="304" y="154" width="86" height="34" rx="6" fill="#fef3c7" stroke="#151515" stroke-width="1.5"/>
+            <text x="347" y="175" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">seg 4</text>
+            <text x="404" y="175" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">← 4 lần quét cho mỗi query</text>
+
+            <path d="M300,196 L300,214" stroke="#505a68" stroke-width="2" marker-end="url(#m2es)"/>
+            <text x="316" y="210" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#505a68">merge (nền)</text>
+
+            <rect x="208" y="222" width="184" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="300" y="243" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">1 segment lớn</text>
+            <text x="404" y="243" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">1 lần quét, doc đã xoá bị bỏ</text>
+
+            <rect x="16" y="276" width="728" height="40" rx="8" fill="#f8fafc" stroke="#8b95a3" stroke-width="1.5" stroke-dasharray="6 4"/>
+            <text x="32" y="301" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Hệ quả: update = xoá mềm + ghi mới · delete = đánh dấu, chỉ biến mất sau merge · refresh = 1s nên ES "near real-time" · merge tốn I/O nên nó là thủ phạm latency tăng vọt</text>
+          </svg>
+          <div class="diagram-cap">Hình 5 — Vòng đời document trong Elasticsearch: translog → buffer → segment → merge</div>
+        </div>
+
+        <h3>Sharding và replica trong ES</h3>
+        <ul class="list-bullet">
+          <li><strong>Primary shard</strong> quyết định dung lượng tối đa: số primary chỉ đặt được <em>lúc tạo index</em>, không đổi được sau đó (phải reindex). Đây là quyết định một chiều, phải tính trước.</li>
+          <li><strong>Replica shard</strong> tăng throughput đọc và chịu lỗi; số replica đổi được bất kỳ lúc nào. Nhưng replica cũng tốn disk và làm chậm index (mỗi write phải ghi qua replica).</li>
+          <li><strong>Query fan-out:</strong> một query chạm mọi shard (1 bản của mỗi shard), rồi coordinator gộp kết quả. 1.000 shard nghĩa là 1.000 lần thực thi cho một query — đây là lý do "đừng tạo index theo ngày" nếu số ngày lớn.</li>
+          <li><strong>Routing:</strong> document đi tới shard theo <code>hash(_routing)</code>, mặc định là <code>_id</code>. Muốn query theo <code>user_id</code> mà chỉ chạm 1 shard thì đặt <code>_routing: user_id</code> — đánh đổi là phải giữ routing khi query, nếu không sẽ phải quét mọi shard.</li>
+        </ul>
+
+        <h3>Tìm kiếm sâu và aggregate — hai cái bẫy hiệu năng</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Vấn đề</th><th>Vì sao chậm</th><th>Cách đúng</th></tr></thead>
+            <tbody>
+              <tr><td><strong><code>from</code> + <code>size</code> lớn</strong> (<code>from: 10000</code>)</td><td>Mỗi shard phải lấy <code>from + size</code> document rồi coordinator sắp xếp toàn bộ — <code>from + size</code> bị giới hạn 10.000 mặc định</td><td><code>search_after</code> với con số sắp xếp cuối cùng của trang trước; hoặc <code>scroll</code> cho export</td></tr>
+              <tr><td><strong>Aggregate trên field text</strong></td><td>Phải đọc giá trị từ <code>_source</code> hoặc dựng lại từ inverted index</td><td>Bật <code>doc_values</code> (mặc định bật cho <code>keyword</code>, tắt cho <code>text</code>); aggregate trên <code>keyword</code> chứ không trên <code>text</code></td></tr>
+              <tr><td><strong>Cardinality chính xác</strong> trên triệu bản ghi</td><td>Phải giữ toàn bộ tập giá trị phân biệt</td><td>Dùng <code>cardinality</code> với <code>precision_threshold</code> (HLL, sai số ~1–2%)</td></tr>
+              <tr><td><strong>Wildcard đầu chuỗi</strong> <code>*phone</code></td><td>Inverted index sắp theo token, không tìm được tiền tố ngược</td><td>Dùng <code>edge_ngram</code> lúc index, hoặc <code>match_phrase_prefix</code>, hoặc autocomplete riêng</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Tuning độ liên quan — phần bị bỏ quên nhiều nhất</h3>
+        <ul class="list-bullet">
+          <li><strong>Analyzer phải khớp giữa index và query.</strong> Index bằng <code>standard</code> nhưng query bằng <code>keyword</code> thì không bao giờ khớp. Một field dùng cho cả hiển thị và tìm kiếm nên khai báo <code>text</code> với sub-field <code>keyword</code>.</li>
+          <li><strong>Tune bằng bộ query thật, không bằng cảm giác:</strong> lấy 50 query thật kèm document mong đợi, đo precision@10 trước và sau mỗi thay đổi. Không có bộ này thì mọi thay đổi relevance là đoán.</li>
+          <li><strong>Function score / rank_feature</strong> để đưa tín hiệu ngoài văn bản vào: độ mới, độ phổ biến, tỉ lệ click, tồn kho. Một sản phẩm hết hàng không nên đứng đầu dù khớp hoàn hảo.</li>
+          <li><strong>Hybrid search</strong> (BM25 + vector): BM25 giỏi khớp từ chính xác và từ hiếm; vector giỏi khớp ngữ nghĩa ("tai nghe chống ồn" ↔ "headphone ANC"). Kết hợp bằng RRF (Reciprocal Rank Fusion) thường tốt hơn cộng điểm thô.</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Trả lời phỏng vấn: "vì sao chọn ES thay vì Postgres full-text?"</div>
+            <p>Postgres <code>tsvector</code> + GIN index đủ tốt tới khoảng vài triệu document, hỗ trợ stemming, và không phải vận hành thêm một cụm. Chọn ES khi cần: phân tán theo shard vượt một máy, aggregation facet phức tạp, highlight nâng cao, nhiều analyzer khác nhau theo ngôn ngữ, hoặc relevance tuning theo tín hiệu nghiệp vụ. Câu trả lời tốt nêu ngưỡng cụ thể và nói rõ cái giá: thêm một hệ phải đồng bộ, thêm một nguồn eventual consistency, thêm một thứ phải backup.</p>
+          </div>
+        </div>

@@ -1,0 +1,88 @@
+---
+id: "003"
+title: "Cache-aside và ba lỗi cache kinh điển"
+status: accepted
+date: "2025-01-01"
+summary: "Vì sao cache-aside là mặc định, và ba lỗi phải xử lý trước khi lên production: stampede, penetration, avalanche."
+tags: ["caching", "redis", "consistency"]
+module: 2
+order: 3
+---
+
+## Bối cảnh
+
+Cần caching strategy cho hệ thống với:
+- Data read frequently but modified infrequently
+- Cần giảm DB load và latency
+- Cần handle cache invalidation
+- Distributed environment
+
+## Yếu tố quyết định
+
+### 1. Caching Strategy
+**Quyết định:** Cache-aside (Lazy loading)
+
+**Các strategies đã xem xét:**
+| Strategy | Mô tả | Use case |
+|----------|-------|----------|
+| Cache-aside | App check cache → miss → load DB → populate cache | Read-heavy, flexible |
+| Write-through | Write cache + DB đồng thời | Consistency quan trọng |
+| Write-behind | Write cache, async write DB | Write-heavy, eventual consistency |
+| Read-through | Cache tự load từ DB on miss | App chỉ talk to cache |
+
+**Chọn Cache-aside vì:**
+- App control cache logic
+- Chỉ cache data thực sự cần (lazy)
+- Phổ biến nhất, dễ implement
+- Flexible: có thể cache partial data
+
+### 2. Cache Invalidation
+**Quyết định:** TTL + Event-driven invalidation
+
+**Phương án:**
+- **TTL**: Auto-expire. Không quá ngắn (reload DB liên tục) cũng không quá dài (data stale)
+- **Event-driven**: Publish event on update → cache subscriber invalidates
+- **Versioning**: Cache key includes version (v1:key → v2:key)
+
+### 3. Cache Eviction
+**Quyết định:** LRU (Least Recently Used)
+
+**Các policies:**
+- LRU: Evict least recently used
+- LFU: Evict least frequently used
+- FIFO: First in, first out
+- TTL: Time-based expiration
+
+**Chọn LRU vì:** Phù hợp với Pareto principle (80% traffic → 20% data)
+
+### 4. Cache Sizing
+**Quyết định:** Working set × 1.2 buffer
+
+**Formula:**
+```
+working_set = hot_data_size (80% traffic)
+cache_size  = working_set × 1.2
+hit_ratio   = hits / (hits + misses)
+Target: hit_ratio > 90%
+```
+
+## Hệ quả
+
+### Tích cực
+- Giảm DB load đáng kể (cache hit > 90%)
+- Giảm latency (cache read < 1ms vs DB read 10-50ms)
+- Flexible, app control
+
+### Tiêu cực
+- Cache miss penalty (2 round trips: cache + DB)
+- Stale data risk nếu invalidation không đúng
+- Cache stampede khi entry expire
+
+### Rủi ro & Mitigation
+- **Cache stampede**: Locking, early expiration, stale-while-revalidate
+- **Thundering herd**: Probabilistic early expiration
+- **Cache poisoning**: Validate data before caching
+
+## Tham khảo
+- Alex Xu "System Design Interview" Ch.1: Cache tier
+- "There are only two hard things in CS: cache invalidation and naming things"

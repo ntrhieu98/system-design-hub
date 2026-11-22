@@ -1,0 +1,153 @@
+---
+title: "News Feed — fan-out và nghịch lý celebrity"
+description: "Đây là bài toán được hỏi nhiều nhất ở các công ty mạng xã hội, và câu trả lời đúng không phải \"chọn fan-out on write hay fan-out on read\" mà là hybrid với ngưỡng cụ thể."
+module: 5
+order: 4
+num: "5.4"
+sectionId: "news-feed"
+---
+<p>Đây là bài toán được hỏi nhiều nhất ở các công ty mạng xã hội, và câu trả lời đúng <span class="kw">không phải</span> "chọn fan-out on write hay fan-out on read" mà là <span class="kw-y">hybrid với ngưỡng cụ thể</span>.</p>
+
+        <h3>Yêu cầu & ước lượng (Twitter-like)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Hệ quả</th></tr></thead>
+            <tbody>
+              <tr><td>DAU</td><td>150 triệu</td><td>—</td></tr>
+              <tr><td>Tweet/ngày</td><td>500 triệu</td><td>~5.800 tweet/s trung bình</td></tr>
+              <tr><td>Peak QPS</td><td>~7.000/s</td><td>Tính bằng 2× trung bình + dư địa</td></tr>
+              <tr><td>Feed load</td><td>~300.000/s</td><td>Mỗi user mở app 5–10 lần/ngày</td></tr>
+              <tr><td>Follower trung bình</td><td>~200</td><td>Fan-out on write = 200 write/tweet</td></tr>
+              <tr><td>Celebrity</td><td>50 triệu follower</td><td><span class="kw-r">Fan-out on write = 50M write cho 1 tweet</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-note">
+          <div class="callout-ico">∑</div>
+          <div class="callout-body">
+            <div class="callout-title">Tính toán quyết định</div>
+            <p>Fan-out on write thuần: 5.800 tweet/s × 200 follower = <strong>1,16 triệu write/s</strong>. Với Redis, mỗi write là 1 <code>ZADD</code> — khả thi về mặt kỹ thuật nhưng tốn. Nhưng nếu một celebrity tweet, một tweet tạo ra 50 triệu write. Ở 7.000 QPS tweet, nếu 1% là celebrity (70 tweet/s), riêng phần này là <strong>3,5 tỷ write/s</strong> — bất khả thi. Đó chính là lý do phải hybrid.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 420" role="img" aria-label="Kiến trúc news feed hybrid với fan-out on write cho user thường và fan-out on read cho celebrity">
+            <defs>
+              <marker id="m5d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+              <marker id="m5dg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#10b981"/>
+              </marker>
+            </defs>
+            <rect x="16" y="24" width="130" height="56" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="81" y="48" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Post service</text>
+            <text x="81" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">POST /tweets</text>
+
+            <rect x="172" y="24" width="140" height="56" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="242" y="46" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Phân loại</text>
+            <text x="242" y="62" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">followers &gt; 10k?</text>
+            <text x="242" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#8b95a3">(ngưỡng cấu hình)</text>
+
+            <rect x="338" y="24" width="150" height="56" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="413" y="44" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">User thường →</text>
+            <text x="413" y="60" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">fan-out on write</text>
+            <text x="413" y="72" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#10b981">≈ 1,16M write/s</text>
+
+            <rect x="514" y="24" width="130" height="56" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="579" y="44" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Chỉ ghi post</text>
+            <text x="579" y="60" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">vào timeline của</text>
+            <text x="579" y="72" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">chính tác giả</text>
+
+            <rect x="670" y="24" width="78" height="56" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="709" y="48" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Celebrity</text>
+            <text x="709" y="64" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">fan-out</text>
+            <text x="709" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">on read</text>
+
+            <path d="M146,52 L170,52" stroke="#505a68" stroke-width="2" marker-end="url(#m5d)"/>
+            <path d="M312,52 L336,52" stroke="#505a68" stroke-width="2" marker-end="url(#m5d)"/>
+            <path d="M488,52 L512,52" stroke="#505a68" stroke-width="2" marker-end="url(#m5d)"/>
+            <path d="M644,52 L668,52" stroke="#505a68" stroke-width="2" marker-end="url(#m5d)"/>
+
+            <rect x="16" y="112" width="360" height="120" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="134" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">WRITE PATH (user thường)</text>
+            <text x="34" y="156" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">tweet → Kafka → fanout worker</text>
+            <text x="34" y="174" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">  → lấy follower list (cache)</text>
+            <text x="34" y="192" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">  → ZADD feed:&#123;user_id&#125; score=ts</text>
+            <text x="34" y="210" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Bảng feeds shard theo user_id (người nhận)</text>
+            <text x="34" y="226" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">Giới hạn 800 entry/user (ZREMRANGEBYRANK)</text>
+
+            <rect x="396" y="112" width="352" height="120" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="414" y="134" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">READ PATH (hybrid merge)</text>
+            <text x="414" y="156" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">1. Đọc feed đã push sẵn: ZREVRANGE (1 query)</text>
+            <text x="414" y="174" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">2. Lấy danh sách celebrity đã follow (cache)</text>
+            <text x="414" y="192" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">3. Query timeline của họ (thường 10–50 người)</text>
+            <text x="414" y="210" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">4. Merge theo timestamp, cắt top 20</text>
+            <text x="414" y="226" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">Bước 4 làm ở service, không ở client</text>
+
+            <rect x="16" y="252" width="728" height="72" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="276" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Vì sao merge ở read không quá tệ</text>
+            <text x="34" y="296" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Một user follow ~200 người, trong đó chỉ ~10–50 là celebrity (vượt ngưỡng). Đọc 50 timeline riêng lẻ song song mất ~50ms; phần lớn feed đã có sẵn trong 1 query. Nếu user follow 5.000 người và 1.000 là celebrity → hạ ngưỡng hoặc pre-compute feed nền cho user đó.</text>
+            <text x="34" y="314" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#8b95a3">Ngưỡng thực tế Twitter dùng: ~10.000 follower. Dưới ngưỡng = push, trên = pull.</text>
+
+            <rect x="16" y="340" width="728" height="66" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="364" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Ba chi tiết hay bị bỏ sót</text>
+            <text x="34" y="384" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68"><strong>1.</strong> User mới follow → phải backfill feed (hoặc chấp nhận feed trống, đọc on read cho tới khi worker chạy). <strong>2.</strong> Unfollow → phải xoá entry (hoặc lọc khi đọc).</text>
+            <text x="34" y="400" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68"><strong>3.</strong> Ranking (không phải chỉ thời gian) → cần ML scoring, không thể pre-compute hoàn toàn.</text>
+          </svg>
+          <div class="diagram-cap">Hình 5.4 — Hybrid fan-out: 99% user đi đường nhanh, 1% celebrity đi đường riêng</div>
+        </div>
+
+        <h3>Bảng dữ liệu</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Bảng</th><th>Shard key</th><th>Nội dung</th><th>Truy cập</th></tr></thead>
+            <tbody>
+              <tr><td><code>tweets</code></td><td><code>tweet_id</code></td><td>id, author_id, text, media, ts</td><td>Point lookup khi render</td></tr>
+              <tr><td><code>timeline</code></td><td><code>author_id</code></td><td>Tweet của một tác giả (cho celebrity path)</td><td>Range query theo ts</td></tr>
+              <tr><td><code>feeds</code></td><td><code>user_id</code> (người nhận)</td><td>ZSET tweet_id → score</td><td>1 query, đọc top 800</td></tr>
+              <tr><td><code>follows</code></td><td><code>follower_id</code></td><td>Danh sách người mình follow + phân loại</td><td>Cache trong Redis</td></tr>
+              <tr><td><code>followers</code></td><td><code>followee_id</code></td><td>Để fan-out worker biết đẩy cho ai</td><td>Batch đọc khi có tweet</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Feed không phải "SELECT * ORDER BY ts"</div>
+            <p>Nếu bạn trả lời "query tweets của 200 người mình follow rồi sort", bạn đang thiết kế fan-out on read thuần cho <em>mọi</em> user: 200 shard query mỗi lần load feed, 300.000 feed load/s → 60 triệu query/s. Không khả thi. Điểm mấu chốt là <strong>pre-compute cho số đông, compute on read cho số ít</strong>. Và luôn nêu: "Feed được giới hạn 800 entry, cắt bằng ZREMRANGEBYRANK — không giữ vô hạn vì user không bao giờ cuộn quá 800 bài."</p>
+          </div>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Nếu được hỏi thêm về ranking</div>
+            <p>"Với feed theo trình tự thời gian, pre-compute hoạt động tốt. Với feed có ranking (ML score), tôi vẫn pre-compute <em>tập ứng viên</em> (top 500 theo thời gian + engagement signal), rồi chấm điểm ở read-time bằng một model nhẹ. Không chấm điểm 800 bài cho mỗi request — quá đắt ở 300k QPS. Cách thực tế hơn: pre-compute score theo batch mỗi 5 phút cho các user active, và read-time chỉ re-rank top 50."</p>
+          </div>
+        </div>
+
+        <h3>Điểm nghẽn thật & quyết định gây tranh cãi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+            <tbody>
+              <tr><td>DAU</td><td>150 triệu</td><td>Bài toán Twitter-like</td></tr>
+              <tr><td>Đọc feed</td><td>~17.400/s trung bình, <strong>~50.000/s đỉnh</strong></td><td>150M × 10 lần/ngày / 86.400 ≈ 17.361; đỉnh ×3</td></tr>
+              <tr><td>Ghi tweet</td><td>~3.500/s trung bình, ~7.000/s đỉnh</td><td>300M tweet/ngày / 86.400</td></tr>
+              <tr><td>Fan-out khi push</td><td>7.000 × 200 follower = <strong>1,4 triệu write/s</strong></td><td>Đây là con số làm push-only bất khả thi</td></tr>
+              <tr><td>Cache feed</td><td>150M × 800 entry × 8 byte ≈ <strong>960 GB</strong></td><td>Chỉ giữ 800 post id gần nhất, không giữ nội dung</td></tr>
+              <tr><td>Số node cache</td><td>~20 node 64 GB</td><td>960 GB / 48 GB dùng được</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm nghẽn là <span class="kw-r">fan-out write</span>, không phải read. 1,4 triệu write/s chỉ để đẩy tweet vào inbox của follower là nhiều hơn toàn bộ hạ tầng của phần lớn công ty. Vì vậy mọi thiết kế news feed thực tế đều là <strong>hybrid</strong>: push cho người dùng thường, pull cho celebrity, và merge hai nguồn khi đọc. Câu hỏi phỏng vấn thật là "ngưỡng nào thì chuyển từ push sang pull?" — câu trả lời thường dùng: follower &gt; 100.000, hoặc tỉ lệ fan-out write/read vượt một ngưỡng bạn tự đặt.</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Quyết định gây tranh cãi: push, pull, hay hybrid?</div>
+            <p><strong>Push (fan-out on write):</strong> đọc cực nhanh — chỉ đọc danh sách id đã có sẵn, không join. Nhưng ghi rất đắt, và một user có 50 triệu follower tạo ra cơn bão write. <strong>Pull (fan-out on read):</strong> ghi rẻ, nhưng mỗi lần mở app phải merge feed của 500 người → 500 truy vấn hoặc một truy vấn cực nặng, không kịp SLA 200ms. <strong>Hybrid:</strong> push cho tài khoản thường, pull cho tài khoản lớn, merge ở tầng đọc — đây là cái Twitter, Instagram, Facebook đều dùng. Điểm cần nói rõ trong phỏng vấn: hybrid không miễn phí, nó chuyển độ phức tạp từ ghi sang <em>đọc</em> (phải merge hai nguồn và sắp xếp), và nó làm ranking khó hơn vì hai nguồn có thang điểm khác nhau.</p>
+          </div>
+        </div>

@@ -1,0 +1,98 @@
+---
+id: "05"
+title: "Độ trễ — tính bằng tay trước khi tối ưu"
+level: intermediate
+summary: "Bài tập nền tảng: dùng bảng số liệu độ trễ để tính thời gian tải một trang thật, tìm ra chỗ nào đáng tối ưu và chỗ nào không, rồi kiểm chứng bằng phép tính chứ không bằng cảm giác."
+specs: [{ k: "Trang cần tải", v: "120 tài nguyên" }, { k: "Khoảng cách", v: "150ms RTT xuyên lục địa" }, { k: "Mục tiêu", v: "TTFB < 300ms" }, { k: "Số service trong chuỗi", v: "6" }, { k: "Module liên quan", v: "0 và 1" }]
+module: 0
+order: 5
+---
+
+## Mục tiêu
+
+Một trang web tải chậm. Trước khi sửa bất cứ dòng code nào, bạn phải **tính được thời gian đó đến từ đâu** và mỗi phép tối ưu tiết kiệm được bao nhiêu mili-giây. Bài này luyện đúng kỹ năng đó: biến cảm giác "chậm" thành một bảng cộng.
+
+## Đề bài
+
+Ứng dụng có người dùng ở Việt Nam, server đặt ở Frankfurt. Trang chủ tải **120 tài nguyên** (JS, CSS, ảnh). Trình duyệt mở **6 kết nối** song song tới cùng một domain, mỗi kết nối phải bắt tay TCP rồi TLS trước khi gửi request đầu tiên. Ảnh lấy từ cùng server đó.
+
+Yêu cầu:
+
+1. Tính thời gian tải xong toàn bộ tài nguyên trong trường hợp xấu nhất (không cache, không CDN, HTTP/1.1).
+2. Tính lại khi có CDN đặt tại Singapore (RTT 30ms tới người dùng) và HTTP/2.
+3. Nêu **ba** thay đổi mang lại nhiều mili-giây nhất, kèm con số.
+
+## Bảng số liệu được dùng
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Thao tác</th><th>Thời gian</th><th>Ghi chú</th></tr></thead>
+    <tbody>
+      <tr><td>L1 cache</td><td>0,5 ns</td><td>Không bao giờ là điểm nghẽn của web</td></tr>
+      <tr><td>RAM</td><td>100 ns</td><td>—</td></tr>
+      <tr><td>SSD đọc ngẫu nhiên</td><td>100 µs</td><td>Nhanh hơn đĩa từ ~100 lần</td></tr>
+      <tr><td>Đĩa từ seek</td><td>10 ms</td><td>Vẫn là lý do cache tồn tại</td></tr>
+      <tr><td>RTT trong cùng datacenter</td><td>0,5 ms</td><td>Gọi service nội bộ</td></tr>
+      <tr><td>RTT Việt Nam ↔ Singapore</td><td>30 ms</td><td>Cáp biển, không phải vệ tinh</td></tr>
+      <tr><td>RTT Việt Nam ↔ Frankfurt</td><td>150 ms</td><td>Đây là con số quyết định bài này</td></tr>
+      <tr><td>TCP handshake</td><td>1 RTT</td><td>SYN, SYN-ACK, ACK</td></tr>
+      <tr><td>TLS 1.3 handshake</td><td>1 RTT</td><td>TLS 1.2 là 2 RTT — chênh 150ms ở đây</td></tr>
+    </tbody>
+  </table>
+</div>
+
+## Gợi ý
+
+### Phần 1 — trước khi tối ưu
+
+Mỗi kết nối mới tốn **1 RTT TCP + 1 RTT TLS** trước khi byte dữ liệu đầu tiên được gửi. Với RTT 150ms, đó là **300ms cho mỗi kết nối**. Sáu kết nối song song nên chi phí bắt tay là 300ms (không phải 6 × 300ms), nhưng 120 tài nguyên chia cho 6 kết nối là **20 lượt tuần tự**, mỗi lượt thêm 1 RTT để gửi request và nhận phản hồi.
+
+Con số cần tính: 300ms bắt tay + 20 × 150ms truyền tải = **3,3 giây** chỉ riêng chi phí mạng, chưa tính thời gian server xử lý và thời gian render.
+
+<div class="callout callout-info">
+  <div class="callout-ico">i</div>
+  <div class="callout-body">
+    <div class="callout-title">Vì sao HTTP/1.1 tệ đến vậy</div>
+    <p>Mỗi kết nối chỉ phục vụ một request tại một thời điểm, nên 120 tài nguyên phải xếp hàng thành 20 lượt. HTTP/2 ghép nhiều request lên cùng một kết nối, nên chi phí còn **một lần bắt tay** cộng thời gian truyền thực tế. Đây là lý do HTTP/2 không phải "tối ưu nhỏ" mà là thay đổi bậc độ lớn khi RTT cao.</p>
+  </div>
+</div>
+
+### Phần 2 — sau khi có CDN
+
+Với CDN ở Singapore: bắt tay 2 × 30ms = **60ms**, và HTTP/2 gộp 120 request vào một kết nối nên không còn 20 lượt tuần tự. Phần còn lại là thời gian truyền thật: 120 tài nguyên × 50 KB = 6 MB. Ở băng thông 20 Mbps, 6 MB mất khoảng **2,4 giây** — và đây mới là điểm nghẽn mới.
+
+Bài học nằm ở chỗ này: **sau khi sửa mạng, điểm nghẽn chuyển sang băng thông**, nên phép tối ưu tiếp theo không phải nén thêm mà là giảm số byte (ảnh đúng kích thước, lazy load, bỏ JS không dùng).
+
+### Phần 3 — ba thay đổi đáng làm nhất
+
+1. **CDN**: bắt tay 300ms → 60ms, và 20 lượt truyền tải 150ms → 30ms, tức 3.300ms → **660ms** khi vẫn còn HTTP/1.1. Tiết kiệm **2,6 giây**, và không có thay đổi nào khác gần bằng.
+2. **HTTP/2**: bỏ 20 lượt tuần tự. Trên nền CDN, tiết kiệm thêm **600ms** (660ms → 60ms); nếu chưa có CDN thì tiết kiệm **3,0 giây**.
+3. **Giảm 6 MB xuống 1,5 MB** (ảnh WebP đúng kích thước): ở 20 Mbps tiết kiệm khoảng **1,8 giây**. Đây là thay đổi duy nhất giải quyết điểm nghẽn *sau* khi mạng đã nhanh.
+
+## Câu hỏi phải trả lời
+
+### 1. Nếu chỉ được chọn một thay đổi?
+
+**Trả lời mẫu:** CDN. Vì nó cắt đúng thành phần lớn nhất — 150ms RTT lặp lại nhiều lần — và không đòi hỏi sửa code. Mọi thay đổi khác đều nhỏ hơn một bậc.
+
+### 2. Tối ưu CPU server có giúp gì không?
+
+**Trả lời mẫu:** Ở bài này gần như không. Server xử lý có thể mất 20ms, trong khi mạng tốn 3.300ms — tức CPU chỉ chiếm 0,6%. Tối ưu CPU là đúng hướng chỉ khi đo được rằng server processing chiếm phần lớn thời gian. Đây chính là lý do phải **đo trước khi tối ưu**.
+
+### 3. Chuỗi 6 service nội bộ thì sao?
+
+**Trả lời mẫu:** mỗi lời gọi nội bộ thêm 0,5ms RTT nhưng cộng dồn theo chiều sâu. Nếu 6 service gọi tuần tự, tổng là 3ms — không đáng lo. Nhưng nếu mỗi service gọi 5 service khác theo kiểu phân nhánh, số lời gọi tăng theo cấp số nhân và p99 có thể vọt lên hàng trăm mili-giây. Nguyên tắc: **đếm số lời gọi trên đường tới hạn, không đếm số service**.
+
+## Sản phẩm cần nộp
+
+1. **Bảng cộng thời gian**: từng thành phần, từng con số, tổng cuối
+2. **So sánh trước/sau**: bảng hai cột cho ba kịch bản (gốc, có CDN, có CDN + HTTP/2 + ảnh nhẹ)
+3. **Kết luận**: thay đổi nào đáng làm trước, kèm lý do bằng số
+
+## Tiêu chí đạt
+
+- [ ] Tính đúng chi phí bắt tay TCP + TLS (2 RTT mỗi kết nối)
+- [ ] Không cộng 6 lần chi phí bắt tay cho 6 kết nối song song
+- [ ] Nhận ra điểm nghẽn **chuyển chỗ** sau khi có CDN
+- [ ] Mỗi khuyến nghị kèm con số mili-giây tiết kiệm được
+- [ ] Giải thích được vì sao tối ưu CPU sai hướng ở bài này

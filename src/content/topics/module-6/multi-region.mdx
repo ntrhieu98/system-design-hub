@@ -1,0 +1,128 @@
+---
+title: "Multi-region — active-passive, active-active và cell"
+description: "Multi-region là quyết định đắt nhất trong toàn bộ thiết kế hệ thống. Trước khi bàn, hãy trả lời: bạn cần nó vì latency, vì compliance, hay vì chịu được mất region?"
+module: 6
+order: 5
+num: "6.5"
+sectionId: "multi-region"
+---
+<p>Multi-region là quyết định đắt nhất trong toàn bộ thiết kế hệ thống. Trước khi bàn, hãy trả lời: <span class="kw">bạn cần nó vì latency, vì compliance, hay vì chịu được mất region?</span> Ba lý do này dẫn đến ba thiết kế khác nhau và ba mức chi phí khác nhau.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mô hình</th><th>RPO</th><th>RTO</th><th>Chi phí</th><th>Khi nào dùng</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Backup & restore</strong></td><td>24h</td><td>4–24h</td><td>$</td><td>Hầu hết hệ thống — <span class="kw-g">bắt đầu ở đây</span></td></tr>
+              <tr><td><strong>Pilot light</strong></td><td>~1 phút</td><td>30–60 phút</td><td>$$</td><td>DB replica chạy nhưng app tắt; bật khi cần</td></tr>
+              <tr><td><strong>Warm standby</strong></td><td>giây</td><td>1–5 phút</td><td>$$$</td><td>App chạy ở scale nhỏ, sẵn sàng scale lên</td></tr>
+              <tr><td><strong>Active-passive (hot)</strong></td><td>0–giây</td><td>&lt; 1 phút</td><td>$$$$</td><td>Cần failover nhanh, chấp nhận region phụ idle</td></tr>
+              <tr><td><strong>Active-active</strong></td><td>0 (nếu đồng bộ) hoặc vài giây</td><td>0</td><td>$$$$$</td><td>Latency toàn cầu hoặc cần chịu mất region tức thời</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-note">
+          <div class="callout-ico">∑</div>
+          <div class="callout-body">
+            <div class="callout-title">RPO và RTO — hai chữ phải phân biệt</div>
+            <p><strong>RPO</strong> (Recovery Point Objective): mất tối đa bao nhiêu <em>dữ liệu</em> (tính bằng thời gian). RPO = 1 phút nghĩa là có thể mất 1 phút giao dịch cuối. <strong>RTO</strong> (Recovery Time Objective): mất tối đa bao nhiêu <em>thời gian</em> để phục hồi. RTO = 30 phút nghĩa là hệ thống có thể chết 30 phút. Với thanh toán: RPO phải = 0 (không mất giao dịch), RTO có thể 15 phút. Với feed: RPO = 5 phút chấp nhận được, RTO = 1 phút. Hai con số này quyết định kiến trúc, không phải ngược lại.</p>
+          </div>
+        </div>
+
+        <h3>Active-active — cái bẫy của "chỉ cần thêm region"</h3>
+        <p>Active-active nghe đơn giản: deploy ở 2 region, dùng GeoDNS chia traffic. Nhưng khi cả hai region đều nhận ghi cho cùng dữ liệu, bạn có bài toán <span class="kw-r">xung đột ghi xuyên region</span> — và latency giữa region (50–200ms) khiến mọi giải pháp đồng bộ đều đắt.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 420" role="img" aria-label="Ba cách bố trí multi-region: active-passive, active-active theo user partition, và cell-based architecture">
+            <defs>
+              <marker id="m6d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">1. ACTIVE–PASSIVE (hot standby)</text>
+            <rect x="16" y="34" width="168" height="66" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="100" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Region A — ACTIVE</text>
+            <text x="100" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">100% traffic</text>
+            <text x="100" y="90" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">leader cho writes</text>
+
+            <rect x="200" y="34" width="168" height="66" rx="8" fill="#f8fafc" stroke="#8b95a3" stroke-width="2" stroke-dasharray="5 3"/>
+            <text x="284" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#8b95a3">Region B — STANDBY</text>
+            <text x="284" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">0% traffic</text>
+            <text x="284" y="90" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">replica, chỉ đọc</text>
+
+            <path d="M184,58 L198,58" stroke="#10b981" stroke-width="2" marker-end="url(#m6d)"/>
+            <text x="190" y="122" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#10b981">async repl</text>
+
+            <rect x="392" y="34" width="352" height="66" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="410" y="56" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Failover: GeoDNS đổi A record + promote replica</text>
+            <text x="410" y="74" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Thời gian: 1–5 phút (DNS TTL + promote + warm up)</text>
+            <text x="410" y="90" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">Rủi ro: mất ghi cuối (async), DNS còn cache ở ISP</text>
+
+            <line x1="16" y1="150" x2="744" y2="150" stroke="#e7ebf1" stroke-width="2" stroke-dasharray="5 4"/>
+
+            <text x="16" y="176" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">2. ACTIVE–ACTIVE theo partition user (thực dụng nhất)</text>
+            <rect x="16" y="188" width="168" height="80" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="100" y="210" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Region A</text>
+            <text x="100" y="228" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">users hash &lt; 50%</text>
+            <text x="100" y="244" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">owns writes cho nửa này</text>
+            <text x="100" y="260" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#10b981">+ đọc cho 100%</text>
+
+            <rect x="200" y="188" width="168" height="80" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="284" y="210" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Region B</text>
+            <text x="284" y="228" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">users hash ≥ 50%</text>
+            <text x="284" y="244" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">owns writes cho nửa kia</text>
+            <text x="284" y="260" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#10b981">+ đọc cho 100%</text>
+
+            <rect x="392" y="188" width="352" height="80" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="410" y="210" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Không có xung đột vì mỗi user chỉ ghi ở 1 region</text>
+            <text x="410" y="228" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Routing: GeoDNS/anycast đưa user về region "nhà" của họ.</text>
+            <text x="410" y="244" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Nếu region nhà chết → override routing, nhận write ở region kia</text>
+            <text x="410" y="260" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">(chấp nhận latency cao hơn, không nhất quán lâu dài).</text>
+
+            <line x1="16" y1="290" x2="744" y2="290" stroke="#e7ebf1" stroke-width="2" stroke-dasharray="5 4"/>
+
+            <text x="16" y="316" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">3. CELL-BASED — giới hạn blast radius</text>
+            <rect x="16" y="328" width="110" height="60" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="71" y="352" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">cell 1</text>
+            <text x="71" y="366" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">user 1–10M</text>
+            <rect x="140" y="328" width="110" height="60" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="195" y="352" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">cell 2</text>
+            <text x="195" y="366" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">user 10–20M</text>
+            <rect x="264" y="328" width="110" height="60" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="319" y="352" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">cell 3</text>
+            <text x="319" y="366" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">user 20–30M</text>
+            <rect x="388" y="328" width="110" height="60" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="443" y="352" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#ef4444">cell 4 ✗</text>
+            <text x="443" y="366" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#ef4444">hỏng → 10M user</text>
+
+            <rect x="516" y="328" width="228" height="60" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="534" y="350" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Mỗi cell là một stack đầy đủ</text>
+            <text x="534" y="366" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">app + DB + cache, độc lập hoàn toàn.</text>
+            <text x="534" y="380" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#8b95a3">Blast radius = 1 cell thay vì toàn hệ thống.</text>
+          </svg>
+          <div class="diagram-cap">Hình 6.4 — Active-active theo partition user an toàn hơn nhiều so với active-active ghi chung</div>
+        </div>
+
+        <h3>Vì sao active-active ghi chung cực khó</h3>
+        <ul class="list-bullet">
+          <li><strong>Latency đồng bộ:</strong> để hai region cùng nhất quán, mỗi write phải chờ region kia ack → +100–200ms cho <em>mọi</em> write. Nếu bạn cần cross-region consensus (Spanner), mỗi commit mất 100ms+.</li>
+          <li><strong>Xung đột:</strong> hai user ở hai region sửa cùng một document → phải LWW (mất dữ liệu) hoặc CRDT (chỉ áp dụng được cho một số kiểu dữ liệu).</li>
+          <li><strong>Deadlock phân tán:</strong> transaction chạm hai region có thể deadlock, phát hiện chậm và đắt.</li>
+          <li><strong>Clock skew:</strong> hai region lệch đồng hồ → LWW sai. Cần TrueTime (Spanner) hoặc HLC + uncertainty window.</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Câu trả lời thực dụng cho 90% trường hợp</div>
+            <p>"Tôi dùng <strong>active-passive với warm standby</strong> ở region phụ: app chạy 10% scale, DB là read replica. Failover mất 2–5 phút, RPO ~1 giây với semi-sync. Điều này đủ cho hầu hết SLA. Nếu cần latency toàn cầu, tôi đặt <strong>read replica + CDN ở các region khác</strong> — đọc gần user, ghi vẫn về một region. Chỉ khi yêu cầu là 'chịu được mất region trong 0 giây' hoặc 'ghi phải &lt; 50ms toàn cầu' tôi mới cân nhắc active-active, và khi đó tôi dùng <strong>partition theo user</strong> để tránh xung đột — mỗi user chỉ ghi ở một region." Đây là câu trả lời của người đã làm thật.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Failover chưa được diễn tập là failover không tồn tại</div>
+            <p>Đây là bài học đau nhất của multi-region. Kiến trúc có thể đúng trên giấy nhưng failover thất bại vì: DNS TTL 3600s khiến traffic vẫn về region chết 1 giờ; capacity region phụ không đủ (chạy 10% scale, không kịp scale trong 5 phút); secret/config region phụ lỗi thời; hoặc đơn giản là không ai biết quy trình. Quy tắc: <strong>diễn tập failover mỗi quý</strong>, chạy <strong>game day</strong> với traffic thật (hoặc một phần), đo RTO thật. Và luôn có <strong>"failback plan"</strong> — quay lại region chính cũng là một sự cố cần kế hoạch. Nhiều công ty failover thành công nhưng sập khi failback vì region chính đã có dữ liệu phân kỳ.</p>
+          </div>
+        </div>

@@ -1,0 +1,99 @@
+---
+title: "Distributed lock — và vì sao nó thường sai"
+description: "Distributed lock là một trong những thứ bị implement sai nhiều nhất. Vấn đề không phải ở SETNX mà ở chỗ: bạn không biết mình còn giữ lock hay không."
+module: 4
+order: 7
+num: "4.7"
+sectionId: "locks"
+---
+<p>Distributed lock là một trong những thứ bị implement sai nhiều nhất. Vấn đề không phải ở <code>SETNX</code> mà ở chỗ: <span class="kw-r">bạn không biết mình còn giữ lock hay không</span>.</p>
+
+        <h3>Phiên bản sai nhất — nhưng phổ biến nhất</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">PSEUDOCODE</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">// ✗ SAI: ba lỗi cùng lúc</span>&#10;<span class="c-key">if</span> redis.setnx(lock_key, <span class="c-str">"1"</span>):          <span class="c-com">// 1. không có TTL → deadlock nếu crash</span>&#10;    do_work()                            <span class="c-com">// 2. có thể chạy lâu hơn TTL</span>&#10;    redis.del(lock_key)                  <span class="c-com">// 3. xoá lock của NGƯỜI KHÁC</span></code></pre>
+        </div>
+        <p>Lỗi thứ ba là nghiêm trọng nhất. Kịch bản: client A lấy lock với TTL 10s, bị GC pause 15s, lock hết hạn, client B lấy lock, A tỉnh dậy và gọi <code>DEL</code> → <strong>xoá lock của B</strong>. Bây giờ cả A và B đều tin mình giữ lock.</p>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">LUA</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">-- ✓ ĐÚNG hơn: TTL + kiểm tra owner khi xoá (atomic bằng Lua)</span>&#10;<span class="c-com">-- Acquire: SET key value NX PX 10000</span>&#10;<span class="c-com">--   value = UUID của lần acquire này (fencing token)</span>&#10;&#10;<span class="c-com">-- Release: chỉ xoá nếu value khớp</span>&#10;<span class="c-key">if</span> redis.call(<span class="c-str">"GET"</span>, KEYS[<span class="c-num">1</span>]) == ARGV[<span class="c-num">1</span>] <span class="c-key">then</span>&#10;  <span class="c-key">return</span> redis.call(<span class="c-str">"DEL"</span>, KEYS[<span class="c-num">1</span>])&#10;<span class="c-key">else</span>&#10;  <span class="c-key">return</span> <span class="c-num">0</span>   <span class="c-com">-- không phải lock của mình, không xoá</span>&#10;<span class="c-key">end</span>&#10;&#10;<span class="c-com">-- Extend (watchdog): chỉ gia hạn nếu vẫn là owner</span>&#10;<span class="c-key">if</span> redis.call(<span class="c-str">"GET"</span>, KEYS[<span class="c-num">1</span>]) == ARGV[<span class="c-num">1</span>] <span class="c-key">then</span>&#10;  <span class="c-key">return</span> redis.call(<span class="c-str">"PEXPIRE"</span>, KEYS[<span class="c-num">1</span>], ARGV[<span class="c-num">2</span>])&#10;<span class="c-key">end</span>&#10;<span class="c-key">return</span> <span class="c-num">0</span></code></pre>
+        </div>
+
+        <h3>Nhưng ngay cả vậy vẫn chưa đủ — cần fencing</h3>
+        <p>Vấn đề còn lại: A giữ lock, bị pause, lock hết hạn, B lấy lock và bắt đầu ghi. A tỉnh dậy <em>vẫn đang trong <code>do_work()</code></em> và cũng ghi. Lua script không cứu được vì A không gọi release — nó đang ghi dữ liệu.</p>
+        <p>Giải pháp duy nhất đúng: <span class="kw">fencing token</span>. Mỗi lần acquire cấp một số tăng dần. Mọi write gửi kèm số đó; storage từ chối write có số nhỏ hơn số lớn nhất đã thấy.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 330" role="img" aria-label="Minh hoạ fencing token ngăn client cũ ghi dữ liệu sau khi lock hết hạn">
+            <defs>
+              <marker id="m4h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+              <marker id="m4hr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/>
+              </marker>
+            </defs>
+            <text x="16" y="24" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#8b95a3">THỜI GIAN →</text>
+
+            <line x1="40" y1="90" x2="740" y2="90" stroke="#e7ebf1" stroke-width="2"/>
+
+            <rect x="40" y="46" width="200" height="36" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="140" y="68" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">A giữ lock, token=33</text>
+
+            <rect x="240" y="46" width="150" height="36" rx="7" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="315" y="68" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">A bị GC pause…</text>
+
+            <rect x="390" y="46" width="180" height="36" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="480" y="68" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#ef4444">TTL hết, lock mở</text>
+
+            <rect x="570" y="46" width="170" height="36" rx="7" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="655" y="68" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">B lấy lock, token=34</text>
+
+            <rect x="40" y="110" width="350" height="36" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="215" y="132" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">A ghi với token=33 → storage CHẤP NHẬN (33 &gt; 0)</text>
+
+            <rect x="390" y="110" width="350" height="36" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="565" y="132" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">B ghi với token=34 → CHẤP NHẬN, max_token=34</text>
+
+            <rect x="40" y="160" width="700" height="36" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="390" y="182" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#ef4444">A tỉnh dậy, ghi tiếp với token=33 → storage TỪ CHỐI (33 &lt; 34) ✗</text>
+
+            <rect x="16" y="216" width="352" height="98" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="240" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Storage phải kiểm tra token</text>
+            <text x="34" y="260" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Đây mới là điều thật sự bảo vệ.</text>
+            <text x="34" y="278" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Redis/etcd chỉ giữ lock; quyết định</text>
+            <text x="34" y="294" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">từ chối nằm ở tầng ghi dữ liệu.</text>
+
+            <rect x="384" y="216" width="360" height="98" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="402" y="240" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Thực tế dễ dùng hơn</text>
+            <text x="402" y="260" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Dùng conditional write: UPDATE ... WHERE</text>
+            <text x="402" y="276" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">version = 5. Không khớp → không ghi.</text>
+            <text x="402" y="292" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Đây là optimistic lock — đơn giản và</text>
+            <text x="402" y="308" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">an toàn hơn nhiều so với distributed lock.</text>
+          </svg>
+          <div class="diagram-cap">Hình 4.8 — Fencing token: lock chỉ là tối ưu hoá, tính đúng đắn nằm ở tầng storage</div>
+        </div>
+
+        <h3>Khi nào thật sự cần distributed lock</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nhu cầu</th><th>Nên dùng</th><th>Không nên dùng lock</th></tr></thead>
+            <tbody>
+              <tr><td>Chỉ một worker chạy cron job</td><td>Lock + lease (etcd/SQL <code>FOR UPDATE SKIP LOCKED</code>)</td><td>—</td></tr>
+              <tr><td>Tránh 2 request xử lý cùng order</td><td><span class="kw-g">Conditional UPDATE / unique constraint</span></td><td>Distributed lock — chậm và có thể sai</td></tr>
+              <tr><td>Tăng counter an toàn</td><td>Atomic increment (Redis INCR / SQL <code>+1</code>)</td><td>Lock — thừa và chậm</td></tr>
+              <tr><td>Đảm bảo tuần tự giữa nhiều node</td><td>Partition theo key + single consumer (Kafka)</td><td>Lock — không đảm bảo được thứ tự</td></tr>
+              <tr><td>Bầu leader</td><td>Raft lease (etcd election API)</td><td>Redis SETNX — không an toàn dưới partition</td></tr>
+              <tr><td>Chống trùng khi tạo resource</td><td>Unique index + bắt lỗi duplicate</td><td>Check-then-act với lock</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Redlock — và tại sao nó gây tranh cãi</div>
+            <p>Redlock cố làm lock an toàn bằng cách lấy lock trên N/2+1 Redis độc lập. Martin Kleppmann đã chỉ ra nó vẫn không an toàn khi có clock drift, GC pause, hoặc network delay — vì không có fencing token thì client cũ vẫn ghi được. Antirez (tác giả Redis) phản biện rằng Redlock có dùng thời gian lấy lock để phát hiện. Kết luận thực dụng cho phỏng vấn: <strong>đừng dùng distributed lock để bảo vệ tính đúng đắn của dữ liệu</strong>. Dùng nó như một tối ưu hoá (giảm việc trùng lặp), còn tính đúng đắn đặt ở tầng storage bằng conditional write, unique constraint, hoặc fencing token. Nếu bạn nói được câu này trong phỏng vấn, đó là dấu hiệu rất tốt.</p>
+          </div>
+        </div>

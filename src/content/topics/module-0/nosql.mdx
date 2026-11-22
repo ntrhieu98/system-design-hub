@@ -1,0 +1,31 @@
+---
+title: "Chọn NoSQL đúng loại"
+description: "\"NoSQL\" không phải một thứ — nó là bốn họ CSDL với mô hình dữ liệu hoàn toàn khác nhau."
+module: 0
+order: 6
+num: "0.6"
+sectionId: "nosql"
+---
+<p>"NoSQL" không phải một thứ — nó là bốn họ CSDL với mô hình dữ liệu hoàn toàn khác nhau.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Loại</th><th>Ví dụ</th><th>Phù hợp</th><th>Không phù hợp</th></tr></thead>
+            <tbody>
+              <tr><td>Key-Value</td><td>Redis, DynamoDB, etcd</td><td>Session, cache, counter, config</td><td>Truy vấn theo nhiều tiêu chí</td></tr>
+              <tr><td>Document</td><td>MongoDB, Couchbase</td><td>Dữ liệu lồng nhau, schema linh hoạt</td><td>Join phức tạp, transaction đa document lớn</td></tr>
+              <tr><td>Wide-column</td><td>Cassandra, ScyllaDB, HBase</td><td>Ghi cực nhiều, time-series, multi-DC</td><td>Truy vấn ad-hoc, aggregate phức tạp</td></tr>
+              <tr><td>Graph</td><td>Neo4j, Neptune</td><td>Quan hệ nhiều bậc (social, fraud)</td><td>Dữ liệu dạng bảng đơn giản</td></tr>
+              <tr><td>Search</td><td>Elasticsearch, OpenSearch</td><td>Full-text, facet, log analytics</td><td>Source of truth, transaction</td></tr>
+              <tr><td>Time-series</td><td>InfluxDB, TimescaleDB</td><td>Metrics, IoT, monitoring</td><td>Quan hệ thực thể phức tạp</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Nguyên tắc chọn</div>
+            <p>Bắt đầu bằng <strong>access pattern</strong>, không phải bằng công nghệ. Viết ra 5–10 truy vấn quan trọng nhất, đo tỉ lệ read/write, rồi mới chọn. "Dùng NoSQL cho scale" là câu trả lời sai nếu bạn chỉ cần đọc theo ID — Postgres với index cũng làm được.</p>
+          </div>
+        </div>

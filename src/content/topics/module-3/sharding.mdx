@@ -1,0 +1,131 @@
+---
+title: "Sharding — chia dữ liệu và cái bẫy hotspot"
+description: "Replication nhân bản toàn bộ dữ liệu. Khi dữ liệu vượt dung lượng một máy hoặc write vượt khả năng một máy, bạn buộc phải sharding (partitioning ngang): chia bảng thành nhiều mảnh, mỗi mảnh nằm trên một node khác nhau."
+module: 3
+order: 5
+num: "3.5"
+sectionId: "sharding"
+---
+<p>Replication nhân bản <em>toàn bộ</em> dữ liệu. Khi dữ liệu vượt dung lượng một máy hoặc write vượt khả năng một máy, bạn buộc phải <span class="kw">sharding</span> (partitioning ngang): chia bảng thành nhiều mảnh, mỗi mảnh nằm trên một node khác nhau. Đây là bước nhảy về độ phức tạp — chỉ làm khi thật cần.</p>
+
+        <h3>Bốn chiến lược chọn shard key</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Chiến lược</th><th>Cách làm</th><th>Ưu</th><th>Nhược</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Range</strong></td><td>Theo khoảng giá trị (created_at, id, chữ cái)</td><td>Range scan hiệu quả; dễ hiểu</td><td><span class="kw-r">Hotspot ở đầu/cuối</span> — mọi write mới dồn vào shard cuối</td></tr>
+              <tr><td><strong>Hash</strong></td><td><code>hash(key) % N</code></td><td>Phân bố đều</td><td>Mất khả năng range scan; <code>% N</code> đổi N là xáo toàn bộ</td></tr>
+              <tr><td><strong>Consistent hashing</strong></td><td>Vòng hash + virtual node</td><td>Thêm/bớt node chỉ di chuyển ~1/N dữ liệu</td><td>Cài đặt phức tạp hơn; vẫn cần xử lý hotspot</td></tr>
+              <tr><td><strong>Directory</strong></td><td>Bảng tra cứu key → shard</td><td>Linh hoạt nhất, đổi mapping bất cứ lúc nào</td><td>Tra cứu thành bottleneck/SPOF; thêm 1 hop</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 360" role="img" aria-label="So sánh sharding theo range gây hotspot và sharding theo hash phân bố đều">
+            <defs>
+              <marker id="m3e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="20" y="24" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#ef4444">✗ RANGE theo created_at — shard cuối bị dồn</text>
+
+            <rect x="20" y="38" width="160" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="100" y="60" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard 1</text>
+            <text x="100" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">T1–T3 · 30% tải</text>
+
+            <rect x="196" y="38" width="160" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="276" y="60" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard 2</text>
+            <text x="276" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">T4–T6 · 25% tải</text>
+
+            <rect x="372" y="38" width="160" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="452" y="60" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard 3</text>
+            <text x="452" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">T7–T9 · 20% tải</text>
+
+            <rect x="548" y="38" width="192" height="52" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="644" y="60" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#ef4444">shard 4 (mới nhất)</text>
+            <text x="644" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#ef4444">T10–nay · 100% write</text>
+
+            <line x1="20" y1="112" x2="740" y2="112" stroke="#e7ebf1" stroke-width="2" stroke-dasharray="5 4"/>
+            <text x="20" y="138" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#10b981">✓ HASH hoặc SALT — phân bố đều</text>
+
+            <rect x="20" y="152" width="168" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="104" y="174" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard 1</text>
+            <text x="104" y="192" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">25% tải</text>
+
+            <rect x="204" y="152" width="168" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="288" y="174" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard 2</text>
+            <text x="288" y="192" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">25% tải</text>
+
+            <rect x="388" y="152" width="168" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="472" y="174" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard 3</text>
+            <text x="472" y="192" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">25% tải</text>
+
+            <rect x="572" y="152" width="168" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="656" y="174" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard 4</text>
+            <text x="656" y="192" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">25% tải</text>
+
+            <rect x="20" y="228" width="352" height="112" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="38" y="252" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Cách chữa hotspot ID tăng dần</text>
+            <text x="38" y="274" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard = hash(id) % N</text>
+            <text x="38" y="292" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard = hash(user_id) % N</text>
+            <text x="38" y="310" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">shard = hash(id + salt)</text>
+            <text x="38" y="328" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">salt là số ngẫu nhiên nhỏ (0–9) gắn vào key</text>
+
+            <rect x="388" y="228" width="352" height="112" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="406" y="252" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Nhưng salt phá thứ tự!</text>
+            <text x="406" y="274" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">Muốn đọc "100 bài mới nhất" phải</text>
+            <text x="406" y="292" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">query cả 10 salt × N shard rồi merge.</text>
+            <text x="406" y="314" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">Đánh đổi thật: write phân tán ⇄ read range</text>
+            <text x="406" y="332" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">phải scatter-gather.</text>
+          </svg>
+          <div class="diagram-cap">Hình 3.5 — Hotspot do range sharding và cái giá của việc phá thứ tự bằng salt</div>
+        </div>
+
+        <h3>Shard key tốt trông như thế nào</h3>
+        <ol class="list-num">
+          <li><strong>Cardinality cao:</strong> đủ nhiều giá trị để chia đều. <code>country</code> (200 giá trị) tốt hơn <code>status</code> (3 giá trị).</li>
+          <li><strong>Phân bố đều về lưu lượng, không chỉ về số dòng:</strong> một shard có 1 triệu user không hoạt động và một shard có 10.000 user VIP đốt 80% tải — shard thứ hai vẫn là hotspot.</li>
+          <li><strong>Xuất hiện trong hầu hết query:</strong> nếu không, mỗi query phải fan-out ra mọi shard. Đây là tiêu chí hay bị bỏ qua nhất.</li>
+          <li><strong>Bất biến:</strong> shard key thay đổi = phải di chuyển dữ liệu. Không bao giờ dùng email hoặc username làm shard key.</li>
+          <li><strong>Không tạo cross-shard transaction:</strong> nếu nghiệp vụ thường xuyên cần dữ liệu của 2 shard, chọn key khác hoặc chấp nhận Saga.</li>
+        </ol>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Câu hỏi phỏng vấn kinh điển: shard theo user_id, nhưng cần feed của người mình follow</div>
+            <p>Nếu <code>posts</code> shard theo <code>author_id</code>, thì để lấy feed của một user bạn phải query N shard (fan-out on read). Đó là lý do các hệ thống feed dùng <span class="kw">fan-out on write</span>: khi user đăng bài, một worker đẩy bản ghi vào <code>feeds</code> — bảng này shard theo <code>user_id</code> (người nhận). Đọc feed trở thành 1 shard duy nhất. Cái giá: một celebrity có 50 triệu follower tạo ra 50 triệu write cho một post → phải dùng hybrid (celebrity thì fan-out on read, người thường thì fan-out on write). Đây là lý do Module 5 dành hẳn một section cho news feed.</p>
+          </div>
+        </div>
+
+        <h3>Resharding — khi N phải thay đổi</h3>
+        <p>Với <code>hash(key) % N</code>, tăng N từ 4 lên 5 làm <strong>80% key đổi shard</strong>. Đó là thảm hoạ vận hành. Ba cách tránh:</p>
+        <ul class="list-bullet">
+          <li><span class="kw">Consistent hashing:</span> chỉ ~1/N key di chuyển. Dùng virtual node (150–200 bản sao mỗi node) để phân bố đều.</li>
+          <li><span class="kw">Fixed partition count:</span> tạo sẵn 4096 logical partition, map partition → node. Thêm node chỉ là chuyển vài partition, không đổi <code>hash % 4096</code>. Đây là cách Redis Cluster và Kafka làm.</li>
+          <li><span class="kw-y">Directory service:</span> bảng tra cứu tập trung (như Vitess, Citus). Linh hoạt nhất, nhưng phải làm bảng đó HA và cache lại.</li>
+        </ul>
+
+        <h3>Những thứ sharding làm hỏng</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tính năng</th><th>Trước sharding</th><th>Sau sharding</th><th>Cách xử lý</th></tr></thead>
+            <tbody>
+              <tr><td>JOIN</td><td>JOIN tự do</td><td>Chỉ JOIN trong cùng shard</td><td>Denormalize, hoặc JOIN ở application, hoặc colocate theo cùng key</td></tr>
+              <tr><td>Transaction</td><td>ACID đầy đủ</td><td>Chỉ trong 1 shard</td><td>2PC (chậm, dễ block) hoặc Saga (Module 4)</td></tr>
+              <tr><td>Auto-increment ID</td><td>Tăng dần, duy nhất</td><td>Không duy nhất toàn cục</td><td>Snowflake, UUIDv7, hoặc dải ID cấp phát theo shard</td></tr>
+              <tr><td>Aggregate (COUNT, SUM)</td><td>1 query</td><td>Phải fan-out rồi merge</td><td>Scatter-gather + cache kết quả, hoặc pre-aggregate vào OLAP</td></tr>
+              <tr><td>ORDER BY + LIMIT</td><td>Index địa phương</td><td>Mỗi shard trả top-K, merge ở client</td><td>Merge K×N rồi lấy top-K; dùng cursor pagination</td></tr>
+              <tr><td>Unique constraint</td><td>Toàn bảng</td><td>Chỉ trong shard</td><td>Bảng tra cứu riêng cho uniqueness toàn cục (ví dụ username → user_id)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Thứ tự tối ưu đúng — đừng shard quá sớm</div>
+            <p>Theo thứ tự chi phí tăng dần: <strong>(1)</strong> thêm index đúng → <strong>(2)</strong> cache read → <strong>(3)</strong> read replica → <strong>(4)</strong> archive dữ liệu cũ sang bảng/cold storage → <strong>(5)</strong> tách service theo domain → <strong>(6)</strong> vertical scaling (máy to hơn — thường bị coi thường nhưng rẻ hơn nhiều so với sharding) → <strong>(7)</strong> sharding. Một máy 64 core / 512GB RAM / NVMe chạy được hàng chục nghìn QPS. Sharding đưa bạn vào thế giới của cross-shard query, resharding, và bug chỉ xuất hiện một lần mỗi tháng. Trong phỏng vấn, hãy nói rõ <em>ngưỡng</em> bạn sẽ shard: thường là khi dataset &gt; 1–2TB hoặc write &gt; 20–50k/s trên một node.</p>
+          </div>
+        </div>

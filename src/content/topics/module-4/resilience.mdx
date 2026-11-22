@@ -1,0 +1,98 @@
+---
+title: "Circuit breaker, bulkhead, retry — sống chung với lỗi"
+description: "Trong hệ phân tán, lỗi không phải ngoại lệ — nó là trạng thái bình thường. Câu hỏi không phải \"làm sao để không lỗi\" mà là \"làm sao để một lỗi cục bộ không lan thành sập toàn hệ thống\"."
+module: 4
+order: 5
+num: "4.5"
+sectionId: "resilience"
+---
+<p>Trong hệ phân tán, lỗi không phải ngoại lệ — nó là trạng thái bình thường. Câu hỏi không phải "làm sao để không lỗi" mà là <span class="kw">"làm sao để một lỗi cục bộ không lan thành sập toàn hệ thống"</span>.</p>
+
+        <h3>Cascading failure — cơ chế sụp đổ</h3>
+        <ol class="list-num">
+          <li>Service B chậm (do DB khoá, GC pause, node quá tải).</li>
+          <li>Service A gọi B, mỗi request giữ 1 thread/connection trong 30s timeout.</li>
+          <li>Thread pool của A đầy sau vài giây vì request đến nhanh hơn request hoàn thành.</li>
+          <li>A không phục vụ được <em>bất kỳ</em> endpoint nào — kể cả endpoint không liên quan đến B.</li>
+          <li>Service C gọi A cũng đầy theo. Toàn hệ thống sập vì <strong>một</strong> service chậm.</li>
+        </ol>
+        <p>Điểm mấu chốt: <span class="kw-r">B không cần chết</span>. Chỉ cần chậm 3× là đủ để kéo cả hệ thống xuống. Đây là lý do timeout và circuit breaker không phải "tối ưu" mà là yêu cầu bắt buộc.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 340" role="img" aria-label="Ba trạng thái của circuit breaker closed open half-open và ngưỡng chuyển đổi">
+            <defs>
+              <marker id="m4f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="30" y="52" width="200" height="90" rx="10" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="130" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">CLOSED</text>
+            <text x="130" y="98" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">gọi bình thường</text>
+            <text x="130" y="116" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">đếm lỗi trong cửa sổ 10s</text>
+            <text x="130" y="134" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#10b981">error rate &lt; 50%</text>
+
+            <rect x="290" y="52" width="200" height="90" rx="10" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="390" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">OPEN</text>
+            <text x="390" y="98" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">fail fast, không gọi</text>
+            <text x="390" y="116" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">trả fallback ngay lập tức</text>
+            <text x="390" y="134" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#ef4444">chờ 30s</text>
+
+            <rect x="550" y="52" width="190" height="90" rx="10" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="645" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">HALF-OPEN</text>
+            <text x="645" y="98" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">cho 5 request thử</text>
+            <text x="645" y="116" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">thành công → CLOSED</text>
+            <text x="645" y="134" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#b45309">lỗi → OPEN lại</text>
+
+            <path d="M230,80 L286,80" stroke="#505a68" stroke-width="2" marker-end="url(#m4f)"/>
+            <text x="258" y="70" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">lỗi &gt; ngưỡng</text>
+
+            <path d="M490,80 L546,80" stroke="#505a68" stroke-width="2" marker-end="url(#m4f)"/>
+            <text x="518" y="70" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#b45309">hết 30s</text>
+
+            <path d="M645,142 C645,180 130,180 130,144" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#m4f)"/>
+            <text x="380" y="196" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">thử thành công</text>
+
+            <rect x="30" y="216" width="352" height="108" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="48" y="240" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Bulkhead — cô lập tài nguyên</text>
+            <text x="48" y="260" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Thread pool riêng cho từng dependency:</text>
+            <text x="48" y="278" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">/search   → 20 thread</text>
+            <text x="48" y="294" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">/payment  → 50 thread</text>
+            <text x="48" y="310" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">/recommend→ 10 thread</text>
+
+            <rect x="398" y="216" width="342" height="108" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="416" y="240" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Retry đúng cách</text>
+            <text x="416" y="260" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">✓ Chỉ retry lỗi tạm thời (5xx, timeout, 429)</text>
+            <text x="416" y="276" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">✓ Exponential backoff + full jitter</text>
+            <text x="416" y="292" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">✓ Tối đa 3 lần, có deadline tổng</text>
+            <text x="416" y="308" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#ef4444">✗ Retry lỗi 4xx (400, 401, 404) — vô nghĩa</text>
+            <text x="416" y="322" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#ef4444">✗ Retry khi đã hết deadline của request</text>
+          </svg>
+          <div class="diagram-cap">Hình 4.6 — Circuit breaker là state machine; bulkhead là hàng rào tài nguyên; retry là thuốc, không phải thức ăn</div>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">JAVA</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">// Resilience4j: cấu hình thực dụng cho production</span>&#10;CircuitBreakerConfig cb = CircuitBreakerConfig.custom()&#10;    .slidingWindowType(SlidingWindowType.COUNT_BASED)&#10;    .slidingWindowSize(<span class="c-num">50</span>)                 <span class="c-com">// xét 50 request gần nhất</span>&#10;    .minimumNumberOfCalls(<span class="c-num">20</span>)           <span class="c-com">// chưa đủ 20 thì chưa đánh giá</span>&#10;    .failureRateThreshold(<span class="c-num">50</span>)             <span class="c-com">// &gt; 50% lỗi → OPEN</span>&#10;    .slowCallDurationThreshold(Duration.ofSeconds(<span class="c-num">2</span>))&#10;    .slowCallRateThreshold(<span class="c-num">80</span>)              <span class="c-com">// chậm cũng tính là lỗi</span>&#10;    .waitDurationInOpenState(Duration.ofSeconds(<span class="c-num">30</span>))&#10;    .permittedNumberOfCallsInHalfOpenState(<span class="c-num">5</span>)&#10;    .build();&#10;&#10;RetryConfig retry = RetryConfig.custom()&#10;    .maxAttempts(<span class="c-num">3</span>)&#10;    .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(&#10;        <span class="c-num">100</span>, <span class="c-num">2.0</span>, <span class="c-num">0.5</span>))   <span class="c-com">// 100ms, 200ms, 400ms ± 50% jitter</span>&#10;    .retryExceptions(IOException.class, TimeoutException.class)&#10;    .ignoreExceptions(BadRequestException.class)  <span class="c-com">// 4xx không retry</span>&#10;    .build();&#10;&#10;TimeLimiterConfig tl = TimeLimiterConfig.custom()&#10;    .timeoutDuration(Duration.ofMillis(<span class="c-num">800</span>))   <span class="c-com">// theo p99.9 của dependency</span>&#10;    .build();</code></pre>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Retry storm — cách tự tay DDoS hệ thống của mình</div>
+            <p>Ba lớp retry chồng nhau: client retry 3 lần, gateway retry 3 lần, service retry 3 lần → mỗi request thực tế tạo ra <strong>27 lần gọi</strong> xuống DB. Khi DB chậm, lượng gọi tăng 27× làm DB chậm hơn nữa — vòng xoáy tử thần. Quy tắc: <strong>chỉ retry ở một tầng duy nhất</strong> (thường là tầng gần client nhất hoặc tầng gọi ra ngoài hệ thống của bạn), và luôn dùng <em>retry budget</em>: giới hạn retry ở 10–20% tổng request, vượt thì bỏ. Envoy/Istio có sẵn cấu hình <code>retry_budget</code>.</p>
+          </div>
+        </div>
+
+        <h3>Fallback — trả lời gì khi không gọi được</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tình huống</th><th>Fallback tốt</th><th>Fallback tệ</th></tr></thead>
+            <tbody>
+              <tr><td>Recommendation service chết</td><td>Trả danh sách "phổ biến" tĩnh, cache sẵn</td><td>Trả trang trắng, hoặc chờ 30s rồi lỗi</td></tr>
+              <tr><td>Search index chết</td><td>Trả kết quả từ DB bằng LIKE trên top sản phẩm</td><td>Báo "hệ thống bảo trì" cho toàn site</td></tr>
+              <tr><td>Payment gateway timeout</td><td>Đánh dấu PENDING, retry nền, thông báo "đang xử lý"</td><td>Báo thất bại — user thử lại và bị trừ tiền 2 lần</td></tr>
+              <tr><td>Avatar service chết</td><td>Trả ảnh placeholder</td><td>Broken image icon</td></tr>
+              <tr><td>View counter chết</td><td>Bỏ qua, hiển thị số cache cũ</td><td>Không load được trang video</td></tr>
+            </tbody>
+          </table>
+        </div>

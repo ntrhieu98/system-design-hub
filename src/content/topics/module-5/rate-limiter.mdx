@@ -1,0 +1,121 @@
+---
+title: "Rate Limiter — thiết kế chi tiết với Redis"
+description: "Rate limiter xuất hiện ở mọi hệ thống thật nhưng bị làm sai rất thường xuyên. Câu hỏi trung tâm: làm sao để đếm chính xác khi có nhiều server, và làm sao để không tự tạo ra bottleneck?"
+module: 5
+order: 2
+num: "5.2"
+sectionId: "rate-limiter"
+---
+<p>Rate limiter xuất hiện ở mọi hệ thống thật nhưng bị làm sai rất thường xuyên. Câu hỏi trung tâm: <span class="kw">làm sao để đếm chính xác khi có nhiều server, và làm sao để không tự tạo ra bottleneck?</span></p>
+
+        <h3>Năm thuật toán — chọn theo yêu cầu</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thuật toán</th><th>Bộ nhớ</th><th>Cho burst?</th><th>Sai số</th><th>Dùng khi</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Token bucket</strong></td><td>O(1)/user</td><td>Có (tới capacity)</td><td>Không</td><td>Cần cho phép burst ngắn — mặc định tốt nhất</td></tr>
+              <tr><td><strong>Leaky bucket</strong></td><td>O(1)/user hoặc O(queue)</td><td>Không — làm phẳng</td><td>Không</td><td>Cần đầu ra đều tuyệt đối (mạng, API bên thứ ba)</td></tr>
+              <tr><td><strong>Fixed window</strong></td><td>O(1)/user</td><td>Có (gấp đôi ở biên)</td><td>Lớn ở biên</td><td>Đơn giản, chấp nhận được cho quota hiển thị</td></tr>
+              <tr><td><strong>Sliding window log</strong></td><td>O(requests)</td><td>Không</td><td>Không</td><td>Cần chính xác tuyệt đối, volume thấp</td></tr>
+              <tr><td><strong>Sliding window counter</strong></td><td>O(1)/user</td><td>Gần đúng</td><td>&lt; 0,003%</td><td>Cân bằng tốt nhất — Cloudflare dùng</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Fixed window: lỗi 2× ở biên</div>
+            <p>Limit 100 request/phút theo fixed window. User gửi 100 request lúc <code>12:00:59</code> và 100 request lúc <code>12:01:00</code> → trong khoảng 1 giây user gửi <strong>200 request</strong> mà không vi phạm gì. Nếu mục đích của limiter là bảo vệ DB, bạn đã thất bại. Sliding window counter giải quyết bằng nội suy: <code>count = prev_window × (1 - elapsed/window) + current_window</code>.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 320" role="img" aria-label="So sánh fixed window bị lỗi gấp đôi ở biên với sliding window counter nội suy">
+            <defs>
+              <marker id="m5b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#ef4444">✗ FIXED WINDOW — lỗi 2× ở biên</text>
+
+            <rect x="16" y="36" width="240" height="60" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="136" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">window 12:00:00–12:00:59</text>
+            <text x="136" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">100 request (limit)</text>
+            <text x="136" y="90" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">tất cả dồn vào giây 59</text>
+
+            <rect x="264" y="36" width="240" height="60" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="384" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">window 12:01:00–12:01:59</text>
+            <text x="384" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">100 request (limit)</text>
+            <text x="384" y="90" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">tất cả dồn vào giây 00</text>
+
+            <rect x="512" y="36" width="234" height="60" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="629" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">200 request / 2 giây</text>
+            <text x="629" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">= 2× limit thật trong 1s</text>
+            <text x="629" y="90" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">limiter "không thấy" vi phạm</text>
+
+            <path d="M256,66 L262,66" stroke="#505a68" stroke-width="2" marker-end="url(#m5b)"/>
+            <path d="M504,66 L510,66" stroke="#505a68" stroke-width="2" marker-end="url(#m5b)"/>
+
+            <text x="16" y="134" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#10b981">✓ SLIDING WINDOW COUNTER — nội suy</text>
+
+            <rect x="16" y="148" width="728" height="90" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="172" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">estimated = prev_count × (1 − elapsed/window) + curr_count</text>
+            <text x="34" y="194" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Tại 12:01:00 (elapsed = 0):  estimated = 100 × 1 + 0 = 100  → chỉ cho 0 request nữa</text>
+            <text x="34" y="212" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Tại 12:01:30 (elapsed = 30): estimated = 100 × 0,5 + 0 = 50  → cho thêm 50</text>
+            <text x="34" y="230" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Tại 12:01:59 (elapsed = 59): estimated = 100 × 0,02 + 0 = 2 → cho thêm 98</text>
+
+            <rect x="16" y="252" width="352" height="56" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="274" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Chi phí: 2 số/user (không phải log)</text>
+            <text x="34" y="294" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">1 triệu user = 16 MB Redis. Không cần TTL dài.</text>
+
+            <rect x="384" y="252" width="360" height="56" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="402" y="274" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Sai số: giả định phân bố đều</text>
+            <text x="402" y="294" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Cloudflare đo 400M request: sai số 0,003%.</text>
+          </svg>
+          <div class="diagram-cap">Hình 5.2 — Fixed window có lỗ hổng kinh điển; sliding counter vá nó với chi phí O(1)</div>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">LUA</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">-- Sliding window counter, atomic trong Redis</span>&#10;<span class="c-com">-- KEYS[1] = rl:&#123;user_id&#125;   ; 2 field: curr_window, prev_window</span>&#10;<span class="c-com">-- ARGV = limit, window_seconds, now_ms</span>&#10;&#10;<span class="c-key">local</span> limit   = tonumber(ARGV[<span class="c-num">1</span>])&#10;<span class="c-key">local</span> window  = tonumber(ARGV[<span class="c-num">2</span>]) * <span class="c-num">1000</span>&#10;<span class="c-key">local</span> now_ms  = tonumber(ARGV[<span class="c-num">3</span>])&#10;&#10;<span class="c-key">local</span> curr_key = math.floor(now_ms / window)&#10;<span class="c-key">local</span> elapsed  = (now_ms % window) / window&#10;&#10;<span class="c-key">local</span> data = redis.call(<span class="c-str">'HMGET'</span>, KEYS[<span class="c-num">1</span>], <span class="c-str">'w'</span>, <span class="c-str">'c'</span>, <span class="c-str">'p'</span>)&#10;<span class="c-key">local</span> saved_w = tonumber(data[<span class="c-num">1</span>]) <span class="c-key">or</span> <span class="c-num">0</span>&#10;<span class="c-key">local</span> curr    = tonumber(data[<span class="c-num">2</span>]) <span class="c-key">or</span> <span class="c-num">0</span>&#10;<span class="c-key">local</span> prev    = tonumber(data[<span class="c-num">3</span>]) <span class="c-key">or</span> <span class="c-num">0</span>&#10;&#10;<span class="c-com">-- sang window mới: dịch curr → prev</span>&#10;<span class="c-key">if</span> saved_w ~= curr_key <span class="c-key">then</span>&#10;  <span class="c-key">if</span> saved_w == curr_key - <span class="c-num">1</span> <span class="c-key">then</span> prev = curr <span class="c-key">else</span> prev = <span class="c-num">0</span> <span class="c-key">end</span>&#10;  curr = <span class="c-num">0</span>&#10;<span class="c-key">end</span>&#10;&#10;<span class="c-key">local</span> estimated = prev * (<span class="c-num">1</span> - elapsed) + curr&#10;<span class="c-key">if</span> estimated &gt;= limit <span class="c-key">then</span>&#10;  <span class="c-key">return</span> &#123;<span class="c-num">0</span>, math.floor(limit - estimated)&#125;   <span class="c-com">-- bị chặn</span>&#10;<span class="c-key">end</span>&#10;&#10;curr = curr + <span class="c-num">1</span>&#10;redis.call(<span class="c-str">'HMSET'</span>, KEYS[<span class="c-num">1</span>], <span class="c-str">'w'</span>, curr_key, <span class="c-str">'c'</span>, curr, <span class="c-str">'p'</span>, prev)&#10;redis.call(<span class="c-str">'PEXPIRE'</span>, KEYS[<span class="c-num">1</span>], window * <span class="c-num">2</span>)&#10;<span class="c-key">return</span> &#123;<span class="c-num">1</span>, math.floor(limit - estimated - <span class="c-num">1</span>)&#125;</code></pre>
+        </div>
+
+        <h3>Rate limit ở đâu trong kiến trúc</h3>
+        <ul class="list-bullet">
+          <li><strong>Ở edge/CDN:</strong> chặn DDoS theo IP, rẻ nhất, không chạm hệ thống. Nhưng không biết user_id nên không limit theo tài khoản.</li>
+          <li><strong>Ở API gateway:</strong> nơi tốt nhất — đã có auth, biết user_id, tập trung một chỗ, dễ thay đổi rule. Đây là lựa chọn mặc định.</li>
+          <li><strong>Ở từng service:</strong> chỉ khi service có tài nguyên riêng cần bảo vệ (ví dụ endpoint tìm kiếm đắt). Tránh nhân bản logic khắp nơi.</li>
+          <li><strong>Client-side:</strong> chỉ để hiển thị "còn X request", không bao giờ để bảo vệ — client có thể bị sửa.</li>
+        </ul>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Khi Redis chết thì sao?</div>
+            <p>Đây là câu hỏi phân biệt người đã vận hành thật. Ba lựa chọn: <strong>(1) Fail-open</strong> — cho qua hết, ưu tiên availability. Rủi ro: bị abuse trong lúc Redis down. <strong>(2) Fail-closed</strong> — chặn hết, ưu tiên bảo vệ. Rủi ro: tự mình gây sự cố toàn hệ thống vì một Redis chết. <strong>(3) Fallback local</strong> — mỗi instance chuyển sang token bucket in-memory với limit = global_limit / số_instance. Đây là lựa chọn tốt nhất: vẫn bảo vệ được (dù lỏng hơn) mà không sập. Trong phỏng vấn, nên nêu: "Với endpoint thanh toán tôi fail-closed; với endpoint đọc tôi fail-open kèm alert."</p>
+          </div>
+        </div>
+
+        <h3>Điểm nghẽn thật & quyết định gây tranh cãi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+            <tbody>
+              <tr><td>Traffic đỉnh</td><td>1 triệu req/s</td><td>Đề bài cho</td></tr>
+              <tr><td>Số key cần đếm</td><td>10 triệu</td><td>user_id × endpoint, chỉ giữ key đang hoạt động</td></tr>
+              <tr><td>Bộ nhớ trạng thái</td><td>~1 GB</td><td>10⁷ key × ~100 byte (key + counter + timestamp)</td></tr>
+              <tr><td>Throughput Redis mỗi node</td><td>~100.000 ops/s</td><td>Một lệnh Lua đơn giản, pipeline tốt</td></tr>
+              <tr><td>Số node Redis cần</td><td><strong>10–20</strong></td><td>10⁶ / 10⁵ = 10, cộng dư địa và replica</td></tr>
+              <tr><td>Ngân sách độ trễ</td><td>&lt; 5ms</td><td>Một RTT nội bộ VPC ~0,3–1ms; Lua roundtrip ~1ms</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm nghẽn không phải CPU mà là <span class="kw-r">số round trip mạng tới bộ đếm</span>. Mỗi request thêm một RTT trước khi được phục vụ. Nếu bạn kiểm tra rate limit ở 3 tầng (gateway, service, DB), bạn vừa nhân 3 lần độ trễ vừa tạo 3 nguồn trạng thái có thể lệch nhau. Kiểm tra <strong>một chỗ</strong>, ở nơi gần client nhất có đủ thông tin (gateway hoặc edge).</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Quyết định gây tranh cãi: một bộ đếm toàn cục hay đếm cục bộ rồi cộng dồn?</div>
+            <p><strong>Toàn cục (Redis tập trung):</strong> chính xác tuyệt đối, nhưng mọi request phải qua mạng và Redis thành single point of failure — 1 triệu req/s đẩy qua 10–20 node là bài toán vận hành thật, không phải giả định. <strong>Cục bộ (mỗi instance giữ token bucket trong RAM, giới hạn = global / N):</strong> không có RTT, không có SPOF, nhưng sai số khi traffic không đều giữa các instance — instance nhận 30% traffic sẽ chặn sớm hơn. Cách thực dụng: <strong>cục bộ làm lớp đầu, Redis làm lớp xác nhận cho endpoint nhạy cảm</strong> (login, payment, OTP). Với endpoint đọc thông thường, sai số vài phần trăm không đáng một RTT.</p>
+          </div>
+        </div>

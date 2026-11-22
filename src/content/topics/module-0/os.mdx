@@ -1,0 +1,75 @@
+---
+title: "Hệ điều hành: process, thread và các mô hình I/O"
+description: "Đây là phần quyết định throughput thực tế của server. Một server 8 core có thể phục vụ 10 000 kết nối đồng thời nếu dùng đúng mô hình I/O — hoặc chỉ 8 nếu dùng sai."
+module: 0
+order: 4
+num: "0.4"
+sectionId: "os"
+---
+<p>Đây là phần quyết định <span class="kw">throughput</span> thực tế của server. Một server 8 core có thể phục vụ 10&nbsp;000 kết nối đồng thời nếu dùng đúng mô hình I/O — hoặc chỉ 8 nếu dùng sai.</p>
+
+        <h3>Process vs Thread</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th></th><th>Process</th><th>Thread</th></tr></thead>
+            <tbody>
+              <tr><td>Không gian địa chỉ</td><td>Riêng biệt</td><td>Chia sẻ trong process</td></tr>
+              <tr><td>Chi phí tạo</td><td>Nặng (~ms)</td><td>Nhẹ (~µs)</td></tr>
+              <tr><td>Giao tiếp</td><td>IPC (pipe, socket, shared mem)</td><td>Biến dùng chung (cần lock)</td></tr>
+              <tr><td>Cô lập lỗi</td><td>Tốt — crash không lan</td><td>Kém — 1 thread crash cả process</td></tr>
+              <tr><td>Dùng khi</td><td>Cần cô lập (browser tab, worker)</td><td>Cần chia sẻ state, I/O song song</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Bốn mô hình I/O</h3>
+        <ol class="list-num">
+          <li><strong>Blocking I/O</strong> — thread chờ đến khi có dữ liệu. Đơn giản, nhưng cần 1 thread/kết nối.</li>
+          <li><strong>Non-blocking I/O</strong> — gọi trả về ngay (<code>EAGAIN</code>), phải poll liên tục → tốn CPU.</li>
+          <li><strong>I/O multiplexing</strong> — <code>select</code>/<code>poll</code>/<code>epoll</code>/<code>kqueue</code>. Một thread theo dõi nhiều fd. Nền tảng của Nginx, Redis, Node.js.</li>
+          <li><strong>Async I/O</strong> — kernel báo khi hoàn tất (io_uring trên Linux). Hiệu quả nhất nhưng phức tạp.</li>
+        </ol>
+
+        <div class="diagram">
+          <svg viewBox="0 0 700 250" role="img" aria-label="So sánh mô hình thread-per-connection và event loop">
+            <text x="170" y="20" text-anchor="middle" font-size="12" font-weight="800" fill="#151515">Thread-per-connection</text>
+            <text x="520" y="20" text-anchor="middle" font-size="12" font-weight="800" fill="#151515">Event loop (epoll)</text>
+
+            <rect x="40" y="34" width="260" height="200" rx="10" fill="#f8fafc" stroke="#151515" stroke-width="2"/>
+            <rect x="400" y="34" width="260" height="200" rx="10" fill="#f8fafc" stroke="#151515" stroke-width="2"/>
+
+            <g font-size="10" font-weight="700" fill="#505a68">
+              <rect x="56" y="52" width="48" height="34" rx="6" fill="#fee2e2" stroke="#151515" stroke-width="1.6"/><text x="80" y="73" text-anchor="middle">T1</text>
+              <rect x="112" y="52" width="48" height="34" rx="6" fill="#fee2e2" stroke="#151515" stroke-width="1.6"/><text x="136" y="73" text-anchor="middle">T2</text>
+              <rect x="168" y="52" width="48" height="34" rx="6" fill="#fee2e2" stroke="#151515" stroke-width="1.6"/><text x="192" y="73" text-anchor="middle">T3</text>
+              <rect x="224" y="52" width="48" height="34" rx="6" fill="#fef3c7" stroke="#151515" stroke-width="1.6"/><text x="248" y="73" text-anchor="middle">T…</text>
+              <text x="170" y="112" text-anchor="middle" font-size="10.5" fill="#505a68">1 thread / kết nối</text>
+              <text x="170" y="134" text-anchor="middle" font-size="10.5" fill="#505a68">10k kết nối = 10k thread</text>
+              <text x="170" y="156" text-anchor="middle" font-size="10.5" fill="#ef4444">context switch đắt</text>
+              <text x="170" y="184" text-anchor="middle" font-size="10.5" fill="#505a68">RAM ~1MB/thread</text>
+              <text x="170" y="206" text-anchor="middle" font-size="10.5" fill="#505a68">→ giới hạn ~ vài nghìn</text>
+            </g>
+
+            <g font-size="10" font-weight="700" fill="#505a68">
+              <circle cx="530" cy="80" r="30" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="530" y="84" text-anchor="middle" font-size="9">EVENT</text>
+              <text x="530" y="96" text-anchor="middle" font-size="9">LOOP</text>
+              <rect x="438" y="140" width="40" height="26" rx="5" fill="#e9f0fc" stroke="#151515" stroke-width="1.6"/><text x="458" y="157" text-anchor="middle" font-size="9">fd1</text>
+              <rect x="486" y="140" width="40" height="26" rx="5" fill="#e9f0fc" stroke="#151515" stroke-width="1.6"/><text x="506" y="157" text-anchor="middle" font-size="9">fd2</text>
+              <rect x="534" y="140" width="40" height="26" rx="5" fill="#e9f0fc" stroke="#151515" stroke-width="1.6"/><text x="554" y="157" text-anchor="middle" font-size="9">fd3</text>
+              <rect x="582" y="140" width="40" height="26" rx="5" fill="#e9f0fc" stroke="#151515" stroke-width="1.6"/><text x="602" y="157" text-anchor="middle" font-size="9">fd…</text>
+              <text x="530" y="196" text-anchor="middle" font-size="10.5" fill="#10b981">1 thread, nhiều fd</text>
+              <text x="530" y="216" text-anchor="middle" font-size="10.5" fill="#505a68">10k kết nối vẫn ổn</text>
+            </g>
+            <line x1="530" y1="110" x2="530" y2="134" stroke="#151515" stroke-width="2"/>
+          </svg>
+          <div class="diagram-cap">Hình 0.3 — Hai mô hình server kinh điển. Hầu hết server hiện đại (Nginx, Redis, Node, Go runtime) dùng event loop + non-blocking.</div>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Bẫy phổ biến khi phỏng vấn</div>
+            <p>Nói "dùng thread pool để scale" mà không nói giới hạn. Thread pool chỉ giúp khi tác vụ là I/O-bound; với CPU-bound, thêm thread không tăng throughput mà còn làm chậm do context switch.</p>
+          </div>
+        </div>

@@ -1,0 +1,94 @@
+---
+title: "Vòng đời dữ liệu & checklist trả lời"
+description: "Phần lớn ứng viên chỉ nghĩ đến lúc dữ liệu được ghi. Người có kinh nghiệm nghĩ đến toàn bộ vòng đời: hot → warm → cold → xoá."
+module: 3
+order: 8
+num: "3.8"
+sectionId: "lifecycle"
+---
+<p>Phần lớn ứng viên chỉ nghĩ đến lúc dữ liệu <em>được ghi</em>. Người có kinh nghiệm nghĩ đến toàn bộ vòng đời: <span class="kw">hot → warm → cold → xoá</span>. Đây là nơi bạn tiết kiệm được 80% chi phí hạ tầng và tránh được những cuộc họp khó chịu về GDPR.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 250" role="img" aria-label="Vòng đời dữ liệu từ hot sang warm cold archive và xoá với chi phí giảm dần">
+            <defs>
+              <marker id="m3h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="16" y="56" width="160" height="98" rx="10" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="96" y="82" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">HOT</text>
+            <text x="96" y="102" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">0–30 ngày</text>
+            <text x="96" y="120" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#505a68">Postgres / Redis</text>
+            <text x="96" y="138" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#ef4444">$$$$</text>
+
+            <rect x="206" y="56" width="160" height="98" rx="10" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="286" y="82" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">WARM</text>
+            <text x="286" y="102" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">1–12 tháng</text>
+            <text x="286" y="120" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#505a68">partitioned table</text>
+            <text x="286" y="138" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#fb923c">$$$</text>
+
+            <rect x="396" y="56" width="160" height="98" rx="10" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="476" y="82" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">COLD</text>
+            <text x="476" y="102" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">1–7 năm</text>
+            <text x="476" y="120" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#505a68">S3 + Parquet</text>
+            <text x="476" y="138" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#5294ff">$$</text>
+
+            <rect x="586" y="56" width="158" height="98" rx="10" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="665" y="82" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">ARCHIVE</text>
+            <text x="665" y="102" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">7+ năm</text>
+            <text x="665" y="120" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#505a68">Glacier / tape</text>
+            <text x="665" y="138" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#10b981">$</text>
+
+            <path d="M176,105 L204,105" stroke="#505a68" stroke-width="2" marker-end="url(#m3h)"/>
+            <path d="M366,105 L394,105" stroke="#505a68" stroke-width="2" marker-end="url(#m3h)"/>
+            <path d="M556,105 L584,105" stroke="#505a68" stroke-width="2" marker-end="url(#m3h)"/>
+
+            <text x="190" y="96" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">archive</text>
+            <text x="380" y="96" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">export</text>
+            <text x="570" y="96" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">lifecycle</text>
+
+            <rect x="16" y="176" width="728" height="56" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="198" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Xoá dữ liệu là yêu cầu pháp lý, không phải tính năng</text>
+            <text x="34" y="218" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">GDPR/CCPA: user yêu cầu xoá → phải xoá ở DB, replica, backup, cache, search index, warehouse, log. Hãy thiết kế "xoá theo entity" ngay từ ngày đầu.</text>
+          </svg>
+          <div class="diagram-cap">Hình 3.8 — Vòng đời dữ liệu: mỗi bước giảm chi phí ~10×, nhưng tăng độ trễ truy cập</div>
+        </div>
+
+        <h3>Phân vùng theo thời gian — kỹ thuật rẻ nhất và hiệu quả nhất</h3>
+        <p>Với bảng append-only (log, event, order history), <span class="kw">range partition theo tháng</span> cho bạn ba lợi ích cùng lúc:</p>
+        <ul class="list-check">
+          <li><strong>Query nhanh hơn:</strong> partition pruning — query 7 ngày qua chỉ đọc 1 partition thay vì quét 3 năm.</li>
+          <li><strong>Xoá dữ liệu cũ tức thời:</strong> <code>DROP PARTITION</code> thay vì <code>DELETE WHERE created_at &lt; ...</code> (thao tác DELETE hàng triệu dòng gây bloat, tốn WAL, khoá bảng hàng giờ).</li>
+          <li><strong>Index nhỏ hơn:</strong> mỗi partition có index riêng, nằm gọn trong RAM.</li>
+        </ul>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">SQL</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">-- Partition theo tháng (declarative partitioning, Postgres 10+)</span>&#10;<span class="c-key">CREATE TABLE</span> events (&#10;  id          <span class="c-key">BIGSERIAL</span>,&#10;  created_at  <span class="c-key">TIMESTAMPTZ</span> <span class="c-key">NOT NULL</span>,&#10;  user_id     <span class="c-key">BIGINT</span>,&#10;  payload     <span class="c-key">JSONB</span>&#10;) <span class="c-key">PARTITION BY RANGE</span> (created_at);&#10;&#10;<span class="c-key">CREATE TABLE</span> events_2026_11 <span class="c-key">PARTITION OF</span> events&#10;  <span class="c-key">FOR VALUES FROM</span> (<span class="c-str">'2026-11-01'</span>) <span class="c-key">TO</span> (<span class="c-str">'2026-12-01'</span>);&#10;&#10;<span class="c-com">-- Xoá 3 tháng cũ: tức thời, không bloat, không tốn WAL</span>&#10;<span class="c-key">DROP TABLE</span> events_2026_08;&#10;<span class="c-com">-- (Nên DETACH trước, export ra S3, rồi mới DROP)</span></code></pre>
+        </div>
+
+        <h3>Checklist trả lời câu hỏi "dữ liệu lưu ở đâu"</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Điều phải nêu</th><th>Ví dụ câu trả lời tốt</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Loại storage + lý do</td><td>"Postgres vì cần transaction cho phần thanh toán; media lưu S3 vì là blob bất biến, phục vụ qua CDN."</td></tr>
+              <tr><td>2</td><td>Kích thước dữ liệu ước tính</td><td>"50 triệu user × 1KB ≈ 50GB; orders 500 triệu × 500B ≈ 250GB/năm."</td></tr>
+              <tr><td>3</td><td>Access pattern chính</td><td>"95% read theo id, 5% write; query lịch sử đơn hàng theo user + thời gian."</td></tr>
+              <tr><td>4</td><td>Index cần thiết</td><td>"PK (id), composite (user_id, created_at DESC) cho trang lịch sử, partial index cho đơn pending."</td></tr>
+              <tr><td>5</td><td>Nhất quán cần mức nào</td><td>"Đơn hàng: strong. Số lượt xem: eventual, chấp nhận trễ 5s."</td></tr>
+              <tr><td>6</td><td>Replication & failover</td><td>"1 leader + 2 replica ở 2 AZ, semi-sync 1, failover tự động có fencing epoch."</td></tr>
+              <tr><td>7</td><td>Sharding — có hay chưa, ngưỡng</td><td>"Chưa cần ở 50GB. Sẽ shard theo user_id khi vượt 2TB hoặc write vượt 20k/s."</td></tr>
+              <tr><td>8</td><td>Đồng bộ hệ thống phụ</td><td>"CDC qua Debezium → Kafka → Elasticsearch (search) + invalidate cache. Consumer idempotent bằng upsert."</td></tr>
+              <tr><td>9</td><td>Backup & PITR</td><td>"Base backup hằng ngày + WAL archive, PITR 7 ngày, diễn tập restore mỗi quý."</td></tr>
+              <tr><td>10</td><td>Vòng đời & xoá</td><td>"Partition theo tháng, drop sau 24 tháng; media S3 lifecycle sang Glacier sau 1 năm; xoá theo user qua deletion job."</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Nếu chỉ nhớ 6 dòng</div>
+            <p><strong>1.</strong> Bắt đầu bằng Postgres; chỉ tách khi có ngưỡng rõ ràng. <strong>2.</strong> Ghi nhiều → LSM, đọc/transaction nhiều → B+ tree. <strong>3.</strong> Composite index phải theo tiền tố trái nhất; mỗi index thêm là một write chậm hơn. <strong>4.</strong> Replication bất đồng bộ luôn tạo ra dị thường đọc — route read-your-writes về leader. <strong>5.</strong> Shard muộn, chọn key có cardinality cao và xuất hiện trong query. <strong>6.</strong> CDC chứ không dual-write; consumer phải idempotent; và luôn có kế hoạch xoá dữ liệu.</p>
+          </div>
+        </div>

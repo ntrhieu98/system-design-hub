@@ -1,0 +1,32 @@
+---
+// Renders the "Từ khoá cần nắm" grid for a whole module.
+import type { Keyword } from '../lib/content.js';
+
+interface Props {
+  keywords: Keyword[];
+}
+
+const { keywords } = Astro.props;
+---
+
+{
+  keywords.length > 0 && (
+    <section class="lesson" id="keywords">
+      <h2>
+        <span class="num">KW</span>Từ khoá cần nắm
+      </h2>
+      <p class="text-muted text-sm mb-4">
+        Đây là danh sách từ khoá bạn phải giải thích được bằng lời của mình sau khi học xong
+        module. Bấm vào từng từ để xem định nghĩa nhanh.
+      </p>
+      <dl class="kw-grid">
+        {keywords.map((k) => (
+          <div class="kw-card">
+            <dt>{k.term}</dt>
+            <dd>{k.def}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}

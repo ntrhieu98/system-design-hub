@@ -1,0 +1,113 @@
+---
+title: "CDC & Streaming — dữ liệu chảy từ DB sang mọi nơi"
+description: "Trong một hệ thống thật, dữ liệu không chỉ nằm trong DB chính. Nó còn phải có mặt trong search index, cache, data warehouse, ML feature store, và các service khác."
+module: 3
+order: 7
+num: "3.7"
+sectionId: "cdc"
+---
+<p>Trong một hệ thống thật, dữ liệu không chỉ nằm trong DB chính. Nó còn phải có mặt trong search index, cache, data warehouse, ML feature store, và các service khác. Câu hỏi: <span class="kw">làm sao đồng bộ mà không mất, không trùng, không làm chậm đường ghi?</span></p>
+
+        <h3>Ba cách đồng bộ — và hai cách sai</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cách</th><th>Cơ chế</th><th>Vấn đề</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Dual write</strong> <span class="kw-r">(sai)</span></td><td>App ghi DB rồi ghi thêm ES/Kafka trong cùng hàm</td><td>Không atomic: ghi DB thành công, ghi ES thất bại → phân kỳ vĩnh viễn. Hoặc crash giữa hai bước.</td></tr>
+              <tr><td><strong>Polling</strong></td><td>Job quét <code>WHERE updated_at &gt; last_run</code></td><td>Bỏ sót bản ghi khi <code>updated_at</code> không đơn điệu; tải nặng lên DB; độ trễ cao; không bắt được DELETE.</td></tr>
+              <tr><td><strong>CDC</strong> <span class="kw-g">(đúng)</span></td><td>Đọc transaction log (WAL/binlog), phát thành stream</td><td>Cần quyền đọc log, phải quản lý schema evolution, phải idempotent ở phía consumer.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 350" role="img" aria-label="Luồng CDC từ Postgres WAL qua Debezium Kafka tới Elasticsearch cache và data warehouse">
+            <defs>
+              <marker id="m3g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="20" y="130" width="128" height="72" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="84" y="156" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Postgres</text>
+            <text x="84" y="176" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#505a68">tables + WAL</text>
+            <text x="84" y="192" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">source of truth</text>
+
+            <rect x="184" y="130" width="128" height="72" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="248" y="156" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">WAL / binlog</text>
+            <text x="248" y="176" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">logical decoding</text>
+            <text x="248" y="192" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">replication slot</text>
+
+            <rect x="348" y="130" width="140" height="72" rx="9" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="418" y="156" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Debezium</text>
+            <text x="418" y="176" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">→ topic per table</text>
+            <text x="418" y="192" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">Kafka Connect</text>
+
+            <rect x="524" y="34" width="216" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="632" y="56" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Kafka (event log)</text>
+            <text x="632" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#505a68">retain 7 ngày, replay được</text>
+
+            <rect x="524" y="128" width="216" height="46" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="632" y="148" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">→ Elasticsearch</text>
+            <text x="632" y="164" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">search index, ~1s trễ</text>
+
+            <rect x="524" y="190" width="216" height="46" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="632" y="210" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">→ Cache invalidation</text>
+            <text x="632" y="226" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">xoá key theo id</text>
+
+            <rect x="524" y="252" width="216" height="46" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="632" y="272" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">→ Warehouse / lake</text>
+            <text x="632" y="288" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">S3 + Iceberg, batch nhỏ</text>
+
+            <rect x="20" y="252" width="468" height="76" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="38" y="274" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Điều bắt buộc: mỗi consumer phải idempotent</text>
+            <text x="38" y="294" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Message có thể đến 2 lần (at-least-once). Upsert theo primary key thay vì INSERT;</text>
+            <text x="38" y="312" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">hoặc lưu (topic, partition, offset) đã xử lý trong cùng transaction với dữ liệu ghi ra.</text>
+
+            <path d="M148,166 L182,166" stroke="#505a68" stroke-width="2" marker-end="url(#m3g)"/>
+            <path d="M312,166 L346,166" stroke="#505a68" stroke-width="2" marker-end="url(#m3g)"/>
+            <path d="M488,150 L500,120 L522,86" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m3g)"/>
+            <path d="M524,60 L500,60 L500,151 L522,151" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m3g)"/>
+            <path d="M524,60 L500,60 L500,213 L522,213" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m3g)"/>
+            <path d="M524,60 L500,60 L500,275 L522,275" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m3g)"/>
+          </svg>
+          <div class="diagram-cap">Hình 3.7 — CDC: một nguồn sự thật, nhiều consumer độc lập, mỗi consumer tự chịu trách nhiệm idempotency</div>
+        </div>
+
+        <h3>Log compaction — khi bạn cần trạng thái cuối, không cần lịch sử</h3>
+        <p>Kafka giữ mọi event trong retention window (ví dụ 7 ngày). Nhưng với topic đồng bộ trạng thái (bảng <code>users</code>), bạn không cần 100 lần update của cùng một user — bạn chỉ cần bản cuối. <code>cleanup.policy=compact</code> làm đúng việc đó: Kafka giữ lại <strong>bản ghi cuối cùng cho mỗi key</strong>, xoá các bản cũ. Kết quả: topic trở thành một "bản sao vật liệu hoá" (materialized view) của bảng, và một consumer mới khởi động chỉ cần replay từ đầu là dựng lại được toàn bộ trạng thái — đây chính là cách Kafka Streams xây dựng state store.</p>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">SQL</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">-- Postgres: bật logical decoding để CDC đọc được</span>&#10;<span class="c-key">ALTER SYSTEM SET</span> wal_level = <span class="c-str">'logical'</span>;&#10;<span class="c-key">ALTER SYSTEM SET</span> max_replication_slots = <span class="c-num">10</span>;&#10;<span class="c-key">ALTER SYSTEM SET</span> max_wal_senders = <span class="c-num">10</span>;&#10;&#10;<span class="c-com">-- Tạo publication cho các bảng cần CDC</span>&#10;<span class="c-key">CREATE PUBLICATION</span> app_cdc <span class="c-key">FOR TABLE</span> users, orders, products;&#10;&#10;<span class="c-com">-- QUAN TRỌNG: replication slot giữ WAL lại cho tới khi consumer đọc</span>&#10;<span class="c-com">-- Nếu consumer chết, WAL tích tụ → đầy disk → DB sập.</span>&#10;<span class="c-com">-- Luôn đặt max_slot_wal_keep_size và monitor pg_replication_slots.</span>&#10;<span class="c-key">SELECT</span> slot_name, active, pg_size_pretty(&#10;  pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) <span class="c-key">AS</span> lag_bytes&#10;<span class="c-key">FROM</span> pg_replication_slots;</code></pre>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Replication slot là quả bom hẹn giờ</div>
+            <p>Đây là sự cố production phổ biến nhất khi triển khai CDC lần đầu. Postgres giữ WAL cho đến khi slot được xác nhận đã đọc. Nếu Debezium dừng (deploy, mất kết nối, hết dung lượng), WAL tích tụ <strong>vô hạn</strong> cho đến khi disk đầy và toàn bộ DB ngừng ghi. Phòng ngừa: (1) đặt <code>max_slot_wal_keep_size = 10GB</code> — slot bị vô hiệu hoá thay vì làm sập DB; (2) alert khi lag &gt; 1GB; (3) theo dõi Debezium như một service production, không phải script phụ; (4) có runbook: nếu consumer mất &gt; 1 giờ, drop slot và full-resync thay vì chờ.</p>
+          </div>
+        </div>
+
+        <h3>Outbox pattern — khi bạn không thể dùng CDC</h3>
+        <p>Nếu DB không hỗ trợ logical decoding (hoặc bạn không có quyền), dùng <strong>transactional outbox</strong>: ghi business data và một dòng vào bảng <code>outbox</code> trong <span class="kw">cùng một transaction</span>. Một worker riêng đọc <code>outbox</code>, publish lên Kafka, đánh dấu đã gửi.</p>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">SQL</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-key">BEGIN</span>;&#10;  <span class="c-key">INSERT INTO</span> orders (id, user_id, total, status)&#10;  <span class="c-key">VALUES</span> (<span class="c-str">'ord_123'</span>, <span class="c-str">'u_456'</span>, <span class="c-num">99000</span>, <span class="c-str">'created'</span>);&#10;&#10;  <span class="c-key">INSERT INTO</span> outbox (aggregate_id, event_type, payload)&#10;  <span class="c-key">VALUES</span> (<span class="c-str">'ord_123'</span>, <span class="c-str">'OrderCreated'</span>,&#10;          <span class="c-str">'&#123;"order_id":"ord_123","total":99000&#125;'</span>::jsonb);&#10;<span class="c-key">COMMIT</span>;&#10;<span class="c-com">-- Hai insert atomic với nhau: hoặc cùng có, hoặc cùng không.</span>&#10;<span class="c-com">-- Worker riêng: SELECT ... FROM outbox WHERE published_at IS NULL ORDER BY id LIMIT 100&#10;<span class="c-com">--               FOR UPDATE SKIP LOCKED  → publish → UPDATE published_at</span></span></code></pre>
+        </div>
+
+        <h3>Schema evolution — điều sẽ làm bạn đau đầu ở tháng thứ 6</h3>
+        <ul class="list-bullet">
+          <li><strong>Rename cột</strong> trông giống "xoá cột + thêm cột" với CDC consumer. Dùng expand-contract: thêm cột mới, dual-write, migrate, bỏ cột cũ sau vài tuần.</li>
+          <li><strong>Consumer schema registry</strong> (Avro/Protobuf + Confluent Schema Registry) chặn thay đổi phá vỡ tương thích ngay ở producer.</li>
+          <li><strong>Luôn có version trong event</strong> (<code>&#123;"v": 2, ...&#125;</code>) và consumer phải xử lý được cả v1 và v2 trong thời gian chuyển tiếp.</li>
+          <li><strong>DELETE trong CDC</strong> là một event riêng — consumer phải xoá tương ứng, không phải bỏ qua.</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Khi nào KHÔNG cần CDC</div>
+            <p>Nếu bạn chỉ có 1 DB và 1 read replica, không cần CDC. Nếu search index của bạn cập nhật chấp nhận được độ trễ 5 phút, một job polling đơn giản là đủ và dễ vận hành hơn 10 lần. CDC đáng giá khi: (1) có ≥ 3 consumer khác nhau; (2) cần độ trễ &lt; 5s; (3) cần bắt được DELETE và thay đổi schema; (4) không thể chấp nhận mất event. Đó là bốn tiêu chí — nếu không đạt ít nhất hai, hãy chọn giải pháp đơn giản hơn.</p>
+          </div>
+        </div>

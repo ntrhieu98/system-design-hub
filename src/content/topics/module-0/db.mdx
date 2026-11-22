@@ -1,0 +1,44 @@
+---
+title: "Cơ sở dữ liệu: ACID, transaction và index"
+description: "Không có index, tìm 1 dòng trong 10 triệu dòng là full table scan — O(n). B+ tree giảm còn O(log n) ≈ 24 lần so sánh, và mỗi node là một page 16 KB nên đọc từ đĩa chỉ 3–4 lần."
+module: 0
+order: 5
+num: "0.5"
+sectionId: "db"
+---
+<h3>ACID — bốn đảm bảo</h3>
+        <ul class="list-bullet">
+          <li><span class="kw">Atomicity</span> — transaction hoặc xong hết hoặc không gì cả (rollback).</li>
+          <li><span class="kw">Consistency</span> — dữ liệu luôn <strong>không</strong> vi phạm constraint nào: khoá ngoại còn trỏ đúng, CHECK đúng, tổng tiền hai vế khớp (khác "C" trong CAP!).</li>
+          <li><span class="kw">Isolation</span> — transaction đồng thời không thấy dữ liệu trung gian của nhau.</li>
+          <li><span class="kw">Durability</span> — commit rồi thì mất điện vẫn còn (WAL + fsync).</li>
+        </ul>
+
+        <h3>Bốn mức isolation</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Level</th><th>Dirty read</th><th>Non-repeatable</th><th>Phantom</th><th>Dùng khi</th></tr></thead>
+            <tbody>
+              <tr><td>Read Uncommitted</td><td>Có thể</td><td>Có thể</td><td>Có thể</td><td>Gần như không dùng</td></tr>
+              <tr><td>Read Committed</td><td>Không</td><td>Có thể</td><td>Có thể</td><td>Mặc định Postgres</td></tr>
+              <tr><td>Repeatable Read</td><td>Không</td><td>Không</td><td>Có thể</td><td>Mặc định MySQL InnoDB</td></tr>
+              <tr><td>Serializable</td><td>Không</td><td>Không</td><td>Không</td><td>Cần đúng tuyệt đối (giao dịch tiền)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Index: tại sao nhanh hơn 1000×</h3>
+        <p>Không có index, tìm 1 dòng trong 10 triệu dòng là <span class="kw">full table scan</span> — O(n). B+ tree giảm còn O(log n) ≈ 24 lần so sánh, và mỗi node là một page 16&nbsp;KB nên đọc từ đĩa chỉ 3–4 lần.</p>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">sql</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">-- Không index: quét 10M dòng</span>&#10;SELECT * FROM orders WHERE user_id = 42;&#10;<span class="c-out">-- Seq Scan on orders (cost=0..183421 rows=1) (actual time=812ms)</span>&#10;&#10;<span class="c-com">-- Có index: 3-4 page read</span>&#10;CREATE INDEX idx_orders_user ON orders(user_id);&#10;<span class="c-out">-- Index Scan using idx_orders_user (cost=0..8 rows=1) (actual time=0.04ms)</span>&#10;&#10;<span class="c-com">-- Composite index: thứ tự cột quan trọng</span>&#10;CREATE INDEX idx_user_status_created&#10;  ON orders(user_id, status, created_at DESC);&#10;&#10;<span class="c-key">SELECT</span> * <span class="c-key">FROM</span> orders&#10;<span class="c-key">WHERE</span> user_id = <span class="c-num">42</span>          <span class="c-com">-- dùng được index</span>&#10;  <span class="c-key">AND</span> status = <span class="c-str">'paid'</span>     <span class="c-com">-- dùng được (cột 2)</span>&#10;<span class="c-key">ORDER BY</span> created_at <span class="c-key">DESC</span>; <span class="c-com">-- dùng được (cột 3), không cần sort</span></code></pre>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">✕</div>
+          <div class="callout-body">
+            <div class="callout-title">Index không miễn phí</div>
+            <p>Mỗi index làm chậm INSERT/UPDATE/DELETE (phải ghi thêm page) và tốn dung lượng. Index thừa là nguyên nhân phổ biến khiến write throughput tụt. Quy tắc: index cho truy vấn đọc quan trọng, không index "cho chắc".</p>
+          </div>
+        </div>

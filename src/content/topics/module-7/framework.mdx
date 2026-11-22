@@ -1,0 +1,87 @@
+---
+title: "Khung 45 phút — phân bổ thời gian và những gì phải nói"
+description: "Buổi phỏng vấn system design là một bài tập quản lý thời gian có cấu trúc. Người trượt thường không phải vì thiếu kiến thức mà vì dùng 30 phút để vẽ diagram rồi hết giờ ở phần quan trọng nhất: trade-off và failure."
+module: 7
+order: 1
+num: "7.1"
+sectionId: "framework"
+---
+<p>Buổi phỏng vấn system design là một bài tập <span class="kw">quản lý thời gian có cấu trúc</span>. Người trượt thường không phải vì thiếu kiến thức mà vì dùng 30 phút để vẽ diagram rồi hết giờ ở phần quan trọng nhất: trade-off và failure.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 300" role="img" aria-label="Phân bổ 45 phút phỏng vấn system design thành sáu giai đoạn với tỉ lệ thời gian">
+            <defs>
+              <marker id="m7a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">45 PHÚT — PHÂN BỔ VÀNG</text>
+
+            <rect x="16" y="36" width="84" height="52" rx="7" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="58" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#151515">0–5'</text>
+            <text x="58" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Requirements</text>
+
+            <rect x="108" y="36" width="84" height="52" rx="7" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="150" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#151515">5–10'</text>
+            <text x="150" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Estimation</text>
+
+            <rect x="200" y="36" width="152" height="52" rx="7" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="276" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#151515">10–20'</text>
+            <text x="276" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">High-level design</text>
+
+            <rect x="360" y="36" width="176" height="52" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="448" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#151515">20–35'</text>
+            <text x="448" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Deep dive 2 thành phần</text>
+
+            <rect x="544" y="36" width="110" height="52" rx="7" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="599" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#151515">35–41'</text>
+            <text x="599" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Scale & failure</text>
+
+            <rect x="662" y="36" width="82" height="52" rx="7" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="703" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="#151515">41–45'</text>
+            <text x="703" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Wrap-up</text>
+
+            <rect x="16" y="108" width="728" height="66" rx="8" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="130" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Giai đoạn 1 — Requirements (5') — đừng bỏ qua</text>
+            <text x="34" y="148" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Functional: 3–5 tính năng chính (chốt với interviewer). Non-functional: DAU, QPS read/write, latency, availability, consistency.</text>
+            <text x="34" y="164" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">Sai lầm: nhảy vào vẽ ngay. Mất 10 phút sau phải làm lại vì hiểu sai đề.</text>
+
+            <rect x="16" y="182" width="728" height="48" rx="8" fill="#f8fafc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="204" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Giai đoạn 2 — Estimation (5')</text>
+            <text x="34" y="222" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">QPS, storage/năm, bandwidth, cache size. Viết ra giấy. Chỉ cần 2–3 chữ số có nghĩa: 1.160 QPS, 36,5 TB.</text>
+
+            <rect x="16" y="238" width="728" height="46" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="258" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Nguyên tắc xuyên suốt</text>
+            <text x="34" y="276" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Nói to suy nghĩ. Mỗi lựa chọn kèm trade-off. Chủ động nêu bottleneck trước khi bị hỏi. Không im lặng quá 30 giây.</text>
+          </svg>
+          <div class="diagram-cap">Hình 7.1 — Phân bổ thời gian: dành 25/45 phút cho high-level và deep dive, không phải cho requirement</div>
+        </div>
+
+        <h3>Kịch bản cụ thể 5 phút đầu</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">SCRIPT</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">// Bạn nói, không phải interviewer hỏi</span>&#10;&#10;<span class="c-str">"Trước khi thiết kế, tôi muốn chốt phạm vi. Tôi hiểu đề là X — đúng không?</span>&#10;<span class="c-str"> Tôi sẽ tập trung vào 3 tính năng: (1)…, (2)…, (3)…</span>&#10;<span class="c-str"> Và tôi chủ động bỏ ra ngoài phạm vi: thanh toán, moderation — giả định đã có."</span>&#10;&#10;<span class="c-str">"Về quy mô, tôi giả định: 100 triệu DAU, mỗi user đọc 10 lần/ngày</span>&#10;<span class="c-str"> → 1 tỷ read/ngày → ~11.600 QPS read. Write ít hơn 10 lần</span>&#10;<span class="c-str"> → ~1.160 QPS. Dung lượng 10 năm khoảng 36 TB.</span>&#10;<span class="c-str"> Con số này ảnh hưởng thế nào? Với 11k QPS tôi cần cache và</span>&#10;<span class="c-str"> read replica, nhưng chưa cần shard. Anh/chị muốn tôi đi tiếp</span>&#10;<span class="c-str"> theo hướng này không?"</span>&#10;&#10;<span class="c-com">// Câu hỏi cuối rất quan trọng: tạo cơ hội interviewer điều chỉnh</span>&#10;<span class="c-com">// và thể hiện bạn làm việc hợp tác, không độc diễn</span></code></pre>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba sai lầm thời gian chết người</div>
+            <p><strong>1. Dành 15 phút cho requirements.</strong> Bạn đang hỏi những câu mà interviewer nghĩ là hiển nhiên. Chốt nhanh, ghi ra 5 dòng, đi tiếp. <strong>2. Vẽ quá chi tiết ở high-level.</strong> Đừng vẽ 20 box với label đầy đủ — vẽ 6–8 box, nói rõ luồng, rồi để dành thời gian cho deep dive. Bạn không được điểm vì diagram đẹp. <strong>3. Không dành thời gian cho failure mode.</strong> Đây là phần phân biệt senior với middle. Nếu hết giờ trước khi nói "điều gì xảy ra khi X chết", bạn mất điểm lớn.</p>
+          </div>
+        </div>
+
+        <h3>Cấu trúc câu trả lời cho mỗi thành phần</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Bước</th><th>Nói gì</th><th>Ví dụ (cache)</th></tr></thead>
+            <tbody>
+              <tr><td>1. Mục đích</td><td>Nó giải quyết vấn đề gì</td><td>"Giảm tải DB vì 95% request là read lặp lại."</td></tr>
+              <tr><td>2. Lựa chọn</td><td>2–3 phương án</td><td>"Cache-aside, write-through, hoặc write-behind."</td></tr>
+              <tr><td>3. Chọn & lý do</td><td>Chọn một, nói tại sao</td><td>"Cache-aside vì workload đọc nhiều, chấp nhận stale 60s."</td></tr>
+              <tr><td>4. Chi tiết</td><td>Số liệu, key design, TTL</td><td>"Redis 64GB, key = user:&#123;id&#125;, TTL 300s ± 10% jitter."</td></tr>
+              <tr><td>5. Rủi ro</td><td>Điều gì có thể sai</td><td>"Cache stampede khi key hot hết hạn → single-flight lock."</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Năm bước này áp dụng được cho <em>mọi</em> thành phần: LB, queue, search, DB, CDN. Tập nói theo cấu trúc này đến khi thành phản xạ.</p>

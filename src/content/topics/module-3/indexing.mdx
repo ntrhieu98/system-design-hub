@@ -1,0 +1,105 @@
+---
+title: "Index — thứ quyết định query nhanh hay sập"
+description: "Index là một B+ tree riêng, ánh xạ giá trị cột → vị trí dòng. Không có index, mọi WHERE là full table scan."
+module: 3
+order: 3
+num: "3.3"
+sectionId: "indexing"
+---
+<p>Index là một B+ tree riêng, ánh xạ <em>giá trị cột</em> → <em>vị trí dòng</em>. Không có index, mọi <code>WHERE</code> là full table scan. Nhưng <span class="kw-r">mỗi index làm chậm ghi</span> và tốn disk — nên index là bài toán đánh đổi, không phải "càng nhiều càng tốt".</p>
+
+        <h3>Composite index và quy tắc tiền tố trái nhất</h3>
+        <p>Index trên <code>(last_name, first_name, age)</code> được sắp xếp giống như một cuốn danh bạ: trước hết theo <code>last_name</code>, trong cùng <code>last_name</code> thì theo <code>first_name</code>, rồi mới đến <code>age</code>. Hệ quả: bạn <strong>chỉ</strong> tra được khi điều kiện bắt đầu từ cột trái nhất.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 340" role="img" aria-label="Minh hoạ composite index và quy tắc tiền tố trái nhất với ba truy vấn">
+            <defs>
+              <marker id="m3c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="20" y="20" width="330" height="46" rx="8" fill="#151515" stroke="#151515" stroke-width="2"/>
+            <text x="185" y="49" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="700" fill="#f4d77c">INDEX (last_name, first_name, age)</text>
+
+            <rect x="20" y="80" width="330" height="34" rx="6" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="32" y="102" font-family="JetBrains Mono, monospace" font-size="11" fill="#151515">An      | Bình   | 28</text>
+            <rect x="20" y="118" width="330" height="34" rx="6" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="32" y="140" font-family="JetBrains Mono, monospace" font-size="11" fill="#151515">An      | Bình   | 35</text>
+            <rect x="20" y="156" width="330" height="34" rx="6" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="32" y="178" font-family="JetBrains Mono, monospace" font-size="11" fill="#151515">An      | Chi    | 30</text>
+            <rect x="20" y="194" width="330" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="32" y="216" font-family="JetBrains Mono, monospace" font-size="11" fill="#151515">Bình    | An     | 41</text>
+            <rect x="20" y="232" width="330" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="32" y="254" font-family="JetBrains Mono, monospace" font-size="11" fill="#151515">Bình    | Dũng   | 25</text>
+            <rect x="20" y="270" width="330" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="32" y="292" font-family="JetBrains Mono, monospace" font-size="11" fill="#151515">Cường   | An     | 33</text>
+
+            <text x="20" y="326" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#8b95a3">Sắp xếp: last_name → first_name → age</text>
+
+            <rect x="392" y="20" width="348" height="92" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="408" y="44" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">✓ DÙNG ĐƯỢC INDEX</text>
+            <text x="408" y="66" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">WHERE last_name = 'An'</text>
+            <text x="408" y="84" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">WHERE last_name = 'An'</text>
+            <text x="408" y="100" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">  AND first_name = 'Bình'</text>
+
+            <rect x="392" y="124" width="348" height="76" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="408" y="148" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">✗ KHÔNG DÙNG ĐƯỢC (full scan)</text>
+            <text x="408" y="170" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">WHERE first_name = 'Bình'</text>
+            <text x="408" y="188" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">WHERE age = 30</text>
+
+            <rect x="392" y="212" width="348" height="92" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="408" y="236" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">~ DÙNG ĐƯỢC MỘT PHẦN</text>
+            <text x="408" y="258" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">WHERE last_name = 'An' AND age = 30</text>
+            <text x="408" y="278" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Chỉ lọc được theo last_name;</text>
+            <text x="408" y="294" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">age phải kiểm tra sau (filter).</text>
+          </svg>
+          <div class="diagram-cap">Hình 3.3 — Cùng một index, ba truy vấn cho ba kết quả hoàn toàn khác nhau</div>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Thứ tự cột trong composite index</div>
+            <p>Đặt cột dùng cho <strong>đẳng thức</strong> (<code>=</code>) trước, cột dùng cho <strong>range</strong> (<code>&gt;</code>, <code>&lt;</code>, <code>BETWEEN</code>) sau, cột có <strong>selectivity cao</strong> trước. Nhưng quy tắc "trái nhất" quan trọng hơn selectivity: index <code>(status, created_at)</code> dùng được cho <code>WHERE status='open' ORDER BY created_at</code> dù <code>status</code> chỉ có 3 giá trị. Nếu bạn cần cả hai kiểu query, tạo hai index — đó là chuyện bình thường.</p>
+          </div>
+        </div>
+
+        <h3>Covering index — đọc mà không cần chạm bảng</h3>
+        <p>Với index thường, engine tìm được vị trí dòng trong index rồi phải <strong>nhảy về bảng chính</strong> (random I/O) để lấy các cột còn lại. Nếu index chứa đủ mọi cột mà query cần, bước nhảy đó biến mất.</p>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">SQL</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">-- Query gốc: cần id, email, created_at</span>&#10;<span class="c-key">SELECT</span> id, email, created_at <span class="c-key">FROM</span> users <span class="c-key">WHERE</span> email = <span class="c-str">'a@b.com'</span>;&#10;&#10;<span class="c-com">-- Index thường: index scan (email) + heap fetch để lấy id, created_at</span>&#10;<span class="c-key">CREATE INDEX</span> idx_users_email <span class="c-key">ON</span> users(email);&#10;&#10;<span class="c-com">-- Covering index: mọi cột đã nằm trong index → index-only scan</span>&#10;<span class="c-key">CREATE INDEX</span> idx_users_email_cover <span class="c-key">ON</span> users(email) <span class="c-key">INCLUDE</span> (id, created_at);&#10;&#10;<span class="c-com">-- Kiểm tra: "Index Only Scan" trong output là dấu hiệu tốt</span>&#10;<span class="c-key">EXPLAIN</span> (<span class="c-key">ANALYZE</span>, buffers)&#10;<span class="c-key">SELECT</span> id, email, created_at <span class="c-key">FROM</span> users <span class="c-key">WHERE</span> email = <span class="c-str">'a@b.com'</span>;</code></pre>
+        </div>
+
+        <h3>Bốn loại index nên biết</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Loại</th><th>Công dụng</th><th>Ví dụ</th></tr></thead>
+            <tbody>
+              <tr><td><strong>B-tree (mặc định)</strong></td><td>Đẳng thức, range, ORDER BY, prefix LIKE</td><td><code>WHERE created_at &gt; now() - interval '7 days'</code></td></tr>
+              <tr><td><strong>Partial index</strong></td><td>Chỉ index một phần bảng — nhỏ, nhanh, ít tốn ghi</td><td><code>CREATE INDEX ... WHERE status = 'pending'</code></td></tr>
+              <tr><td><strong>Hash</strong></td><td>Chỉ đẳng thức; nhỏ hơn B-tree nhưng không range được</td><td><code>WHERE session_id = ?</code> (UUID ngẫu nhiên)</td></tr>
+              <tr><td><strong>GIN / GiST</strong></td><td>Mảng, JSONB, full-text, geo</td><td><code>WHERE tags @&gt; ARRAY['sale']</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Khi nào index "không chạy" — bảy cái bẫy</h3>
+        <ol class="list-num">
+          <li><strong>Bọc cột trong function:</strong> <code>WHERE date(created_at) = '2024-01-01'</code> không dùng được index thường. Sửa: <code>WHERE created_at &gt;= '2024-01-01' AND created_at &lt; '2024-01-02'</code>.</li>
+          <li><strong>LIKE bắt đầu bằng %:</strong> <code>LIKE '%abc'</code> không dùng B-tree. Dùng trigram index hoặc search engine.</li>
+          <li><strong>Lệch kiểu dữ liệu:</strong> cột <code>user_id</code> kiểu BIGINT nhưng query so với chuỗi → Postgres có thể cast cột thay vì cast literal.</li>
+          <li><strong>Selectivity quá thấp:</strong> <code>WHERE is_active = true</code> trên bảng 99% true — planner đúng khi chọn full scan.</li>
+          <li><strong>Thống kê cũ:</strong> sau bulk insert, <code>ANALYZE</code> chưa chạy → planner ước lượng sai. Đặt autovacuum đúng.</li>
+          <li><strong>OR trên hai cột khác index:</strong> <code>WHERE a = 1 OR b = 2</code> thường thành bitmap OR hoặc full scan. Cân nhắc hai query + UNION.</li>
+          <li><strong>ORDER BY khác hướng index:</strong> index <code>(a ASC, b ASC)</code> không giúp <code>ORDER BY a ASC, b DESC</code> — trừ khi tạo index đúng chiều.</li>
+        </ol>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Chi phí ghi của index — con số cụ thể</div>
+            <p>Bảng <code>orders</code> có 6 index. Mỗi <code>INSERT</code> phải ghi 1 dòng bảng + 6 mục index = <strong>7 random writes</strong> (trước khi tính WAL). Trên SSD 10k IOPS, throughput ghi lý thuyết ~1.400 insert/s. Bỏ 3 index không dùng, throughput tăng gấp đôi. Trong phỏng vấn, nếu được hỏi "tại sao ghi chậm", hãy kiểm tra số index trước khi đổ lỗi cho disk.</p>
+          </div>
+        </div>

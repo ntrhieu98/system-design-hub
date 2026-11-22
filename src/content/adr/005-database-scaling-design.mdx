@@ -1,0 +1,98 @@
+---
+id: "005"
+title: "Nhân bản trước, sharding sau"
+status: proposed
+date: "2025-01-01"
+summary: "Thứ tự mở rộng database: đọc trước ghi, replication trước sharding — và vì sao chọn khoá shard lại quan trọng hơn chọn database."
+tags: ["replication", "sharding", "hotspot"]
+module: 3
+order: 5
+---
+
+## Bối cảnh
+
+Cần scale database cho:
+- Hàng tỷ records
+- 10K+ QPS
+- High availability
+- Low latency
+- Strong consistency cho critical data
+
+## Yếu tố quyết định
+
+### 1. Sharding Strategy
+**Quyết định:** Hash sharding với consistent hashing
+
+**Các strategies:**
+| Strategy | Ưu điểm | Nhược điểm |
+|----------|---------|-----------|
+| Range sharding | Dễ query range | Hotspot risk |
+| Hash sharding | Even distribution | Khó query range |
+| Directory-based | Flexible | Single point of failure (lookup table) |
+
+**Chọn hash sharding vì:** Even distribution, minimize rebalancing với consistent hashing
+
+**Shard key selection:**
+- High cardinality (nhiều distinct values)
+- Even distribution (tránh hotspot)
+- Match query pattern (user_id nếu query by user)
+
+### 2. Replication Pattern
+**Quyết định:** Primary-replica với async replication
+
+**Patterns:**
+- **Primary-replica**: 1 primary (write), N replicas (read). Read scaling, failover.
+- **Multi-primary**: Multiple primaries write. Write scaling nhưng conflict resolution phức tạp.
+- **Leaderless**: Quorum reads/writes (Cassandra, DynamoDB). Eventual consistency.
+
+**Chọn primary-replica vì:** Đơn giản, phù hợp read-heavy workloads, failover tự động.
+
+### 3. Consensus & Distributed Transactions
+**Quyết định:** Saga pattern cho distributed transactions
+
+**Các approaches:**
+- **2PC**: Coordinator → prepare → commit/abort. Blocking, SPOF.
+- **Saga**: Sequence of local transactions + compensating actions. Non-blocking.
+- **TCC**: Try-Confirm-Cancel. Reserve → confirm → cancel.
+
+**Chọn Saga vì:** Non-blocking, phù hợp microservices, eventual consistency acceptable.
+
+### 4. CAP Choice
+**Quyết định:** AP cho most data, CP cho critical (payments, inventory)
+
+**Trade-offs:**
+- CP: Strong consistency, sacrifice availability (bank systems)
+- AP: High availability, eventual consistency (social media)
+- Tunable: Quorum R + W > N cho strong consistency
+
+### 5. Indexing Strategy
+**Quyết định:** Composite indexes với left-to-right prefix matching
+
+**Index types:**
+- B-tree: Range queries, O(log n)
+- Hash: Equality only, O(1)
+- Composite: Multi-column, left-to-right prefix
+- Covering: Index contains all needed columns
+
+## Hệ quả
+
+### Tích cực
+- Horizontal scaling vô hạn
+- High availability qua replication
+- Tunable consistency
+
+### Tiêu cực
+- Complexity (sharding, replication, consensus)
+- Cross-shard queries expensive
+- Distributed transactions khó debug
+
+### Rủi ro
+- Hotspot nếu shard key không tốt
+- Replication lag → stale reads
+- Split-brain trong failover
+- Data rebalancing cost khi thêm shards
+
+## Tham khảo
+- Alex Xu "System Design Interview" Ch.5 (Consistent Hashing), Ch.6 (Key-Value Store)
+- CAP theorem: CP vs AP trade-offs
+- Dynamo paper: Sloppy quorum, hinted handoff, Merkle tree, gossip protocol

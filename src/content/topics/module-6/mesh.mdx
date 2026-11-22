@@ -1,0 +1,108 @@
+---
+title: "Service mesh, API gateway và biên hệ thống"
+description: "Ba thành phần này hay bị nhầm với nhau. Phân biệt rõ: API gateway ở rìa (bắc-nam), service mesh ở bên trong (đông-tây), Ingress/LB là tầng thấp hơn của rìa."
+module: 6
+order: 3
+num: "6.3"
+sectionId: "mesh"
+---
+<p>Ba thành phần này hay bị nhầm với nhau. Phân biệt rõ: <span class="kw">API gateway</span> ở rìa (bắc-nam), <span class="kw">service mesh</span> ở bên trong (đông-tây), <span class="kw">Ingress/LB</span> là tầng thấp hơn của rìa.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 400" role="img" aria-label="Phân biệt API gateway ở rìa với service mesh bên trong và các tầng của biên hệ thống">
+            <defs>
+              <marker id="m6b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#8b95a3">BẮC–NAM (client → hệ thống)</text>
+            <text x="500" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#8b95a3">ĐÔNG–TÂY (service → service)</text>
+
+            <rect x="16" y="36" width="86" height="46" rx="7" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="59" y="64" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Internet</text>
+
+            <rect x="126" y="36" width="100" height="46" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="176" y="56" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">CDN + WAF</text>
+            <text x="176" y="72" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">DDoS, cache tĩnh</text>
+
+            <rect x="250" y="36" width="110" height="46" rx="7" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="305" y="56" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Load Balancer</text>
+            <text x="305" y="72" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">L4, TLS terminate</text>
+
+            <rect x="384" y="36" width="120" height="46" rx="7" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="444" y="52" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">API Gateway</text>
+            <text x="444" y="66" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">auth, rate limit,</text>
+            <text x="444" y="77" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">routing, transform</text>
+
+            <path d="M102,59 L124,59" stroke="#505a68" stroke-width="2" marker-end="url(#m6b)"/>
+            <path d="M226,59 L248,59" stroke="#505a68" stroke-width="2" marker-end="url(#m6b)"/>
+            <path d="M360,59 L382,59" stroke="#505a68" stroke-width="2" marker-end="url(#m6b)"/>
+
+            <rect x="530" y="36" width="214" height="52" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="637" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Service mesh (Istio/Linkerd)</text>
+            <text x="637" y="76" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">mTLS, retry, timeout, circuit breaker</text>
+
+            <line x1="16" y1="106" x2="744" y2="106" stroke="#e7ebf1" stroke-width="2" stroke-dasharray="5 4"/>
+
+            <rect x="384" y="122" width="120" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="444" y="150" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">order svc</text>
+
+            <rect x="384" y="200" width="120" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="444" y="228" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">payment svc</text>
+
+            <rect x="384" y="278" width="120" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="444" y="306" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">notify svc</text>
+
+            <path d="M444,82 L444,120" stroke="#505a68" stroke-width="2" marker-end="url(#m6b)"/>
+            <path d="M444,168 L444,198" stroke="#505a68" stroke-width="2" marker-end="url(#m6b)"/>
+            <path d="M444,246 L444,276" stroke="#505a68" stroke-width="2" marker-end="url(#m6b)"/>
+
+            <rect x="524" y="122" width="220" height="52" rx="7" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="634" y="142" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#3f3f3f">sidecar: envoy</text>
+            <text x="634" y="160" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">mỗi pod có 1 proxy, chặn mọi traffic</text>
+
+            <rect x="524" y="200" width="220" height="52" rx="7" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="634" y="220" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#3f3f3f">sidecar: envoy</text>
+            <text x="634" y="238" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">retry policy + timeout ở đây, không ở code</text>
+
+            <rect x="16" y="140" width="340" height="102" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="164" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">API Gateway làm gì (và không làm gì)</text>
+            <text x="34" y="184" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">✓ terminated auth, rate limit, routing</text>
+            <text x="34" y="200" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">✓ request/response transform, versioning</text>
+            <text x="34" y="216" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">✗ KHÔNG chứa business logic</text>
+            <text x="34" y="232" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">✗ KHÔNG gọi DB, KHÔNG orchestrate</text>
+
+            <rect x="16" y="262" width="340" height="102" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="286" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Khi nào cần service mesh</text>
+            <text x="34" y="306" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">✓ &gt; 20 service và cần mTLS toàn bộ</text>
+            <text x="34" y="322" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">✓ Cần canary/thay đổi traffic động</text>
+            <text x="34" y="338" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">✓ Nhiều team, nhiều ngôn ngữ</text>
+            <text x="34" y="354" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">✗ &lt; 10 service: dùng library là đủ</text>
+          </svg>
+          <div class="diagram-cap">Hình 6.2 — Gateway ở rìa xử lý "ai được vào"; mesh ở trong xử lý "service nói chuyện với nhau thế nào"</div>
+        </div>
+
+        <h3>Những gì mesh cho bạn miễn phí — và cái giá</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Khả năng</th><th>Không mesh</th><th>Có mesh</th></tr></thead>
+            <tbody>
+              <tr><td>mTLS mọi chiều</td><td>Cấu hình từng service, từng ngôn ngữ</td><td>Tự động, không cần code</td></tr>
+              <tr><td>Retry / timeout / circuit breaker</td><td>Mỗi service tự implement (hoặc dùng lib riêng)</td><td>Khai báo policy ở CRD</td></tr>
+              <tr><td>Traffic splitting (canary 5%)</td><td>Sửa LB/service config</td><td>VirtualService weight: 5/95</td></tr>
+              <tr><td>Distributed tracing</td><td>Tự inject header, tự propagate</td><td>Tự động từ sidecar</td></tr>
+              <tr><td>Chi phí</td><td>0</td><td>+1 hop (~1–2ms), +50–100MB RAM/pod, +1 hệ thống phải vận hành</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Service mesh làm tăng độ phức tạp debug</div>
+            <p>Khi request fail, bạn phải kiểm tra thêm một tầng: sidecar có drop không? mTLS có lỗi cert không? policy có chặn không? Với team chưa có người vận hành K8s thành thạo, mesh biến sự cố đơn giản thành sự cố nhiều tầng. Đánh giá thực dụng: nếu team &lt; 10 service và chưa có platform team, hãy dùng library (Resilience4j, gRPC interceptor) hoặc để orchestrator (K8s NetworkPolicy + Ingress) xử lý. Thêm mesh khi bạn đã có vấn đề mà mesh giải quyết — không phải để "hiện đại".</p>
+          </div>
+        </div>
+
+        <h3>Ambient mesh — hướng đi mới</h3>
+        <p>Istio ambient mode (và Linkerd không sidecar) chuyển proxy từ per-pod sang per-node (ztunnel) + per-service khi cần L7. Kết quả: giảm 90% RAM overhead, giảm latency, nhưng vẫn có mTLS và L4 policy. Với L7 (retry, header routing) thì vẫn cần waypoint proxy nhưng chỉ cho service cần. Đây là hướng đi rõ ràng của 2024–2026 vì nó giải quyết đúng nhược điểm lớn nhất của mesh cổ điển. Trong phỏng vấn, nhắc đến điều này cho thấy bạn cập nhật.</p>

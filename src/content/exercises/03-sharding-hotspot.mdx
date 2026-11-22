@@ -1,0 +1,101 @@
+---
+id: "03"
+title: "Sharding — chọn khoá và xử lý hotspot"
+level: advanced
+summary: "Bài tập về dữ liệu phân mảnh: chọn shard key cho bảng đơn hàng, chứng minh bằng số vì sao khoá theo ngày tạo sẽ sập, và xử lý trường hợp một merchant chiếm 40% lượng ghi trong flash sale."
+specs: [{ k: "Đơn hàng", v: "500 triệu dòng" }, { k: "Ghi đỉnh", v: "2.000/s" }, { k: "Đọc đỉnh", v: "20.000/s" }, { k: "Số shard", v: "16 (dự kiến mở rộng 64)" }, { k: "Module liên quan", v: "3" }]
+module: 3
+order: 3
+---
+
+## Mục tiêu
+
+Chia bảng `orders` (500 triệu dòng) ra 16 shard, chọn khoá phân mảnh, chứng minh lựa chọn bằng con số, và xử lý trường hợp một merchant chiếm tới 40% lượng ghi trong flash sale.
+
+## Yêu cầu
+
+### Yêu cầu chức năng
+
+1. **Tra cứu theo mã đơn**: khách nhập `order_code` và phải tìm được đơn
+2. **Liệt kê đơn của một khách**: 20 đơn gần nhất, sắp theo thời gian
+3. **Liệt kê đơn của một merchant**: dùng cho dashboard bán hàng, phân trang
+4. **Báo cáo doanh thu theo ngày**: theo merchant và toàn hệ thống
+
+### Yêu cầu phi chức năng
+
+1. **Độ trễ**: tra cứu theo mã đơn dưới 50ms ở p99
+2. **Cân bằng tải**: không shard nào nhận quá 1,5× trung bình trong điều kiện bình thường
+3. **Mở rộng**: thêm shard không cần downtime, dữ liệu cũ không phải nạp lại từ đầu
+4. **Không mất dữ liệu**: ghi phải bền vững trước khi trả về cho client
+
+## Gợi ý
+
+### Ước lượng trước khi chọn khoá
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+    <tbody>
+      <tr><td>Kích thước mỗi dòng</td><td>~400 byte</td><td>id, code, merchant, customer, tiền, trạng thái, timestamp</td></tr>
+      <tr><td>Tổng dung lượng</td><td>~200 GB</td><td>5×10⁸ × 400 byte</td></tr>
+      <tr><td>Mỗi shard (16 shard)</td><td>~12,5 GB</td><td>200 GB / 16 — dễ dàng cho một máy</td></tr>
+      <tr><td>Ghi mỗi shard (burst)</td><td>125/s</td><td>2.000/s / 16 — rất nhẹ</td></tr>
+      <tr><td>Đọc mỗi shard</td><td>1.250/s</td><td>20.000/s / 16</td></tr>
+      <tr><td>Ghi trung bình</td><td>~20/s</td><td>1,7 triệu đơn/ngày — 500 triệu dòng tương đương ~10 tháng tích luỹ</td></tr>
+      <tr><td>Dung lượng sau 3 năm</td><td>~960 GB</td><td>~2,4 tỉ dòng × 400 byte (cộng thêm 1,7 triệu đơn/ngày)</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Con số quan trọng nhất: <strong>mỗi shard chỉ 12,5 GB và 125 ghi/s</strong>. Nghĩa là bài toán này không bị giới hạn bởi phần cứng của một shard — nó bị giới hạn bởi <em>phân bố không đều</em>. Mọi sai lầm trong bài này đều là sai lầm chọn khoá, không phải chọn máy.</p>
+
+### Ba ứng viên shard key
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Khoá</th><th>Đọc theo mã đơn</th><th>Đọc theo khách</th><th>Đọc theo merchant</th><th>Cân bằng</th></tr></thead>
+    <tbody>
+      <tr><td><code>order_id</code> (hash)</td><td>1 shard — hash ra shard</td><td>N shard — phải fan-out</td><td>N shard</td><td>Tốt</td></tr>
+      <tr><td><code>customer_id</code> (hash)</td><td>N shard — không biết shard</td><td>1 shard</td><td>N shard</td><td>Tốt</td></tr>
+      <tr><td><code>merchant_id</code> (hash)</td><td>N shard</td><td>N shard</td><td>1 shard</td><td><strong>Kém</strong> — merchant lớn tạo hotspot</td></tr>
+      <tr><td><code>created_at</code> (range)</td><td>Biết ngày → 1 shard</td><td>N shard</td><td>N shard</td><td><strong>Rất kém</strong> — mọi ghi dồn shard mới nhất</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Không khoá nào phục vụ cả ba truy vấn. Đây chính là điểm phải nhận ra: <strong>một bảng, một khoá, ba mẫu truy cập khác nhau</strong> — nên giải pháp thật là hai đường tra cứu, không phải một khoá hoàn hảo.</p>
+
+### Vì sao <code>created_at</code> là bẫy kinh điển
+
+Nếu shard theo tháng tạo đơn, ở thời điểm hiện tại <strong>mọi</strong> ghi đều rơi vào shard của tháng này. Với 2.000 ghi/s, một shard nhận 2.000/s trong khi 15 shard còn lại chỉ phục vụ đọc dữ liệu cũ. Bạn có 16 máy nhưng hiệu quả bằng 1 máy. Đây là <strong>hotspot do monotonic key</strong> — cùng bản chất với việc dùng auto-increment ID làm shard key, và cũng là lý do Snowflake ID đặt timestamp ở <em>bit cao</em> nhưng vẫn hash trước khi chọn shard.
+
+## Câu hỏi phải trả lời
+
+### 1. Chọn khoá nào làm khoá chính?
+
+**Trả lời mẫu:** hash `order_id` làm khoá phân mảnh chính. Tra cứu theo `order_code` đi qua một bảng ánh xạ nhỏ `order_code → order_id` (bảng này cũng shard theo hash của code). Đọc theo khách và theo merchant đi qua bảng phụ đã sắp xếp sẵn, không quét `orders`.
+
+### 2. Merchant lớn chiếm 40% ghi thì sao?
+
+**Trả lời mẫu:** nếu shard theo `merchant_id`, một merchant lớn làm một shard nóng. Vì đã chọn `order_id` làm khoá chính, vấn đề này biến mất ở tầng ghi. Nhưng nó quay lại ở tầng đọc: dashboard của merchant đó phải fan-out 16 shard. Cách xử lý: bảng tổng hợp theo ngày (`merchant_id, date, count, revenue`) được cập nhật bằng streaming, để dashboard đọc một dòng thay vì quét.
+
+### 3. Mở rộng từ 16 lên 64 shard?
+
+**Trả lời mẫu:** dùng consistent hashing hoặc hash có tiền tố logic (logical shard 0–1023, map 1024 logical → 16 hoặc 64 physical). Cách thứ hai cho phép mở rộng bằng cách <em>chỉ chuyển logical shard</em>, không phải rehash toàn bộ, và cho phép chuyển dần theo giờ thấp điểm.
+
+### 4. Vì sao không dùng một máy to hơn?
+
+**Trả lời mẫu:** ở 200 GB, 20 ghi/s trung bình và 2.000/s burst, một máy đủ sức. Nhưng mục tiêu của sharding ở đây không phải throughput mà là <em>giới hạn bán kính sự cố</em> và cho phép mở rộng tuyến tính về sau. Câu trả lời đúng phải nói rõ: "nếu chỉ cần 500 triệu dòng và 2.000 ghi/s, tôi sẽ dùng một primary + replica và <strong>chưa</strong> shard; sharding là quyết định cho 3 năm sau, và tôi chọn khoá ngay từ đầu để không phải migrate." Đây là câu trả lời phân biệt người có kinh nghiệm.
+
+## Sản phẩm cần nộp
+
+1. **Quyết định khoá**: shard key chính, kèm bảng so sánh ba mẫu truy cập
+2. **Sơ đồ phân mảnh**: vẽ 16 shard, chỉ rõ truy vấn nào chạm shard nào
+3. **Kế hoạch mở rộng**: từ 16 lên 64, nêu cách chuyển dữ liệu và thời điểm chạy
+4. **Xử lý hotspot**: mô tả bằng số trường hợp một merchant chiếm 40% ghi
+
+## Tiêu chí đạt
+
+- [ ] Giải thích được vì sao `created_at` và `merchant_id` không dùng làm khoá chính
+- [ ] Có bảng so sánh ba mẫu truy cập cho từng ứng viên
+- [ ] Nêu được con số chứng minh hotspot (bao nhiêu ghi/s dồn vào một shard)
+- [ ] Có kế hoạch mở rộng không downtime, không rehash toàn bộ
+- [ ] Trả lời được câu "vì sao cần shard khi một máy đã đủ"

@@ -1,0 +1,106 @@
+---
+id: "07"
+title: "SLO & error budget — quyết định release bằng số"
+level: advanced
+summary: "Bài tập về vận hành: từ log và metric thật, tính SLO, dựng error budget, rồi trả lời câu hỏi khó nhất của SRE — tuần này có được release hay không, và ai có quyền quyết định."
+specs: [{ k: "Traffic", v: "30 triệu request/ngày" }, { k: "SLO mục tiêu", v: "99,9% / 30 ngày" }, { k: "Sự cố gần nhất", v: "14 phút + 38 phút" }, { k: "Số service", v: "12" }, { k: "Module liên quan", v: "6" }]
+module: 6
+order: 7
+---
+
+## Mục tiêu
+
+SLO không phải một con số trang trí trên dashboard. Nó là **hợp đồng** quyết định khi nào được release, khi nào phải dừng tính năng mới để sửa độ ổn định. Bài này bắt bạn làm đúng việc đó bằng số liệu, kể cả khi kết luận là "không được release".
+
+## Đề bài
+
+Hệ thống có 12 service, nhận **30 triệu request/ngày**. SLO của API chính là **99,9% request thành công trong cửa sổ 30 ngày**, đo theo tỉ lệ request trả về 2xx/3xx trong dưới 500ms.
+
+Trong 30 ngày qua có hai sự cố:
+
+- Sự cố A: 14 phút, toàn bộ API lỗi 503
+- Sự cố B: 38 phút, 40% request chậm hơn 500ms
+
+Yêu cầu:
+
+1. Tính error budget của cửa sổ 30 ngày, bằng số request và bằng phút.
+2. Tính error budget đã tiêu trong hai sự cố trên.
+3. Kết luận: còn bao nhiêu budget, và tuần này có được release tính năng mới không?
+4. Đề xuất một alert có ngưỡng cụ thể, kèm lý do chọn ngưỡng đó.
+
+## Gợi ý
+
+### Bước 1 — error budget
+
+30 triệu request/ngày × 30 ngày = **900 triệu request** trong cửa sổ. SLO 99,9% nghĩa là được phép hỏng **0,1%** = **900.000 request**.
+
+Quy ra thời gian: 30 ngày = 43.200 phút, 0,1% của 43.200 = **43,2 phút** downtime toàn phần.
+
+<div class="callout callout-info">
+  <div class="callout-ico">i</div>
+  <div class="callout-body">
+    <div class="callout-title">Vì sao phải quy ra cả hai đơn vị</div>
+    <p>Đơn vị request dùng để tính thiệt hại thật; đơn vị phút dùng để nói chuyện với người không kỹ thuật. Một sự cố "ảnh hưởng 40% request trong 38 phút" không phải 38 phút downtime — nó là 15,2 phút downtime toàn phần. Nhầm hai đơn vị này là lỗi phổ biến nhất khi báo cáo sự cố.</p>
+  </div>
+</div>
+
+### Bước 2 — budget đã tiêu
+
+Sự cố A: 14 phút × 100% = **14 phút** tương đương.
+Sự cố B: 38 phút × 40% = **15,2 phút** tương đương.
+
+Tổng: **29,2 phút** trên 43,2 phút — đã tiêu **68%** budget, còn lại **14 phút** (32%).
+
+### Bước 3 — quyết định release
+
+Còn 32% budget trong khi tháng còn 6 ngày. Đây là vùng xám, và câu trả lời đúng là **có điều kiện**:
+
+- Được release nếu: thay đổi có feature flag, có rollback trong 5 phút, và chạy canary 5% trước.
+- Không được release nếu: thay đổi chạm vào đường tới hạn của API chính, hoặc cần migrate dữ liệu.
+
+Điểm mấu chốt khi trả lời: **nói ra quy tắc trước, rồi áp quy tắc vào số liệu** — không phán cảm tính. Người phỏng vấn senior chấm đúng thứ tự này.
+
+### Bước 4 — alert
+
+Alert nên dùng **burn rate** (tốc độ tiêu budget) thay vì ngưỡng lỗi tuyệt đối:
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Cửa sổ</th><th>Burn rate</th><th>Nghĩa là</th><th>Hành động</th></tr></thead>
+    <tbody>
+      <tr><td>1 giờ</td><td>&gt; 14,4×</td><td>Tiêu 2% budget trong 1 giờ</td><td>Page ngay</td></tr>
+      <tr><td>6 giờ</td><td>&gt; 6×</td><td>Tiêu 5% budget trong 6 giờ</td><td>Page</td></tr>
+      <tr><td>3 ngày</td><td>&gt; 1×</td><td>Tiêu hết budget đúng hạn</td><td>Tạo ticket</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>Alert theo tỉ lệ lỗi tuyệt đối (ví dụ "lỗi &gt; 1%") bỏ sót sự cố nhỏ kéo dài và báo động giả khi traffic thấp. Burn rate tự điều chỉnh theo lưu lượng vì nó so với chính budget.</p>
+
+## Câu hỏi phải trả lời
+
+### 1. SLO 99,9% có nghĩa là mỗi request có 0,1% khả năng hỏng?
+
+**Trả lời mẫu:** Không. SLO là cam kết **trung bình trên cửa sổ**, không phải xác suất từng request. Một hệ thống có thể hỏng liên tục 40 phút rồi chạy hoàn hảo 29 ngày và vẫn đạt SLO — dù trải nghiệm người dùng trong 40 phút đó rất tệ. Đây là lý do SLO luôn đi kèm cửa sổ thời gian, và lý do người ta bổ sung thêm SLO ngắn hạn (1 giờ) cho các API quan trọng.
+
+### 2. Nếu budget cạn hoàn toàn thì sao?
+
+**Trả lời mẫu:** Dừng mọi thay đổi tính năng, chuyển toàn bộ lực lượng sang việc độ ổn định cho đến khi budget hồi. Quy tắc này phải được viết ra và được lãnh đạo đồng ý **trước** khi cạn, vì lúc cạn rồi thì mọi cuộc tranh luận đều có lợi cho bên muốn release. Đây là điểm khác biệt giữa SLO thật và SLO trang trí.
+
+### 3. Đo SLO ở đâu — server hay client?
+
+**Trả lời mẫu:** Ưu tiên số đo gần người dùng nhất (RUM hoặc load balancer), vì server có thể trả 200 trong khi request chưa bao giờ tới được client. Nếu chỉ có metric server-side, phải nói rõ giới hạn đó khi trình bày — người phỏng vấn đánh giá cao việc bạn biết số đo của mình không hoàn hảo.
+
+## Sản phẩm cần nộp
+
+1. **Bảng tính budget**: request, phút, phần trăm đã tiêu, phần trăm còn lại
+2. **Quyết định release**: có/không/có điều kiện, kèm quy tắc đã áp
+3. **Ba alert** với ngưỡng burn rate và hành động tương ứng
+4. **Runbook ngắn**: khi alert kêu thì ai làm gì, trong bao lâu
+
+## Tiêu chí đạt
+
+- [ ] Tính đúng 900.000 request và 43,2 phút cho SLO 99,9%/30 ngày
+- [ ] Quy đổi sự cố một phần thành downtime tương đương (38 phút × 40%)
+- [ ] Quyết định release dựa trên quy tắc nêu trước, không phán cảm tính
+- [ ] Alert dùng burn rate, không dùng ngưỡng lỗi tuyệt đối
+- [ ] Giải thích được SLO là trung bình trên cửa sổ, không phải xác suất
