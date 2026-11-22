@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Chuyển hướng…</title>
+    <!--
+      The static site published this page as /learning-path.html. Astro emits
+      directory-style URLs, so the real page now lives at /learning-path/.
+      This stub keeps the old address working instead of returning a 404.
+    -->
+    <link rel="canonical" href="./learning-path/" />
+    <meta name="robots" content="noindex" />
+    <meta http-equiv="refresh" content="0; url=./learning-path/" />
+    <script is:inline>
+      location.replace(new URL('./learning-path/', location.href).href + location.hash);
+    </script>
+  </head>
+  <body>
+    <p>Trang đã chuyển tới <a href="./learning-path/">/learning-path/</a>.</p>
+  </body>
+</html>

@@ -1,0 +1,46 @@
+---
+title: "Non-functional requirements — phần quyết định kiến trúc"
+description: "Functional requirements quyết định tính năng. Non-functional requirements (NFR) quyết định kiến trúc."
+module: 1
+order: 2
+num: "1.2"
+sectionId: "nfr"
+---
+<p>Functional requirements quyết định <em>tính năng</em>. Non-functional requirements (NFR) quyết định <em>kiến trúc</em>. Hai hệ thống cùng tính năng nhưng NFR khác nhau sẽ có kiến trúc hoàn toàn khác.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>NFR</th><th>Câu hỏi cần trả lời</th><th>Ảnh hưởng kiến trúc</th></tr></thead>
+            <tbody>
+              <tr><td><span class="kw">Availability</span></td><td>Chịu được bao nhiêu downtime/năm?</td><td>Số replica, multi-AZ, failover, health check</td></tr>
+              <tr><td><span class="kw">Latency</span></td><td>P99 phải dưới bao nhiêu ms?</td><td>Cache, CDN, edge compute, denormalization</td></tr>
+              <tr><td><span class="kw">Consistency</span></td><td>Đọc có được phép stale không?</td><td>Replica read, quorum, consensus, versioning</td></tr>
+              <tr><td><span class="kw">Durability</span></td><td>Mất dữ liệu được không?</td><td>WAL, replication 3×, backup, cross-region</td></tr>
+              <tr><td><span class="kw">Scalability</span></td><td>Scale theo chiều nào?</td><td>Stateless service, sharding, partition</td></tr>
+              <tr><td><span class="kw">Cost</span></td><td>Ngân sách hạ tầng?</td><td>Chọn managed service, spot instance, tiering</td></tr>
+              <tr><td><span class="kw">Security</span></td><td>Dữ liệu nhạy cảm cỡ nào?</td><td>Encryption, zero-trust, audit log, PII tách riêng</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Bảng availability — học thuộc</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">text</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code>Availability   Downtime/năm       Downtime/tháng     Ghi chú&#10;─────────────────────────────────────────────────────────────────&#10;99%            3,65 ngày          7,2 giờ            Không chấp nhận được cho prod&#10;99,9%          8,77 giờ           43,8 phút          "three nines" — mức tối thiểu&#10;99,99%         52,6 phút          4,38 phút          "four nines" — cần multi-AZ&#10;99,999%        5,26 phút          26,3 giây          "five nines" — cần multi-region&#10;99,9999%       31,6 giây          2,63 giây          Gần như chỉ hệ thống viễn thông&#10;&#10;<span class="c-com"># Công thức: downtime = (1 - availability) × 365 × 24 × 60 phút</span>&#10;<span class="c-com"># 99,9% → 0,001 × 525600 = 525,6 phút/năm = 8,76 giờ</span>&#10;&#10;<span class="c-com"># Availability của chuỗi phụ thuộc (nối tiếp)</span>&#10;A_total = A1 × A2 × A3&#10;<span class="c-out"># 3 service, mỗi cái 99,9% → 0,999³ = 99,7% (tệ hơn từng cái!)</span>&#10;&#10;<span class="c-com"># Availability khi có redundancy song song</span>&#10;A_total = 1 - (1 - A)^n&#10;<span class="c-out"># 2 instance, mỗi cái 99,9% → 1 - 0,001² = 99,9999%</span></code></pre>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">✕</div>
+          <div class="callout-body">
+            <div class="callout-title">Sự thật phũ phàng về "five nines"</div>
+            <p>Nếu hệ thống của bạn gọi 3 service khác nhau, mỗi service 99,99%, thì availability tổng chỉ còn <strong>99,97%</strong> — thấp hơn cả "four nines". Đây là lý do hệ thống microservices cần <span class="kw">graceful degradation</span>: khi một service chết, ứng dụng vẫn phải chạy được ở chế độ giảm chức năng.</p>
+          </div>
+        </div>
+
+        <h3>SLA vs SLO vs SLI</h3>
+        <ul class="list-bullet">
+          <li><span class="kw">SLI</span> (Indicator) — con số đo được: 99,95% request thành công trong 28 ngày.</li>
+          <li><span class="kw">SLO</span> (Objective) — mục tiêu nội bộ: đạt 99,95% availability. Đặt cao hơn SLA.</li>
+          <li><span class="kw">SLA</span> (Agreement) — cam kết với khách hàng, có phạt tiền: 99,9%. Đặt thấp hơn SLO một chút để có buffer.</li>
+        </ul>
+        <p>Thứ tự đúng: <strong>SLI &lt; SLO &lt; SLA</strong> (về độ nghiêm ngặt: SLO nghiêm hơn SLA). Nếu SLA = 99,9% thì SLO nên là 99,95% để có "error budget" đệm và không vi phạm hợp đồng.</p>

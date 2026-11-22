@@ -1,0 +1,93 @@
+---
+title: "Quorum R + W > N — toán học của tính nhất quán"
+description: "Đây là công thức ngắn nhất trong toàn bộ system design nhưng giải thích được vì sao Cassandra cho bạn chọn giữa nhanh và đúng, và vì sao DynamoDB có \"strongly consistent read\" với giá gấp đôi."
+module: 3
+order: 6
+num: "3.6"
+sectionId: "quorum"
+---
+<p>Đây là công thức ngắn nhất trong toàn bộ system design nhưng giải thích được vì sao Cassandra cho bạn chọn giữa nhanh và đúng, và vì sao DynamoDB có "strongly consistent read" với giá gấp đôi.</p>
+
+        <div class="callout callout-note">
+          <div class="callout-ico">∑</div>
+          <div class="callout-body">
+            <div class="callout-title">Công thức</div>
+            <p>Với <strong>N</strong> replica, ghi vào <strong>W</strong> node, đọc từ <strong>R</strong> node. Nếu <strong>R + W &gt; N</strong> thì tập node đọc và tập node ghi <em>luôn giao nhau ít nhất 1 node</em>, và node đó đã thấy bản ghi mới nhất. Với N=3: W=2, R=2 → 4 &gt; 3 ✓.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 320" role="img" aria-label="Minh hoạ quorum với N bằng 3, W bằng 2, R bằng 2 và phần giao nhau chứa bản ghi mới nhất">
+            <defs>
+              <marker id="m3f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <circle cx="200" cy="150" r="102" fill="#e9f0fc" fill-opacity="0.75" stroke="#5294ff" stroke-width="2"/>
+            <circle cx="330" cy="150" r="102" fill="#fef3c7" fill-opacity="0.75" stroke="#f4d77c" stroke-width="2"/>
+
+            <text x="126" y="60" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#5294ff">Tập ghi (W=2)</text>
+            <text x="344" y="60" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#b45309">Tập đọc (R=2)</text>
+            <text x="238" y="132" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">GIAO</text>
+            <text x="238" y="150" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">≥ 1 node</text>
+            <text x="238" y="168" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">có bản mới</text>
+
+            <circle cx="150" cy="118" r="19" fill="#5294ff" stroke="#151515" stroke-width="2"/>
+            <text x="150" y="124" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="700" fill="#fff">R1</text>
+            <circle cx="164" cy="196" r="19" fill="#5294ff" stroke="#151515" stroke-width="2"/>
+            <text x="164" y="202" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="700" fill="#fff">R2</text>
+            <circle cx="300" cy="118" r="19" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="300" y="124" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="700" fill="#151515">R3</text>
+            <circle cx="372" cy="196" r="19" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="372" y="202" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="700" fill="#151515">R4</text>
+
+            <rect x="470" y="34" width="272" height="242" rx="10" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="488" y="58" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Bốn cấu hình thực dụng</text>
+            <text x="488" y="84" font-family="JetBrains Mono, monospace" font-size="10" fill="#10b981">W=2,R=2  → strong, cân bằng</text>
+            <text x="488" y="104" font-family="JetBrains Mono, monospace" font-size="10" fill="#505a68">R+W=4 &gt; 3 ✓ đọc thấy bản mới</text>
+            <text x="488" y="130" font-family="JetBrains Mono, monospace" font-size="10" fill="#ef4444">W=1,R=1  → nhanh nhất, có thể cũ</text>
+            <text x="488" y="150" font-family="JetBrains Mono, monospace" font-size="10" fill="#505a68">R+W=2 ≤ 3 ✗ có thể đọc bản cũ</text>
+            <text x="488" y="176" font-family="JetBrains Mono, monospace" font-size="10" fill="#fb923c">W=3,R=1  → ghi chậm, đọc nhanh</text>
+            <text x="488" y="196" font-family="JetBrains Mono, monospace" font-size="10" fill="#505a68">R+W=4 ✓ nhưng 1 node chết là tắc ghi</text>
+            <text x="488" y="222" font-family="JetBrains Mono, monospace" font-size="10" fill="#8c4fff">W=1,R=3  → ghi nhanh, đọc đắt</text>
+            <text x="488" y="242" font-family="JetBrains Mono, monospace" font-size="10" fill="#505a68">R+W=4 ✓ tốt cho write-heavy</text>
+            <text x="488" y="266" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#8b95a3">Riêng W=3,R=1: mất 1 node → ghi fail</text>
+
+            <text x="20" y="298" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#8b95a3">Hình vẽ: N=3 thực tế nhưng minh hoạ tập giao của 2 quần thể 2 node</text>
+          </svg>
+          <div class="diagram-cap">Hình 3.6 — Quorum không phải "đa số", nó là điều kiện giao nhau</div>
+        </div>
+
+        <h3>Đọc sửa (read repair) và vì sao quorum không đủ</h3>
+        <p>Quorum đảm bảo bạn <em>thấy</em> bản mới nhất ở ít nhất một node, nhưng node khác vẫn giữ bản cũ. Nếu không sửa, dữ liệu phân kỳ vĩnh viễn và lần đọc sau với R nhỏ hơn có thể trả bản cũ.</p>
+        <ul class="list-bullet">
+          <li><span class="kw">Read repair (blocking):</span> client đọc R node, phát hiện version lệch, ghi bản mới trở lại các node cũ <em>trước khi</em> trả kết quả. Nhất quán hơn nhưng chậm hơn.</li>
+          <li><span class="kw">Read repair (background):</span> trả kết quả ngay, gửi sửa nền. Nhanh, nhưng cửa sổ bất nhất quán còn tồn tại.</li>
+          <li><span class="kw">Anti-entropy repair:</span> tiến trình định kỳ (Merkle tree) so sánh toàn bộ dữ liệu giữa các replica. Tốn I/O, chạy hàng tuần. Đây là lưới an toàn cuối cùng — Cassandra gọi là <code>nodetool repair</code>.</li>
+          <li><span class="kw-y">Hinted handoff:</span> node đích down thì node điều phối giữ "hint" (bản ghi tạm + thời hạn) và gửi lại khi node sống. Giúp W không thất bại khi có node tạm chết.</li>
+        </ul>
+
+        <h3>Sloppy quorum và con dao hai lưỡi</h3>
+        <p>Khi một node trong N node được chỉ định bị down, hệ thống "sloppy" ghi vào node dự phòng ngoài tập N để vẫn đạt W. Ưu điểm: <span class="kw-g">luôn ghi được</span> (availability cao). Nhược điểm: <span class="kw-r">R + W &gt; N không còn đảm bảo</span>, vì bản mới có thể nằm ngoài tập đọc. Đây là lý do DynamoDB phân biệt <em>eventually consistent read</em> (rẻ, R=1) với <em>strongly consistent read</em> (đắt gấp đôi, đọc từ leader của partition) — chứ không chỉ là "đọc nhiều node hơn".</p>
+
+        <h3>Last-write-wins và sự thật khó chịu về đồng hồ</h3>
+        <p>Multi-leader và leaderless buộc phải giải quyết xung đột. Cách phổ biến nhất là <span class="kw-r">Last-Write-Wins bằng timestamp</span> — và nó <strong>mất dữ liệu một cách âm thầm</strong>. Hai client ghi gần như đồng thời, đồng hồ hai node lệch 50ms, bản ghi "thắng" có thể là bản cũ hơn về mặt logic. Bản ghi kia biến mất không dấu vết.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cách giải quyết xung đột</th><th>Mất dữ liệu?</th><th>Khi nào dùng</th></tr></thead>
+            <tbody>
+              <tr><td><strong>LWW (timestamp)</strong></td><td>Có — bản thua bị xoá</td><td>Dữ liệu "ghi đè" tự nhiên: last seen, status, cache</td></tr>
+              <tr><td><strong>Version vector / Dotted version</strong></td><td>Không — trả cả hai bản cho app</td><td>Giỏ hàng, tài liệu cộng tác; app phải merge được</td></tr>
+              <tr><td><strong>CRDT</strong></td><td>Không — merge tự động, giao hoán</td><td>Counter (G-Counter), set (OR-Set), text (RGA)</td></tr>
+              <tr><td><strong>Single-leader cho entity đó</strong></td><td>Không — không có xung đột</td><td>Mọi thứ cần ACID; đơn giản nhất, luôn là lựa chọn đầu tiên</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Đừng bao giờ dùng timestamp của client</div>
+            <p>Nếu xung đột được giải quyết bằng <code>updated_at</code> do client gửi lên, một client có đồng hồ nhanh (hoặc cố tình) sẽ luôn thắng mọi ghi. Đây là lỗ hổng bảo mật, không chỉ là bug dữ liệu. Luôn dùng timestamp do server/coordinator gán, hoặc tốt hơn là Hybrid Logical Clock (HLC) — kết hợp vật lý và logic để giữ thứ tự nhân quả. CockroachDB dùng HLC; nó vẫn cần "clock skew uncertainty interval" và đôi khi phải restart transaction khi phát hiện lệch quá ngưỡng.</p>
+          </div>
+        </div>

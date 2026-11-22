@@ -1,0 +1,47 @@
+---
+title: "Back-of-envelope estimation — kỹ năng bắt buộc"
+description: "Ước lượng là kỹ năng phân biệt người biết thiết kế với người chỉ đọc blog. Bạn không cần kết quả đúng — bạn cần quá trình hợp lý và các con số không điên rồ."
+module: 1
+order: 3
+num: "1.3"
+sectionId: "estimation"
+---
+<p>Ước lượng là kỹ năng phân biệt người biết thiết kế với người chỉ đọc blog. Bạn không cần kết quả đúng — bạn cần <span class="kw">quá trình hợp lý</span> và các con số không điên rồ.</p>
+
+        <h3>Bộ số phải thuộc</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">text</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># --- Đơn vị ---</span>&#10;1 KB = 10³ bytes    1 MB = 10⁶    1 GB = 10⁹    1 TB = 10¹²    1 PB = 10¹⁵&#10;1 ngày = 86.400 giây ≈ 10⁵ giây   <span class="c-com">← số này dùng nhiều nhất</span>&#10;1 tháng ≈ 2,5 triệu giây          1 năm ≈ 31,5 triệu giây&#10;&#10;<span class="c-com"># --- Latency numbers (Jeff Dean, cập nhật 2020) ---</span>&#10;L1 cache                  0,5 ns&#10;Branch mispredict           5 ns&#10;L2 cache                    7 ns&#10;Mutex lock/unlock          25 ns&#10;Main memory (RAM)         100 ns      <span class="c-com">← 100ns là mốc quan trọng</span>&#10;Compress 1KB (Zippy)       3 µs&#10;Send 1KB qua 1 Gbps       10 µs&#10;Read 4KB random từ SSD   150 µs&#10;Read 1MB tuần tự từ RAM  250 µs&#10;Round trip trong 1 DC    500 µs       <span class="c-com">← 0,5ms, rất quan trọng</span>&#10;Read 1MB tuần tự từ SSD    1 ms&#10;Disk seek                   10 ms      <span class="c-com">← đắt gấp 20 lần SSD</span>&#10;Read 1MB tuần tự từ đĩa    20 ms&#10;Send packet CA→EU→CA     150 ms      <span class="c-com">← datacenter khác châu lục</span>&#10;&#10;<span class="c-com"># --- Quy tắc ghi nhớ ---</span>&#10;• RAM nhanh hơn SSD ~150×, SSD nhanh hơn HDD ~100×&#10;• Trong cùng DC: 0,5ms. Khác region: 50–150ms. <span class="c-com">→ chênh 100–300×</span>&#10;• Một server commodity: ~10K QPS cho read đơn giản, ~1–2K QPS cho write có transaction&#10;• MySQL/Postgres 1 node: ~5K QPS read, ~2K QPS write (có index tốt)&#10;• Redis 1 node: ~100K QPS&#10;• Kafka 1 partition: ~10MB/s&#10;• 1 core CPU: ~10⁹ phép tính đơn giản/giây</code></pre>
+        </div>
+
+        <h3>Công thức ước lượng</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Đại lượng</th><th>Công thức</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td>QPS trung bình</td><td><code>(DAU × actions/day) / 86400</code></td><td>Luôn làm tròn 86400 → 10⁵</td></tr>
+              <tr><td>QPS đỉnh</td><td><code>QPS × 2..3</code></td><td>Thiết kế theo con số này</td></tr>
+              <tr><td>Storage</td><td><code>records/day × size × retention_days</code></td><td>Cộng thêm index ~30%</td></tr>
+              <tr><td>Bandwidth</td><td><code>QPS × avg_payload_size × 8</code></td><td>bit/s, chia 10⁹ ra Gbps</td></tr>
+              <tr><td>Cache size</td><td><code>hot_data × 20%</code> (Pareto)</td><td>80% traffic vào 20% data</td></tr>
+              <tr><td>Số server</td><td><code>peak_QPS / QPS_per_server</code></td><td>Cộng 30–50% headroom</td></tr>
+              <tr><td>Concurrent connections</td><td><code>QPS × avg_latency_s</code> (Little's Law)</td><td>Ví dụ 10K QPS × 0,1s = 1000</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Ví dụ đầy đủ: Twitter</h3>
+        <p>Alex Xu dùng bài này trong Chương 2. Giả định: 300 triệu MAU, 50% dùng hằng ngày, 2 tweet/ngày, 10% tweet có media, lưu 5 năm.</p>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">text</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">### Bước 1: QPS</span>&#10;DAU            = 300M × 50% = 150M&#10;Tweet QPS      = 150M × 2 / 86.400 ≈ 3.500 QPS    <span class="c-com">(write)</span>&#10;Peak QPS       = 3.500 × 2 = 7.000 QPS&#10;<span class="c-out">→ Cần ~10 server cho write tier (mỗi server 1K QPS)</span>&#10;&#10;<span class="c-com">### Bước 2: Storage media</span>&#10;Media/ngày     = 150M × 2 × 10% × 1MB = 30 TB/ngày&#10;5 năm          = 30 TB × 365 × 5 ≈ 55 PB&#10;<span class="c-out">→ Phải dùng object storage (S3) + CDN, KHÔNG dùng DB</span>&#10;&#10;<span class="c-com">### Bước 3: Text storage</span>&#10;Text/tweet     = 64 (id) + 140 (text) ≈ 300 bytes&#10;Text/ngày      = 300M tweets × 300B ≈ 90 GB/ngày&#10;5 năm          = 90 GB × 365 × 5 ≈ 164 TB&#10;<span class="c-out">→ Vừa với cluster DB có sharding</span>&#10;&#10;<span class="c-com">### Bước 4: Cache</span>&#10;Hot tweets     = 20% × 300M/ngày × 300B ≈ 18 GB&#10;<span class="c-out">→ 1–2 Redis node 32GB là đủ cho hot cache</span>&#10;&#10;<span class="c-com">### Bước 5: Kết luận thiết kế</span>&#10;• Feed read: hàng chục nghìn QPS → CDN + cache là bắt buộc&#10;• Media: S3 + CloudFront, signed URL&#10;• Tweet metadata: sharded MySQL/Cassandra theo user_id&#10;• Fanout: hybrid push/pull cho user có nhiều follower</code></pre>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Kỹ thuật ước lượng nhanh</div>
+            <p>Dùng <strong>lũy thừa 10</strong> thay vì số chính xác. 86.400 ≈ 10⁵. 300 triệu ≈ 3×10⁸. Nhân chia lũy thừa dễ hơn nhiều và sai số chỉ 15% — hoàn toàn chấp nhận được. Nếu bạn ra "10⁹ QPS" thay vì "10⁴ QPS" thì thiết kế sẽ sai hoàn toàn, còn 10⁴ vs 1,2×10⁴ thì không sao.</p>
+          </div>
+        </div>

@@ -1,0 +1,103 @@
+---
+title: "Raft — consensus giải thích bằng ví dụ"
+description: "Consensus là bài toán: N node phải đồng ý về một chuỗi giá trị, ngay cả khi một số node chết. Raft làm được điều đó và được thiết kế để con người hiểu được (khác Paxos)."
+module: 4
+order: 3
+num: "4.3"
+sectionId: "consensus"
+---
+<p>Consensus là bài toán: <em>N node phải đồng ý về một chuỗi giá trị, ngay cả khi một số node chết</em>. Raft làm được điều đó và được thiết kế để con người hiểu được (khác Paxos). Hiểu Raft, bạn hiểu cách etcd giữ cluster state, cách CockroachDB giữ transaction, và cách Kubernetes chọn leader.</p>
+
+        <h3>Ba trạng thái, một nhiệm kỳ</h3>
+        <ul class="list-bullet">
+          <li><strong>Follower:</strong> nhận log từ leader, trả lời request vote. Trạng thái mặc định.</li>
+          <li><strong>Candidate:</strong> hết election timeout mà không nghe leader → tự tăng <code>term</code>, xin vote.</li>
+          <li><strong>Leader:</strong> nhận đa số vote → gửi heartbeat, nhận mọi write, replicate log.</li>
+        </ul>
+        <p>Mọi message đều mang <code>term</code>. Node nhận message có term nhỏ hơn → từ chối và trả về term hiện tại. Node thấy term lớn hơn → cập nhật và trở thành follower. Đây là cơ chế duy nhất để loại bỏ leader cũ mà không cần đồng hồ chung.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 430" role="img" aria-label="Quá trình bầu leader Raft từ follower qua candidate sang leader với yêu cầu vote và heartbeat">
+            <defs>
+              <marker id="m4c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="270" y="16" width="220" height="62" rx="10" fill="#dbeeff" stroke="#151515" stroke-width="2"/>
+            <text x="380" y="42" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">FOLLOWER</text>
+            <text x="380" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">election timeout 150–300ms</text>
+
+            <rect x="540" y="176" width="200" height="62" rx="10" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="640" y="202" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">CANDIDATE</text>
+            <text x="640" y="222" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">term++, xin vote</text>
+
+            <rect x="270" y="176" width="220" height="62" rx="10" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="380" y="202" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">LEADER</text>
+            <text x="380" y="222" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">heartbeat mỗi 50ms</text>
+
+            <rect x="20" y="176" width="200" height="62" rx="10" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="120" y="202" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">TIMEOUT</text>
+            <text x="120" y="222" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">bầu lại, jitter tránh</text>
+
+            <path d="M270,52 C240,80 200,120 160,174" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m4c)"/>
+            <text x="196" y="106" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#151515">không nghe heartbeat</text>
+
+            <path d="M220,196 L268,200" stroke="#505a68" stroke-width="2" marker-end="url(#m4c)"/>
+            <text x="244" y="186" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#151515">đa số vote</text>
+
+            <path d="M490,207 L538,207" stroke="#505a68" stroke-width="2" marker-end="url(#m4c)"/>
+            <text x="514" y="197" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#151515">3/5 vote</text>
+
+            <path d="M380,176 L378,80" stroke="#10b981" stroke-width="2" marker-end="url(#m4c)"/>
+            <text x="392" y="128" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">heartbeat (giữ follower)</text>
+
+            <path d="M640,238 C640,280 500,290 440,290" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#m4c)"/>
+            <text x="500" y="306" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">không đủ vote → timeout → bầu lại</text>
+
+            <rect x="20" y="326" width="356" height="88" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="38" y="348" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Log replication: cơ chế cốt lõi</text>
+            <text x="38" y="368" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">AppendEntries(term, prevIndex, prevTerm,</text>
+            <text x="38" y="382" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">  entries[], commitIndex)</text>
+            <text x="38" y="400" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Follower từ chối nếu prevTerm lệch → leader lùi lại sửa.</text>
+
+            <rect x="388" y="326" width="356" height="88" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="406" y="348" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Commit khi nào?</text>
+            <text x="406" y="368" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Khi entry đã được ghi bởi đa số node VÀ</text>
+            <text x="406" y="384" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">ít nhất 1 entry của term hiện tại cũng vậy.</text>
+            <text x="406" y="402" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">Chỉ đếm đa số là chưa đủ — đây là bug kinh điển.</text>
+          </svg>
+          <div class="diagram-cap">Hình 4.3 — Raft: state machine với term làm bộ lọc thời gian và majority làm thẩm quyền</div>
+        </div>
+
+        <h3>Bốn luật bất biến của Raft</h3>
+        <ol class="list-num">
+          <li><strong>Election Safety:</strong> mỗi term có tối đa 1 leader. Suy ra từ việc mỗi node vote 1 lần/term và cần đa số.</li>
+          <li><strong>Leader Append-Only:</strong> leader không bao giờ sửa hay xoá entry của mình, chỉ append.</li>
+          <li><strong>Log Matching:</strong> nếu hai log có cùng (index, term) thì mọi entry trước đó giống nhau. Đây là điều làm cho việc so sánh log trở nên đơn giản.</li>
+          <li><strong>Leader Completeness:</strong> nếu một entry đã commit ở term T thì mọi leader ở term &gt; T đều có entry đó. Suy ra từ điều kiện vote: candidate chỉ được vote nếu log của nó "ít nhất bằng" — nghĩa là không ai thiếu dữ liệu đã commit có thể thắng cử.</li>
+        </ol>
+
+        <h3>Ba vấn đề thực tế khi triển khai Raft</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Vấn đề</th><th>Triệu chứng</th><th>Giải pháp</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Split vote</strong></td><td>Nhiều candidate cùng tranh, không ai đủ đa số, bầu lại liên tục</td><td>Election timeout ngẫu nhiên (150–300ms) — jitter phá vỡ đối xứng</td></tr>
+              <tr><td><strong>Disruptive server</strong></td><td>Node bị network partition lâu, quay lại với term rất cao, phá cluster đang ổn định</td><td><strong>Pre-vote</strong>: hỏi "nếu tôi tranh cử, bạn có vote không?" trước khi thực sự tăng term. etcd bật mặc định</td></tr>
+              <tr><td><strong>Leader lease & stale read</strong></td><td>Leader cũ (đã bị partition) vẫn trả read vì nó tưởng mình là leader</td><td>Leader phải gia hạn lease bằng heartbeat đa số; read chỉ phục vụ khi còn lease. Hoặc dùng ReadIndex/lease read</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">GO</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">// Vòng lặp bầu chọn — phần cốt lõi, đơn giản hoá</span>&#10;<span class="c-key">func</span> (n *Node) runElection() &#123;&#10;    n.state = Candidate&#10;    n.currentTerm++&#10;    votes := <span class="c-num">1</span> <span class="c-com">// tự bỏ phiếu cho mình</span>&#10;&#10;    <span class="c-key">for</span> _, peer := <span class="c-key">range</span> n.peers &#123;&#10;        <span class="c-key">go func</span>(p Peer) &#123;&#10;            resp := p.RequestVote(RequestVoteArgs&#123;&#10;                Term:         n.currentTerm,&#10;                CandidateID:  n.id,&#10;                LastLogIndex: n.log.LastIndex(),&#10;                LastLogTerm:  n.log.LastTerm(),&#10;            &#125;)&#10;            <span class="c-key">if</span> resp.Term &gt; n.currentTerm &#123;&#10;                n.becomeFollower(resp.Term) <span class="c-com">// có term mới hơn → nhường</span>&#10;                <span class="c-key">return</span>&#10;            &#125;&#10;            <span class="c-key">if</span> resp.VoteGranted &#123;&#10;                n.voteMu.Lock()&#10;                votes++&#10;                <span class="c-key">if</span> votes &gt; n.clusterSize/<span class="c-num">2</span> &amp;&amp; n.state == Candidate &#123;&#10;                    n.becomeLeader() <span class="c-com">// đa số → leader</span>&#10;                &#125;&#10;                n.voteMu.Unlock()&#10;            &#125;&#10;        &#125;(peer)&#10;    &#125;&#10;&#125;</code></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Tại sao luôn dùng số node lẻ?</div>
+            <p>Với N=4, đa số là 3, nghĩa là chịu được 1 node chết — giống hệt N=3 nhưng tốn thêm 1 máy và làm tăng latency ghi (chờ nhiều ack hơn). N=5 chịu được 2 node chết. Vì vậy cấu hình chuẩn là 3 hoặc 5, không bao giờ 4 hay 6. Và <strong>đừng bao giờ</strong> đặt 3 node Raft trong 2 AZ: nếu AZ chứa 2 node chết, bạn mất quorum dù còn 1 node sống. Luôn trải trên 3 AZ, hoặc chấp nhận 2 AZ với 2+2+1 (và hiểu rằng mất AZ lớn là mất quorum).</p>
+          </div>
+        </div>

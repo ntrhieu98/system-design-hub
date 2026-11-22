@@ -1,0 +1,136 @@
+---
+title: "REST, GraphQL và gRPC — chọn theo cơ chế, không theo độ hot"
+description: "Ba kiểu giao tiếp API khác nhau ở tầng vận chuyển, cách mô tả dữ liệu và cách tiến hoá schema. Câu hỏi phỏng vấn không phải \"cái nào tốt hơn\" mà \"hệ thống này cần gì\"."
+module: 4
+order: 10
+num: "4.10"
+sectionId: "api-styles"
+---
+<p>Ba kiểu giao tiếp API khác nhau ở <span class="kw">tầng vận chuyển</span>, <span class="kw">cách mô tả dữ liệu</span> và <span class="kw">cách tiến hoá schema</span>. Câu hỏi phỏng vấn không phải "cái nào tốt hơn" mà "hệ thống này cần gì". Trả lời "gRPC nhanh hơn nên dùng gRPC" là câu trả lời của người chưa từng vận hành gRPC trong trình duyệt.</p>
+
+        <h3>Bảng so sánh theo cơ chế</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tiêu chí</th><th>REST</th><th>GraphQL</th><th>gRPC</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Vận chuyển</strong></td><td>HTTP/1.1 hoặc HTTP/2, thường JSON</td><td>HTTP POST, thường JSON</td><td>HTTP/2, Protobuf nhị phân</td></tr>
+              <tr><td><strong>Mô hình</strong></td><td>Resource + HTTP verb (GET/POST/PUT/DELETE)</td><td>Đồ thị: client khai báo đúng field cần</td><td>Method call từ xa (RPC), giống gọi hàm</td></tr>
+              <tr><td><strong>Hợp đồng</strong></td><td>OpenAPI/Swagger (tuỳ chọn, hay lệch thực tế)</td><td>SDL schema (bắt buộc)</td><td>.proto (bắt buộc, sinh code)</td></tr>
+              <tr><td><strong>Over-fetching</strong></td><td>Có — endpoint trả cả object</td><td>Không — client chọn field</td><td>Không — message do schema định nghĩa</td></tr>
+              <tr><td><strong>Under-fetching / N+1</strong></td><td>Có — phải gọi nhiều endpoint</td><td>Thấp, nhưng dễ N+1 ở resolver</td><td>Không — một message gộp nhiều field</td></tr>
+              <tr><td><strong>Streaming</strong></td><td>SSE / WebSocket phải thêm</td><td>Subscription (qua WebSocket)</td><td>Có sẵn 4 kiểu: unary, server, client, bidirectional</td></tr>
+              <tr><td><strong>Trình duyệt</strong></td><td>Native</td><td>Native</td><td>Cần gRPC-Web + proxy (Envoy) vì browser không đọc được trailer HTTP/2</td></tr>
+              <tr><td><strong>Cache HTTP</strong></td><td>Tốt — GET + ETag + CDN dùng ngay</td><td>Kém — mọi thứ là POST</td><td>Không — tự xây ở tầng ứng dụng</td></tr>
+              <tr><td><strong>Tiến hoá schema</strong></td><td>Dễ: thêm field là xong</td><td>Khó: field bỏ phải giữ deprecated, client cũ vẫn query</td><td>Chặt: số field không được tái sử dụng, `reserved` để chặn</td></tr>
+              <tr><td><strong>Debug</strong></td><td>curl là xong</td><td>GraphiQL / playground</td><td>Cần grpcurl, log nhị phân khó đọc</td></tr>
+              <tr><td><strong>Hiệu năng thực tế</strong></td><td>Đủ cho hầu hết API công khai</td><td>Chậm hơn REST ở payload nhỏ (parse + validate query)</td><td>Nhanh nhất ở nội bộ service-to-service: payload nhỏ 3–10×, latency thấp hơn</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 360" role="img" aria-label="Ba kiểu API với một request lấy thông tin user và đơn hàng, so sánh số round trip">
+            <text x="16" y="20" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#8b95a3">CÙNG MỘT NHU CẦU: màn hình "user + 3 đơn hàng gần nhất + tên sản phẩm"</text>
+
+            <rect x="16" y="34" width="236" height="300" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="134" y="56" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">REST</text>
+            <rect x="30" y="68" width="208" height="34" rx="6" fill="#fff" stroke="#151515" stroke-width="1.5"/>
+            <text x="40" y="89" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">GET /users/42</text>
+            <rect x="30" y="108" width="208" height="34" rx="6" fill="#fff" stroke="#151515" stroke-width="1.5"/>
+            <text x="40" y="129" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">GET /users/42/orders</text>
+            <rect x="30" y="148" width="208" height="34" rx="6" fill="#fff" stroke="#151515" stroke-width="1.5"/>
+            <text x="40" y="169" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">GET /orders/7/items</text>
+            <rect x="30" y="188" width="208" height="34" rx="6" fill="#fff" stroke="#151515" stroke-width="1.5"/>
+            <text x="40" y="209" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">GET /orders/8/items</text>
+            <rect x="30" y="228" width="208" height="34" rx="6" fill="#fff" stroke="#151515" stroke-width="1.5"/>
+            <text x="40" y="249" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">GET /orders/9/items</text>
+            <text x="134" y="288" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#ef4444">5 round trip</text>
+            <text x="134" y="306" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Mỗi chặng 20–80ms tuỳ khoảng cách</text>
+            <text x="134" y="322" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Client tự ghép dữ liệu</text>
+
+            <rect x="262" y="34" width="236" height="300" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="380" y="56" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">GraphQL</text>
+            <rect x="276" y="68" width="208" height="96" rx="6" fill="#fff" stroke="#151515" stroke-width="1.5"/>
+            <text x="286" y="86" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">query &#123;</text>
+            <text x="286" y="100" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">  user(id: 42) &#123;</text>
+            <text x="286" y="114" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">    name</text>
+            <text x="286" y="128" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">    orders(last: 3) &#123;</text>
+            <text x="286" y="142" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">      items &#123; title &#125;  &#125; &#125; &#125;</text>
+            <text x="380" y="192" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#10b981">1 round trip</text>
+            <text x="380" y="210" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Server ghép đúng field được hỏi</text>
+            <text x="380" y="234" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#ef4444">Nhưng resolver có thể N+1:</text>
+            <text x="380" y="250" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#ef4444">3 order × 1 query item = 3 query DB</text>
+            <text x="380" y="272" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Cần DataLoader để gộp thành 1</text>
+            <text x="380" y="296" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Không cache được bằng CDN</text>
+            <text x="380" y="318" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Chi phí: client tự đặt query nặng</text>
+
+            <rect x="508" y="34" width="236" height="300" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="626" y="56" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">gRPC</text>
+            <rect x="522" y="68" width="208" height="70" rx="6" fill="#fff" stroke="#151515" stroke-width="1.5"/>
+            <text x="532" y="86" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">message GetHome &#123;</text>
+            <text x="532" y="100" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">  int64 user_id = 1;</text>
+            <text x="532" y="114" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#151515">  int32 limit   = 2;  &#125;</text>
+            <text x="626" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#10b981">1 round trip</text>
+            <text x="626" y="180" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Protobuf nhị phân, ~3–10× nhỏ hơn JSON</text>
+            <text x="626" y="204" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Client sinh từ .proto — không lệch hợp đồng</text>
+            <text x="626" y="228" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#ef4444">Browser phải qua gRPC-Web + proxy</text>
+            <text x="626" y="252" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Không đọc được bằng curl</text>
+            <text x="626" y="276" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Dùng cho nội bộ service-to-service</text>
+            <text x="626" y="300" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9.5" fill="#505a68">Streaming 2 chiều miễn phí</text>
+          </svg>
+          <div class="diagram-cap">Hình 4.11 — Ba cách trả cùng một màn hình: chi phí round trip khác nhau, chi phí vận hành cũng khác nhau</div>
+        </div>
+
+        <h3>REST — mặc định đúng cho API công khai</h3>
+        <ul class="list-bullet">
+          <li><strong>Khi nào chọn:</strong> API cho đối tác, cho mobile app đơn giản, cho bất cứ thứ gì cần cache qua CDN hoặc debug bằng <code>curl</code>.</li>
+          <li><strong>Điểm mạnh bị đánh giá thấp:</strong> HTTP đã có sẵn cache, ETag, conditional GET, rate limit theo route, và mọi hạ tầng trên đời hiểu nó. Đây là giá trị vận hành, không phải giá trị kỹ thuật thuần.</li>
+          <li><strong>Điểm yếu thật:</strong> over-fetching và under-fetching. Một màn hình phức tạp cần 5–7 endpoint, mỗi endpoint lại trả thừa field. Với mobile 3G đây là tiền thật.</li>
+        </ul>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">HTTP</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># REST: hợp đồng nằm ở URL + verb, không có schema bắt buộc</span>&#10;GET /v1/users/42/orders?limit=3 HTTP/1.1&#10;Host: api.example.com&#10;Authorization: Bearer &lt;token&gt;&#10;&#10;<span class="c-out">HTTP/1.1 200 OK</span>&#10;<span class="c-out">ETag: "a3f9"</span>&#10;<span class="c-out">Cache-Control: private, max-age=30</span>&#10;&#10;&#123;&#10;  <span class="c-str">"data"</span>: [&#10;    &#123; <span class="c-str">"id"</span>: 7, <span class="c-str">"total"</span>: 250000, <span class="c-str">"status"</span>: <span class="c-str">"paid"</span>,&#10;      <span class="c-str">"user"</span>: &#123; ... &#125;, <span class="c-str">"items"</span>: [ ... ] &#125;&#10;  ]&#10;&#125;</code></pre>
+        </div>
+
+        <h3>GraphQL — khi client cần tự quyết định hình dạng dữ liệu</h3>
+        <ul class="list-bullet">
+          <li><strong>Khi nào chọn:</strong> nhiều client khác nhau (iOS, Android, web, smart TV) cùng đọc một graph; hoặc màn hình thay đổi liên tục tới mức không kịp thêm endpoint.</li>
+          <li><strong>Cái bẫy N+1:</strong> mỗi field là một resolver. Query <code>user &#123; orders &#123; items &#125; &#125;</code> với 3 order sinh 1 + 1 + 3 = 5 query DB. Phải có <span class="kw">DataLoader</span> gộp theo batch, nếu không GraphQL chậm hơn REST.</li>
+          <li><strong>Bảo mật:</strong> client có thể gửi query lồng 20 tầng làm sập server. Bắt buộc: giới hạn độ sâu, giới hạn độ phức tạp (cost analysis), tắt introspection ở production.</li>
+          <li><strong>Cache:</strong> mọi query là POST nên CDN và HTTP cache vô dụng. Phải làm cache ở tầng application theo query hash, hoặc dùng persisted query (client gửi hash thay vì chuỗi).</li>
+        </ul>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">GRAPHQL</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># Một request, client chọn đúng field — không thừa, không thiếu</span>&#10;query HomeScreen($userId: ID!) &#123;&#10;  user(id: $userId) &#123;&#10;    name&#10;    orders(last: 3) &#123;&#10;      id&#10;      total&#10;      items &#123; title &#125;   <span class="c-com"># resolver phải batch, không N+1</span>&#10;    &#125;&#10;  &#125;&#10;&#125;</code></pre>
+        </div>
+
+        <h3>gRPC — ngôn ngữ mặc định của nội bộ microservice</h3>
+        <ul class="list-bullet">
+          <li><strong>Khi nào chọn:</strong> service-to-service trong cùng VPC, cần latency thấp, cần streaming, hoặc cần hợp đồng chặt để không vỡ khi team khác deploy.</li>
+          <li><strong>Vì sao nhanh hơn:</strong> Protobuf mã hoá nhị phân theo field number (không lặp tên field), parse nhanh hơn JSON nhiều lần; HTTP/2 cho phép multiplexing nhiều request trên một connection, header nén bằng HPACK. Payload nhỏ 3–10× là con số thường gặp.</li>
+          <li><strong>Vì sao không dùng cho browser:</strong> browser không expose trailer của HTTP/2, mà gRPC dùng trailer để trả status. Phải có gRPC-Web và một proxy (Envoy, hoặc grpc-gateway) dịch. Đó là thêm một tầng phải vận hành.</li>
+          <li><strong>Tiến hoá schema:</strong> đổi kiểu field, đổi số field, hoặc tái sử dụng số field đã xoá đều gây lỗi im lặng. Dùng <code>reserved 3, 5;</code> để chặn vĩnh viễn.</li>
+        </ul>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">PROTO</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-key">syntax</span> = <span class="c-str">"proto3"</span>;&#10;<span class="c-key">service</span> OrderService &#123;&#10;  <span class="c-key">rpc</span> GetHome (GetHomeRequest) <span class="c-key">returns</span> (HomeResponse);&#10;  <span class="c-key">rpc</span> StreamOrders (GetHomeRequest) <span class="c-key">returns</span> (<span class="c-key">stream</span> Order); <span class="c-com">// server streaming</span>&#10;&#125;&#10;&#10;<span class="c-key">message</span> GetHomeRequest &#123;&#10;  <span class="c-key">int64</span> user_id = <span class="c-num">1</span>;&#10;  <span class="c-key">int32</span> limit   = <span class="c-num">2</span>;&#10;  <span class="c-key">reserved</span> <span class="c-num">3</span>, <span class="c-num">4</span>;   <span class="c-com">// field đã xoá: không bao giờ được dùng lại số</span>&#10;&#125;</code></pre>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Lỗi phổ biến: dùng cả ba trong một sản phẩm nhỏ</div>
+            <p>Một startup 5 người chọn REST cho API công khai, GraphQL cho mobile, gRPC cho nội bộ. Kết quả: ba tầng auth phải đồng bộ, ba cách log, ba cách tracing, và không ai dùng hết khả năng của cái nào. Trong phỏng vấn, nêu <strong>một</strong> kiểu chính và chỉ thêm kiểu thứ hai khi có lý do cụ thể: "REST cho API công khai; gRPC cho hai service nội bộ cần streaming". Đó là câu trả lời của người đã vận hành.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Câu trả lời mẫu trong phỏng vấn</div>
+            <p>"Tôi dùng REST cho API công khai vì cần cache CDN và đối tác chỉ biết HTTP. Nội bộ tôi dùng gRPC giữa order-service và inventory-service vì mỗi đơn hàng gọi 50 lần/giây và payload JSON thừa 6× so với Protobuf; hai service này cùng team nên sinh code từ .proto không phải vấn đề. Nếu sau này có màn hình phức tạp cần ghép 5 nguồn, tôi sẽ thêm một lớp GraphQL hoặc BFF cho mobile, không đổi API công khai." — mỗi lựa chọn gắn với một ràng buộc cụ thể.</p>
+          </div>
+        </div>

@@ -1,0 +1,70 @@
+---
+title: "CDN — đưa nội dung đến gần người dùng"
+description: "CDN (Content Delivery Network) là mạng lưới hàng trăm điểm hiện diện (PoP) đặt tại các thành phố lớn."
+module: 2
+order: 6
+num: "2.6"
+sectionId: "cdn"
+---
+<p>CDN (Content Delivery Network) là mạng lưới hàng trăm điểm hiện diện (PoP) đặt tại các thành phố lớn. Khi user ở Hà Nội tải ảnh, request đi 10ms tới PoP Hà Nội thay vì 180ms tới origin ở Virginia. Đây là building block duy nhất cải thiện latency mà <span class="kw">không cần</span> sửa code.</p>
+
+        <h3>Cơ chế hoạt động</h3>
+        <ol class="list-num">
+          <li>User nhập <code>cdn.example.com/logo.png</code>. DNS trả về IP của PoP gần nhất — thường dùng <span class="kw">anycast</span> (nhiều PoP cùng một IP, BGP chọn tuyến ngắn nhất).</li>
+          <li>PoP kiểm tra cache local. Nếu có và còn hạn → trả ngay (<strong>cache HIT</strong>, ~5ms).</li>
+          <li>Nếu không có → PoP gọi về origin, lấy nội dung, cache lại theo TTL (<strong>MISS</strong>).</li>
+          <li>Các user cùng thành phố sau đó hưởng lợi từ lần MISS đầu tiên (<strong>warm cache</strong>).</li>
+        </ol>
+
+        <h3>Cache-Control — header quan trọng nhất trên web</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">HTTP headers</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># Ảnh logo có hash trong tên — cache vĩnh viễn, có thể batch redeploy</span>&#10;Cache-Control: public, max-age=<span class="c-num">31536000</span>, immutable&#10;<span class="c-com"># → browser và CDN đều cache 1 năm; đổi ảnh thì đổi tên file (logo.a3f9.png)</span>&#10;&#10;<span class="c-com"># API trả dữ liệu thay đổi vừa phải</span>&#10;Cache-Control: public, s-maxage=<span class="c-num">60</span>, max-age=<span class="c-num">10</span>, stale-while-revalidate=<span class="c-num">300</span>&#10;<span class="c-com"># → CDN cache 60s, browser cache 10s; sau 60s CDN trả bản cũ NGAY và refresh nền</span>&#10;&#10;<span class="c-com"># Dữ liệu riêng tư (giỏ hàng, profile)</span>&#10;Cache-Control: private, no-store&#10;&#10;<span class="c-com"># HTML động nhưng cần revalidate nhanh</span>&#10;Cache-Control: no-cache&#10;ETag: "a3f9-20261120"&#10;<span class="c-com"># → trình duyệt gửi If-None-Match; server trả 304 Not Modified (không body) nếu chưa đổi</span></code></pre>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Directive</th><th>Áp dụng cho</th><th>Ý nghĩa</th></tr></thead>
+            <tbody>
+              <tr><td><code>max-age</code></td><td>Browser</td><td>Cache bao nhiêu giây</td></tr>
+              <tr><td><code>s-maxage</code></td><td>CDN (shared cache)</td><td>Ghi đè max-age cho CDN; cho phép CDN cache lâu hơn browser</td></tr>
+              <tr><td><code>private</code></td><td>CDN</td><td>Cấm CDN cache — chỉ browser được cache</td></tr>
+              <tr><td><code>no-store</code></td><td>Tất cả</td><td>Không lưu ở bất cứ đâu (thông tin nhạy cảm)</td></tr>
+              <tr><td><code>no-cache</code></td><td>Tất cả</td><td>Được lưu nhưng <em>phải</em> revalidate trước khi dùng</td></tr>
+              <tr><td><code>stale-while-revalidate</code></td><td>CDN</td><td>Trả bản cũ trong lúc fetch bản mới — cực tốt cho trải nghiệm</td></tr>
+              <tr><td><code>stale-if-error</code></td><td>CDN</td><td>Origin lỗi 5xx thì vẫn trả bản cũ — tăng availability</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Cache invalidation trên CDN</h3>
+        <ul class="list-bullet">
+          <li><strong>Purge theo URL</strong> — xoá 1 object cụ thể. Nhanh nhưng API thường giới hạn số lần/ngày.</li>
+          <li><strong>Purge theo tag/surrogate key</strong> — gắn <code>Cache-Tag: product-42</code>, sau đó purge toàn bộ tag. Đây là cách đúng cho nội dung động.</li>
+          <li><strong>Versioned URL</strong> — <code>/static/app.v42.js</code>. Không cần purge gì cả, chỉ deploy tên mới. Đơn giản và hiệu quả nhất cho asset tĩnh.</li>
+        </ul>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">CDN không thay thế được thiết kế đúng</div>
+            <p>Nếu bạn cache HTML trang chủ chứa tên user đã đăng nhập, CDN sẽ trả trang của user A cho user B — sự cố nghiêm trọng về bảo mật. Nguyên tắc: <strong>chỉ cache nội dung giống nhau cho mọi người</strong>, hoặc phân biệt bằng <code>Vary</code> header / <code>Cache-Key</code> có chứa session. Với nội dung cá nhân hoá, dùng <span class="kw">ES I</span> (Edge Side Includes) hoặc render phía client cho phần riêng.</p>
+          </div>
+        </div>
+
+        <h3>Chi phí — phần ít được nói tới</h3>
+        <p>CDN tính tiền chủ yếu theo <strong>egress</strong> (dữ liệu ra). Ví dụ CloudFront ~$0,085/GB cho 10TB đầu. Nếu bạn phục vụ 500TB video/tháng, tiền CDN có thể lên tới $40.000/tháng — thường là khoản chi lớn nhất trong hoá đơn cloud. Các cách giảm:</p>
+        <ul class="list-bullet">
+          <li>Nén ảnh sang WebP/AVIF (giảm 30–50% kích thước so với JPEG).</li>
+          <li>Dùng <code>Accept-Encoding: br</code> (Brotli tốt hơn gzip ~20% với text).</li>
+          <li>Tăng cache hit ratio — mỗi 1% hit ratio tăng giảm đáng kể origin load và egress từ origin.</li>
+          <li>Chọn CDN có giá tốt hơn ở thị trường mục tiêu (Cloudflare, BunnyCDN rẻ hơn nhiều so với CloudFront ở châu Á).</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Mẹo đo hiệu quả CDN</div>
+            <p>Không đo "có CDN hay không" mà đo <strong>cache hit ratio</strong> (thường mục tiêu 90–95% cho static) và <strong>origin offload</strong>. Nếu hit ratio thấp bất thường, nguyên nhân hay gặp: thiếu <code>Cache-Control</code>, query string chứa timestamp ngẫu nhiên (<code>?v=169</code> đổi mỗi request), hoặc <code>Vary</code> trên header có nhiều giá trị khác nhau.</p>
+          </div>
+        </div>

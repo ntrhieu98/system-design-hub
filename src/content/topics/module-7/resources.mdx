@@ -1,0 +1,107 @@
+---
+title: "Tài nguyên học tiếp & bước đi sau khoá này"
+description: "Bạn đã đi qua 66 chủ đề. Điều quan trọng bây giờ không phải học thêm nhiều hơn mà là áp dụng có chủ đích — mỗi tuần một bài, có ghi chép, có phản biện."
+module: 7
+order: 6
+num: "7.6"
+sectionId: "resources"
+---
+<p>Bạn đã đi qua 66 chủ đề. Điều quan trọng bây giờ không phải học thêm nhiều hơn mà là <span class="kw">áp dụng có chủ đích</span> — mỗi tuần một bài, có ghi chép, có phản biện.</p>
+
+        <h3>Sách — đọc theo thứ tự này</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Sách</th><th>Đọc khi</th><th>Giá trị thật</th></tr></thead>
+            <tbody>
+              <tr><td><strong>System Design Interview (Alex Xu), Vol 1 &amp; 2</strong></td><td>Đang luyện phỏng vấn</td><td>15 + 13 bài kinh điển với con số cụ thể. Đọc song song với Module 5 — mỗi chương là một bài tập.</td></tr>
+              <tr><td><strong>Designing Data-Intensive Applications</strong> (Kleppmann)</td><td>Sau khi đã có nền</td><td>Cuốn sách quan trọng nhất về hệ phân tán ứng dụng. Giải thích <em>tại sao</em> đằng sau mọi lựa chọn. Đọc chậm, 1 chương/tuần.</td></tr>
+              <tr><td><strong>Site Reliability Engineering</strong> (Google)</td><td>Khi đã đi làm</td><td>Miễn phí online. Chương về SLO, error budget, on-call là chuẩn mực ngành.</td></tr>
+              <tr><td><strong>Database Internals</strong> (Petrov)</td><td>Khi muốn hiểu sâu storage</td><td>B+ tree, LSM, compaction ở mức implementation. Nối tiếp Module 3.</td></tr>
+              <tr><td><strong>Release It!</strong> (Nygard)</td><td>Khi làm production</td><td>Circuit breaker, bulkhead, stability patterns — nguồn gốc của mục 4.5.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Nguồn online đáng thời gian</h3>
+        <ul class="list-bullet">
+          <li><strong>Engineering blog của công ty thật:</strong> Netflix TechBlog, Uber Engineering, Discord, Figma, Cloudflare, Shopify. Đọc bài về một sự cố cụ thể — giá trị cao hơn 10 bài tổng quan.</li>
+          <li><strong>Jepsen.io</strong> — phân tích tính nhất quán của DB phân tán. Đọc báo cáo về một DB bạn đang dùng; bạn sẽ phát hiện nhiều điều không có trong tài liệu.</li>
+          <li><strong>Postmortem công khai</strong> — Cloudflare, AWS, GitLab, Slack đều công bố. Đọc 5 cái và bạn sẽ thấy pattern lặp lại: cấu hình sai, thiếu giới hạn, failover chưa diễn tập.</li>
+          <li><strong>Paper kinh điển:</strong> Dynamo (2007), Spanner (2012), Raft (2014), Kafka (2011), Bigtable (2006). Đọc phần introduction và evaluation là đủ cho hầu hết nhu cầu.</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Cách đọc hiệu quả nhất</div>
+            <p>Đừng đọc để "biết thêm". Đọc với một câu hỏi cụ thể trong đầu: "Nếu tôi phải thiết kế lại hệ thống tôi đang làm, tôi sẽ đổi gì?" Sau mỗi bài đọc, viết <strong>3 dòng</strong>: (1) ý chính, (2) điều áp dụng được cho hệ thống của tôi, (3) điều tôi chưa hiểu. Ba dòng này quan trọng hơn việc đọc thêm 20 bài. Người đọc 20 bài không ghi chép sẽ nhớ ít hơn người đọc 5 bài có ghi chép.</p>
+          </div>
+        </div>
+
+        <h3>Bước đi sau khoá này</h3>
+        <div class="diagram">
+          <svg viewBox="0 0 760 280" role="img" aria-label="Bốn bước tiếp theo sau khoá học từ luyện phỏng vấn đến dạy lại cho người khác">
+            <defs>
+              <marker id="m7d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="16" y="34" width="170" height="98" rx="9" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="101" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">BƯỚC 1</text>
+            <text x="101" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#151515">Luyện phỏng vấn</text>
+            <text x="32" y="100" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">10 bài, mỗi bài 45 phút</text>
+            <text x="32" y="116" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">có ghi âm + tự đánh giá</text>
+
+            <rect x="202" y="34" width="170" height="98" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="287" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">BƯỚC 2</text>
+            <text x="287" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#151515">Áp dụng vào thật</text>
+            <text x="218" y="100" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Chọn 1 vấn đề ở công ty,</text>
+            <text x="218" y="116" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">viết 1 trang design doc</text>
+
+            <rect x="388" y="34" width="170" height="98" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="473" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">BƯỚC 3</text>
+            <text x="473" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#151515">Vận hành thật</text>
+            <text x="404" y="100" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Đo SLO, viết runbook,</text>
+            <text x="404" y="116" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">chạy 1 game day</text>
+
+            <rect x="574" y="34" width="170" height="98" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="659" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">BƯỚC 4</text>
+            <text x="659" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#151515">Dạy lại</text>
+            <text x="590" y="100" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Viết blog, thuyết trình,</text>
+            <text x="590" y="116" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">mentor. Hiểu = giải thích được.</text>
+
+            <path d="M186,83 L200,83" stroke="#505a68" stroke-width="2" marker-end="url(#m7d)"/>
+            <path d="M372,83 L386,83" stroke="#505a68" stroke-width="2" marker-end="url(#m7d)"/>
+            <path d="M558,83 L572,83" stroke="#505a68" stroke-width="2" marker-end="url(#m7d)"/>
+
+            <rect x="16" y="152" width="728" height="50" rx="8" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="174" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Bước nào quan trọng nhất?</text>
+            <text x="34" y="192" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Bước 2 và 3. Kiến thức không áp dụng được vào hệ thống thật sẽ mờ dần trong 6 tháng. Còn một quyết định bạn đã bảo vệ trước người khác thì nhớ mãi.</text>
+
+            <rect x="16" y="216" width="728" height="50" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="238" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Đừng học tiếp ngay</text>
+            <text x="34" y="256" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Học 3 khoá nữa mà không làm bài nào sẽ cho cảm giác tiến bộ nhưng không tạo năng lực. Hãy dừng 4 tuần để làm bước 1–2 trước.</text>
+          </svg>
+          <div class="diagram-cap">Hình 7.4 — Học → làm → vận hành → dạy: vòng tròn tạo năng lực thật</div>
+        </div>
+
+        <h3>Tự đánh giá — thang 4 mức</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mức</th><th>Dấu hiệu</th><th>Bước tiếp</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Biết tên</strong></td><td>Nhận ra "Kafka", "sharding", "CAP" nhưng không giải thích được</td><td>Đọc lại Module 2, 3 — tập nói mỗi khái niệm trong 60 giây</td></tr>
+              <tr><td><strong>Hiểu</strong></td><td>Giải thích được cơ chế, nhưng chưa biết khi nào chọn</td><td>Làm bảng trade-off ở mục 7.3 bằng lời của mình</td></tr>
+              <tr><td><strong>Áp dụng được</strong></td><td>Thiết kế được trong 45 phút, nêu được trade-off và failure</td><td>Mock interview, viết design doc thật</td></tr>
+              <tr><td><strong>Vận hành được</strong></td><td>Đã đối mặt sự cố thật, đã rollback, đã trực on-call</td><td>Dạy lại người khác — đây là mức cao nhất</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-note">
+          <div class="callout-ico">∑</div>
+          <div class="callout-body">
+            <div class="callout-title">Tổng kết khoá học — những gì bạn đã có</div>
+            <p><strong>66 chủ đề</strong> trải từ nền tảng mạng đến kiến trúc cloud. <strong>51 diagram</strong> để tham chiếu khi trình bày. <strong>115 khái niệm</strong> với định nghĩa và ngữ cảnh dùng. <strong>45 câu hỏi</strong> kèm đáp án chi tiết để tự kiểm tra. Nhưng thứ quan trọng nhất không phải số lượng — mà là <strong>khung tư duy</strong>: luôn bắt đầu bằng yêu cầu, lượng hoá bằng con số, chọn giải pháp kèm trade-off, và thiết kế cho lúc hệ thống hỏng. Khung đó áp dụng được cho mọi hệ thống bạn sẽ xây trong 10 năm tới, kể cả những công nghệ chưa tồn tại.</p>
+          </div>
+        </div>

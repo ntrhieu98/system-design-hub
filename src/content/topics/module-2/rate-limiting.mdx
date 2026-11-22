@@ -1,0 +1,88 @@
+---
+title: "Rate Limiting — bảo vệ hệ thống mà không chặn nhầm"
+description: "Rate limiter trả lời câu hỏi: \"một client được làm bao nhiêu request trong một đơn vị thời gian?\"."
+module: 2
+order: 4
+num: "2.4"
+sectionId: "rate-limiting"
+---
+<p>Rate limiter trả lời câu hỏi: "một client được làm bao nhiêu request trong một đơn vị thời gian?". Nghe đơn giản, nhưng có 5 thuật toán với trade-off rất khác nhau, và chọn sai sẽ hoặc là chặn nhầm user, hoặc là để lọt burst.</p>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Đặt ở đâu?</div>
+            <p>Rate limiter phải chạy <strong>trước</strong> khi request chạm tài nguyên đắt. Thường đặt ở API Gateway hoặc middleware. Nếu mỗi service tự limit thì client có thể lách bằng cách gọi service khác. Ngược lại, limit ở mỗi instance (in-memory) không chính xác khi scale ngang — 10 instance × 100 req/s = 1000 req/s thực tế. Muốn chính xác cần state chia sẻ (Redis) hoặc <em>sticky theo key</em>.</p>
+          </div>
+        </div>
+
+        <h3>Năm thuật toán và khi nào dùng</h3>
+
+        <h3>1. Token Bucket — thuật toán chuẩn của thực tế</h3>
+        <p>Một xô có capacity <code>B</code> token. Token được nạp với tốc độ <code>r</code> token/giây, tối đa <code>B</code>. Mỗi request lấy 1 token; nếu xô rỗng thì bị chặn (hoặc đưa vào hàng chờ).</p>
+        <ul class="list-bullet">
+          <li>Cho phép <span class="kw-g">burst</span> lên tới B — tốt, vì traffic thật luôn có burst.</li>
+          <li>Rate trung bình dài hạn bị giới hạn ở r.</li>
+          <li>State chỉ là 2 số: <code>tokens</code> và <code>last_refill</code>. Rất nhẹ.</li>
+          <li>Đây là thuật toán của AWS API Gateway, Stripe, và hầu hết CDN.</li>
+        </ul>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">Lua — token bucket atomic trong Redis</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">-- KEYS[1]=bucket key, ARGV: capacity, refill_rate, now_ms, cost</span>&#10;<span class="c-key">local</span> cap    = <span class="c-fn">tonumber</span>(ARGV[<span class="c-num">1</span>])&#10;<span class="c-key">local</span> rate   = <span class="c-fn">tonumber</span>(ARGV[<span class="c-num">2</span>])&#10;<span class="c-key">local</span> now    = <span class="c-fn">tonumber</span>(ARGV[<span class="c-num">3</span>])&#10;<span class="c-key">local</span> cost   = <span class="c-fn">tonumber</span>(ARGV[<span class="c-num">4</span>])&#10;&#10;<span class="c-key">local</span> b = redis.call(<span class="c-str">'HMGET'</span>, KEYS[<span class="c-num">1</span>], <span class="c-str">'tokens'</span>, <span class="c-str">'ts'</span>)&#10;<span class="c-key">local</span> tokens = <span class="c-fn">tonumber</span>(b[<span class="c-num">1</span>]) <span class="c-key">or</span> cap&#10;<span class="c-key">local</span> ts     = <span class="c-fn">tonumber</span>(b[<span class="c-num">2</span>]) <span class="c-key">or</span> now&#10;&#10;<span class="c-com">-- nạp token theo thời gian trôi qua</span>&#10;tokens = math.min(cap, tokens + (now - ts) / <span class="c-num">1000</span> * rate)&#10;&#10;<span class="c-key">if</span> tokens &lt; cost <span class="c-key">then</span>&#10;  redis.call(<span class="c-str">'HMSET'</span>, KEYS[<span class="c-num">1</span>], <span class="c-str">'tokens'</span>, tokens, <span class="c-str">'ts'</span>, now)&#10;  <span class="c-key">return</span> &#123;<span class="c-num">0</span>, math.floor((cost - tokens) / rate * <span class="c-num">1000</span>)&#125;  <span class="c-com">-- 0 = chặn, kèm retry-after ms</span>&#10;<span class="c-key">end</span>&#10;&#10;redis.call(<span class="c-str">'HMSET'</span>, KEYS[<span class="c-num">1</span>], <span class="c-str">'tokens'</span>, tokens - cost, <span class="c-str">'ts'</span>, now)&#10;redis.call(<span class="c-str">'EXPIRE'</span>, KEYS[<span class="c-num">1</span>], math.ceil(cap / rate))&#10;<span class="c-key">return</span> &#123;<span class="c-num">1</span>, <span class="c-num">0</span>&#125;   <span class="c-com">-- 1 = cho qua</span></code></pre>
+        </div>
+
+        <h3>2. Leaking Bucket — làm phẳng traffic</h3>
+        <p>Request vào hàng đợi (FIFO), xử lý với tốc độ cố định <code>r</code>. Khác biệt cốt lõi với token bucket: leaking bucket <strong>không cho burst</strong> — output luôn phẳng. Dùng khi downstream rất nhạy với burst (ví dụ gọi API bên thứ ba có quota cứng), hoặc khi cần shaping traffic đều đặn.</p>
+        <p>Nhược điểm: request cũ trong queue có thể bị xử lý quá trễ (stale). Với <code>capacity=100</code>, <code>rate=10/s</code>, request thứ 100 phải chờ 10 giây — thường đã hết hạn timeout của client.</p>
+
+        <h3>3. Fixed Window Counter — đơn giản nhưng có lỗ hổng</h3>
+        <p>Chia thời gian thành cửa sổ cố định (1 phút), đếm bằng <code>INCR</code> + <code>EXPIRE</code>.</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Lỗ hổng biên cửa sổ</div>
+            <p>Limit 100 req/phút. Client gửi 100 request ở giây 59 của phút 1, rồi 100 request ở giây 1 của phút 2. Trong khoảng 2 giây thực tế, client đã gửi <strong>200 request</strong> — gấp đôi limit. Đây là lý do fixed window một mình không đủ cho hệ thống cần bảo vệ nghiêm ngặt.</p>
+          </div>
+        </div>
+
+        <h3>4. Sliding Window Log — chính xác nhưng tốn memory</h3>
+        <p>Lưu timestamp của từng request trong sorted set (Redis ZSET). Mỗi lần check: xoá entry cũ hơn <code>now - window</code>, đếm phần còn lại. Chính xác tuyệt đối, không có lỗ hổng biên. Nhược điểm: với limit 1 triệu req/giờ, bạn phải lưu 1 triệu timestamp — memory cực lớn.</p>
+
+        <h3>5. Sliding Window Counter — cân bằng tốt nhất</h3>
+        <p>Kết hợp 2 fixed window liền kề và nội suy:</p>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">Công thức</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">// Đang ở giây thứ 15 của phút hiện tại (25% thời gian đã trôi qua)</span>&#10;<span class="c-com">// current_window = 30 request, previous_window = 90 request, limit = 100</span>&#10;&#10;estimated = previous_window × (<span class="c-num">1</span> - <span class="c-num">0.25</span>) + current_window&#10;          = <span class="c-num">90</span> × <span class="c-num">0.75</span> + <span class="c-num">30</span>&#10;          = <span class="c-num">67.5</span> + <span class="c-num">30</span>&#10;          = <span class="c-num">97.5</span>    → còn 2.5 slot, request tiếp theo <span class="c-out">được phép</span>&#10;&#10;<span class="c-com">// Giả sử previous_window = 100 (đã full), current = 30:</span>&#10;<span class="c-com">// estimated = 100 × 0.75 + 30 = 105 → vượt limit → CHẶN</span></code></pre>
+        </div>
+        <p>Cloudflare đã đo trên <strong>400 triệu request</strong> và thấy thuật toán này chỉ sai <strong>0,003%</strong> — trong khi chi phí memory bằng 1/1000 so với sliding window log. Đây là lựa chọn mặc định tốt nhất hiện nay.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thuật toán</th><th>Chính xác</th><th>Memory</th><th>Cho burst</th><th>Phù hợp</th></tr></thead>
+            <tbody>
+              <tr><td>Token bucket</td><td>Cao</td><td>Rất thấp (2 số)</td><td>Có, tới B</td><td>API công khai, mặc định tốt nhất</td></tr>
+              <tr><td>Leaking bucket</td><td>Cao</td><td>Thấp (queue)</td><td>Không</td><td>Bảo vệ API bên thứ ba, shaping</td></tr>
+              <tr><td>Fixed window</td><td>Thấp (lỗi biên)</td><td>Rất thấp (1 counter)</td><td>Có, gấp đôi</td><td>Limit mềm, cảnh báo nội bộ</td></tr>
+              <tr><td>Sliding log</td><td>Tuyệt đối</td><td>Rất cao (N timestamp)</td><td>Đúng chính xác</td><td>Limit thấp, cần chính xác (login, OTP)</td></tr>
+              <tr><td>Sliding counter</td><td>~99,997%</td><td>Thấp (2 counter)</td><td>Đúng gần đúng</td><td>Lựa chọn cân bằng nhất</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Rate limit theo chiều nào?</h3>
+        <ul class="list-bullet">
+          <li><strong>Theo user</strong> — <code>user_id</code> sau khi login. Công bằng nhất nhưng chỉ áp dụng được cho traffic đã xác thực.</li>
+          <li><strong>Theo IP</strong> — cho traffic ẩn danh. Vấn đề: nhiều user sau NAT dùng chung IP (văn phòng, quán cafe, mobile carrier) → chặn oan cả một toà nhà.</li>
+          <li><strong>Theo API key</strong> — cho đối tác/dev. Gắn với quota hợp đồng.</li>
+          <li><strong>Theo endpoint</strong> — login/OTP dùng limit rất chặt (5/phút), đọc dữ liệu công khai dùng limit rộng (1000/phút).</li>
+          <li><strong>Toàn hệ thống (global)</strong> — bảo vệ toàn bộ backend khi bị DDoS; đặt ở CDN/LB.</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Header trả về rất quan trọng</div>
+            <p>Đừng chỉ trả 429. Trả kèm <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code> và <code>Retry-After</code>. Client tốt sẽ tự backoff; client xấu bị chặn mà không biết vì sao sẽ retry dồn dập và làm tình hình tệ hơn. Kèm theo <em>jitter</em> trong thời gian chờ cũng giúp tránh đồng loạt retry.</p>
+          </div>
+        </div>

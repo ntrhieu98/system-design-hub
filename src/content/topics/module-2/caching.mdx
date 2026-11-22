@@ -1,0 +1,167 @@
+---
+title: "Caching — chiến lược, invalidation và ba cái bẫy chết người"
+description: "Cache là building block cho tỉ lệ lợi ích/chi phí cao nhất — thường giảm 80–95% tải DB chỉ với vài chục dòng code."
+module: 2
+order: 3
+num: "2.3"
+sectionId: "caching"
+---
+<p>Cache là building block cho tỉ lệ lợi ích/chi phí cao nhất — thường giảm 80–95% tải DB chỉ với vài chục dòng code. Nhưng nó cũng là nguồn bug khó chịu nhất, vì dữ liệu sai <em>chỉ đôi khi</em>.</p>
+
+        <h3>Bốn chiến lược ghi/đọc cache</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Chiến lược</th><th>Cách hoạt động</th><th>Ưu</th><th>Nhược</th><th>Dùng khi</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>Cache-aside</strong><br /><span class="text-xs text-muted">lazy loading</span></td>
+                <td>App đọc cache → miss → đọc DB → ghi cache</td>
+                <td>Chỉ cache cái thực sự được dùng; cache chết không mất dữ liệu</td>
+                <td>3 round-trip khi miss; dữ liệu có thể stale; stampede</td>
+                <td>Mặc định cho hầu hết hệ thống</td>
+              </tr>
+              <tr>
+                <td><strong>Read-through</strong></td>
+                <td>App chỉ nói chuyện với cache, cache tự load từ DB</td>
+                <td>Code app gọn; logic load tập trung</td>
+                <td>Cần cache hỗ trợ loader; khó kiểm soát</td>
+                <td>Dùng thư viện/cache có sẵn loader</td>
+              </tr>
+              <tr>
+                <td><strong>Write-through</strong></td>
+                <td>Ghi cache + DB trong cùng một thao tác</td>
+                <td>Cache luôn nhất quán với DB</td>
+                <td>Ghi chậm (2 lần ghi); cache chứa cả dữ liệu không bao giờ đọc</td>
+                <td>Dữ liệu đọc ngay sau khi ghi (user vừa update profile)</td>
+              </tr>
+              <tr>
+                <td><strong>Write-behind</strong><br /><span class="text-xs text-muted">write-back</span></td>
+                <td>Ghi cache, trả về ngay; nền flush xuống DB</td>
+                <td>Ghi rất nhanh; gộp nhiều update</td>
+                <td><strong>Mất dữ liệu</strong> nếu cache chết trước khi flush</td>
+                <td>Counter, metric, dữ liệu chấp nhận mất</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 720 340" role="img" aria-label="So sánh luồng cache-aside và write-through">
+            <defs>
+              <marker id="m2c" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                <polygon points="0 0, 10 4, 0 8" fill="#505a68"/>
+              </marker>
+              <marker id="m2cr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                <polygon points="0 0, 10 4, 0 8" fill="#ef4444"/>
+              </marker>
+            </defs>
+            <text x="180" y="24" text-anchor="middle" font-size="13" font-weight="800" fill="#151515">Cache-aside (đọc)</text>
+            <text x="540" y="24" text-anchor="middle" font-size="13" font-weight="800" fill="#151515">Write-through (ghi)</text>
+
+            <g font-size="11" font-weight="700" fill="#151515">
+              <rect x="40" y="46" width="90" height="40" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+              <text x="85" y="71" text-anchor="middle">App</text>
+
+              <rect x="170" y="46" width="96" height="40" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+              <text x="218" y="71" text-anchor="middle">Redis</text>
+
+              <rect x="170" y="150" width="96" height="40" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+              <text x="218" y="175" text-anchor="middle">Postgres</text>
+
+              <line x1="130" y1="60" x2="168" y2="60" stroke="#505a68" stroke-width="2" marker-end="url(#m2c)"/>
+              <text x="149" y="52" text-anchor="middle" font-size="9.5" fill="#505a68">1 GET</text>
+
+              <path d="M218 86 L218 148" stroke="#ef4444" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#m2cr)"/>
+              <text x="248" y="120" font-size="9.5" fill="#ef4444" font-weight="700">2 MISS</text>
+
+              <path d="M266 170 L330 170 L330 66 L298 66" stroke="#505a68" stroke-width="2" fill="none" marker-end="url(#m2c)"/>
+              <text x="352" y="120" font-size="9.5" fill="#505a68">3 SET</text>
+
+              <text x="180" y="230" text-anchor="middle" font-size="10.5" fill="#505a68">miss: 3 round-trip · hit: 1 round-trip</text>
+              <text x="180" y="248" text-anchor="middle" font-size="10.5" fill="#ef4444" font-weight="700">cache chết → vẫn đọc được DB</text>
+
+              <rect x="420" y="46" width="90" height="40" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+              <text x="465" y="71" text-anchor="middle">App</text>
+
+              <rect x="552" y="46" width="96" height="40" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+              <text x="600" y="71" text-anchor="middle">Redis</text>
+
+              <rect x="552" y="150" width="96" height="40" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+              <text x="600" y="175" text-anchor="middle">Postgres</text>
+
+              <line x1="510" y1="66" x2="550" y2="66" stroke="#505a68" stroke-width="2" marker-end="url(#m2c)"/>
+              <text x="530" y="58" text-anchor="middle" font-size="9.5" fill="#505a68">1 SET</text>
+              <line x1="600" y1="86" x2="600" y2="148" stroke="#505a68" stroke-width="2" marker-end="url(#m2c)"/>
+              <text x="632" y="120" font-size="9.5" fill="#505a68">2 SET</text>
+
+              <text x="540" y="230" text-anchor="middle" font-size="10.5" fill="#505a68">ghi 2 lần · luôn nhất quán</text>
+              <text x="540" y="248" text-anchor="middle" font-size="10.5" fill="#fb923c" font-weight="700">ghi chậm hơn 2×</text>
+            </g>
+            <text x="360" y="300" text-anchor="middle" font-size="11" fill="#505a68" font-weight="600">Chọn cache-aside trừ khi dữ liệu phải đọc lại ngay sau khi ghi</text>
+          </svg>
+          <div class="diagram-cap">Hình 2 — Cache-aside tối ưu cho đọc, write-through tối ưu cho tính nhất quán</div>
+        </div>
+
+        <h3>Invalidation — bài toán thực sự khó</h3>
+        <p>Có bốn cách vô hiệu hoá cache, xếp theo độ phức tạp:</p>
+        <ol class="list-num">
+          <li><strong>TTL</strong> — đơn giản nhất: <code>SET key val EX 300</code>. Chấp nhận dữ liệu cũ tối đa 300s. Với dữ liệu ít đổi (profile, config) đây là lựa chọn đúng.</li>
+          <li><strong>Explicit delete</strong> — khi update DB thì <code>DEL key</code>. Nhưng thứ tự quan trọng: phải <em>delete cache trước hay sau</em> khi ghi DB? Ghi DB rồi delete cache là an toàn hơn; delete trước rồi ghi DB có thể khiến một reader chen vào, đọc DB cũ, và ghi lại giá trị cũ vào cache.</li>
+          <li><strong>Publish event</strong> — DB update phát event (Kafka/CDC), consumer xoá cache. Đúng trong hệ phân tán nhiều writer, nhưng có độ trễ.</li>
+          <li><strong>Version key</strong> — nhúng version vào key: <code>user:42:v7</code>. Khi update, tăng version. Không cần xoá, cache cũ tự hết hạn. Cực kỳ hiệu quả với dữ liệu tổng hợp (aggregate) vì tránh được race condition.</li>
+        </ol>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">✕</div>
+          <div class="callout-body">
+            <div class="callout-title">Bẫy 1 — Cache stampede (thundering herd)</div>
+            <p>Một key hot (ví dụ trang chủ) hết hạn đúng lúc 10.000 request/giây cùng miss. Tất cả đổ vào DB, DB sập, và vì không ai ghi được cache nên tất cả tiếp tục miss — hệ thống sập hoàn toàn.</p>
+            <p><strong>Cách chặn:</strong> (a) <em>single-flight</em>: chỉ 1 request được load, các request khác chờ hoặc trả bản cũ; (b) <em>probabilistic early expiration</em>: refresh sớm ngẫu nhiên trước khi hết hạn; (c) <em>never expire</em> + background refresh định kỳ — cache luôn có dữ liệu, chỉ lệch vài giây.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">✕</div>
+          <div class="callout-body">
+            <div class="callout-title">Bẫy 2 — Cache penetration</div>
+            <p>Request cho key không tồn tại (<code>user:999999999</code>) sẽ <em>luôn</em> miss và luôn đánh vào DB — kẻ tấn công có thể dùng điều này để đánh sập DB mà không tốn gì.</p>
+            <p><strong>Cách chặn:</strong> cache cả giá trị rỗng (<code>NULL</code>) với TTL ngắn (30–60s), hoặc dùng Bloom filter để loại key chắc chắn không tồn tại trước khi query DB.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">✕</div>
+          <div class="callout-body">
+            <div class="callout-title">Bẫy 3 — Cache avalanche</div>
+            <p>Nhiều key hết hạn <em>cùng một thời điểm</em> (ví dụ toàn bộ cache được warm lúc 2h sáng với TTL 1 giờ, nên 3h sáng tất cả cùng hết).</p>
+            <p><strong>Cách chặn:</strong> thêm jitter ngẫu nhiên vào TTL — <code>EX (3600 + random(0,600))</code>. Một dòng code, xoá bỏ hoàn toàn cả lớp sự cố này.</p>
+          </div>
+        </div>
+
+        <h3>Tính toán cache có đáng không</h3>
+        <p>Ví dụ: 50.000 QPS đọc, DB chịu được 5.000 QPS, cache hit 95%.</p>
+        <ul class="list-bullet">
+          <li>Load DB sau cache = 50.000 × 5% = <strong>2.500 QPS</strong> — nằm dưới ngưỡng 5.000. OK.</li>
+          <li>Load cache = 50.000 QPS. Redis 1 node chịu được ~100.000 op/s đơn giản ⇒ 1 node đủ, nhưng nên 2 node + replica để HA.</li>
+          <li>Memory: nếu key 1KB, cache 10 triệu key = 10GB. Redis cần RAM đủ chứa working set + overhead ~30%.</li>
+        </ul>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">Python — cache-aside có single-flight</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-key">import</span> json, random&#10;&#10;<span class="c-key">def</span> <span class="c-fn">get_user</span>(uid):&#10;    key = <span class="c-str">f"user:&#123;uid&#125;:v&#123;CURRENT_VERSION&#125;"</span>&#10;    raw = redis.get(key)&#10;    <span class="c-key">if</span> raw <span class="c-key">is not None</span>:&#10;        <span class="c-key">return</span> json.loads(raw)          <span class="c-com"># hit</span>&#10;&#10;    <span class="c-com"># single-flight: chỉ 1 request được load, các request khác chờ</span>&#10;    lock = redis.set(<span class="c-str">f"lock:&#123;key&#125;"</span>, <span class="c-str">"1"</span>, nx=<span class="c-key">True</span>, ex=<span class="c-num">5</span>)&#10;    <span class="c-key">if not</span> lock:&#10;        <span class="c-key">return</span> _wait_and_retry(uid)      <span class="c-com"># tránh stampede</span>&#10;&#10;    <span class="c-key">try</span>:&#10;        row = db.query(<span class="c-str">"SELECT * FROM users WHERE id=%s"</span>, uid)&#10;        val = row <span class="c-key">or</span> &#123;&#125;                  <span class="c-com"># cache cả NULL để chặn penetration</span>&#10;        ttl = <span class="c-num">300</span> + random.randint(<span class="c-num">0</span>, <span class="c-num">60</span>)  <span class="c-com"># jitter chống avalanche</span>&#10;        redis.set(key, json.dumps(val), ex=ttl)&#10;        <span class="c-key">return</span> val&#10;    <span class="c-key">finally</span>:&#10;        redis.delete(<span class="c-str">f"lock:&#123;key&#125;"</span>)</code></pre>
+        </div>
+
+        <h3>Cache ở đâu trong hệ thống?</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tầng</th><th>Công cụ</th><th>Latency</th><th>Dùng cho</th></tr></thead>
+            <tbody>
+              <tr><td>Browser</td><td>Cache-Control, ETag</td><td>~0ms</td><td>Ảnh, JS, CSS, HTML ít đổi</td></tr>
+              <tr><td>CDN edge</td><td>Cloudflare, CloudFront</td><td>5–30ms</td><td>Nội dung tĩnh, API cache được</td></tr>
+              <tr><td>Application (in-process)</td><td>Guava, Caffeine, lru-cache</td><td>~0,1ms</td><td>Config, dữ liệu siêu hot, không đổi</td></tr>
+              <tr><td>Distributed</td><td>Redis, Memcached</td><td>0,5–2ms</td><td>Session, object, kết quả query</td></tr>
+              <tr><td>Database buffer pool</td><td>InnoDB, shared_buffers</td><td>~0,05ms</td><td>Tự động, không cần code</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm quan trọng: <span class="kw">in-process cache</span> nhanh hơn Redis 10–20× nhưng <em>không chia sẻ</em> giữa các instance và <em>không invalidate được</em> từ ngoài. Chỉ dùng cho dữ liệu gần như bất biến. Nếu dùng, phải có cơ chế broadcast invalidation (Redis pub/sub, hoặc TTL rất ngắn 5–10s).</p>

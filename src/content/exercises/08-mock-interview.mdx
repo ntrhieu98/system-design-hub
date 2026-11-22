@@ -1,0 +1,91 @@
+---
+id: "08"
+title: "Mock interview 45 phút — tự chấm theo rubric"
+level: expert
+summary: "Bài tập cuối khoá: tự chạy một buổi phỏng vấn 45 phút, ghi âm, rồi chấm điểm bằng rubric 6 tiêu chí. Mục tiêu không phải làm đúng bài toán mà là nói đủ ý trong đúng thời gian."
+specs: [{ k: "Thời lượng", v: "45 phút" }, { k: "Đề bài", v: "News Feed" }, { k: "Rubric", v: "6 tiêu chí, 100 điểm" }, { k: "Hình thức", v: "Nói thành tiếng, ghi âm" }, { k: "Module liên quan", v: "7" }]
+module: 7
+order: 8
+---
+
+## Mục tiêu
+
+Đọc hết 8 module không làm bạn trả lời được phỏng vấn. Bài này luyện đúng thứ được chấm: **nói thành tiếng, đúng thời gian, đúng thứ tự**. Bạn sẽ tự chấm mình bằng một rubric có điểm số, không bằng cảm giác "chắc ổn".
+
+## Đề bài
+
+**Đề:** Thiết kế news feed cho mạng xã hội có 150 triệu người dùng hoạt động hàng ngày.
+
+Quy tắc:
+
+1. Đặt hẹn giờ **45 phút**. Không dừng giữa chừng.
+2. Nói thành tiếng, ghi âm lại. Viết ra giấy chỉ được dùng để vẽ và ghi số.
+3. Không mở tài liệu. Không xem Module 5 trong lúc làm.
+4. Sau khi hết giờ, nghe lại và chấm theo rubric bên dưới.
+5. Chấm xong mới mở `/modules/5/news-feed` để so.
+
+## Phân bổ thời gian phải giữ
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Phút</th><th>Việc phải làm</th><th>Dấu hiệu bạn đang lạc</th></tr></thead>
+    <tbody>
+      <tr><td>0–5</td><td>Hỏi lại yêu cầu: chức năng, quy mô, độ trễ, tính nhất quán</td><td>Bắt đầu vẽ ngay ở phút thứ 2</td></tr>
+      <tr><td>5–12</td><td>Ước lượng: DAU, QPS đọc/ghi, dung lượng feed, băng thông</td><td>Tính nhẩm trong đầu không nói ra</td></tr>
+      <tr><td>12–25</td><td>Thiết kế tổng thể: API, luồng ghi, luồng đọc, lưu trữ</td><td>Đi sâu một thành phần trước khi có bức tranh</td></tr>
+      <tr><td>25–38</td><td>Deep dive 2 thành phần: fan-out và cache feed</td><td>Deep dive 5 thành phần, mỗi cái một nửa</td></tr>
+      <tr><td>38–45</td><td>Trade-off, điểm nghẽn, nếu có thêm thời gian thì làm gì</td><td>Hết giờ giữa câu, không có phần kết</td></tr>
+    </tbody>
+  </table>
+</div>
+
+## Rubric chấm điểm
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Tiêu chí</th><th>Điểm</th><th>Đạt điểm tối đa khi</th></tr></thead>
+    <tbody>
+      <tr><td>Làm rõ yêu cầu</td><td>15</td><td>Hỏi ít nhất 4 câu, và nêu ra giả định thay vì chờ người phỏng vấn trả lời hết</td></tr>
+      <tr><td>Ước lượng</td><td>15</td><td>Có số cụ thể cho QPS đọc, QPS ghi, dung lượng; nói ra hệ số cao điểm</td></tr>
+      <tr><td>Thiết kế tổng thể</td><td>20</td><td>Vẽ được sơ đồ có client, API, cache, storage, queue; giải thích luồng ghi và luồng đọc riêng</td></tr>
+      <tr><td>Deep dive</td><td>20</td><td>Đi sâu 2 thành phần và **tự nêu** vấn đề của chính mình trước khi bị hỏi</td></tr>
+      <tr><td>Trade-off</td><td>20</td><td>Mỗi quyết định có phương án bị loại và lý do bằng số</td></tr>
+      <tr><td>Giao tiếp</td><td>10</td><td>Nói theo cấu trúc, không im lặng quá 10 giây, không tự ngắt mình giữa câu</td></tr>
+    </tbody>
+  </table>
+</div>
+
+## Gợi ý — những chỗ người thi hay mất điểm
+
+### Ước lượng
+
+News feed 150 triệu DAU. Nếu mỗi người mở feed 10 lần/ngày và mỗi lần tải 20 bài: **30 tỉ lượt đọc bài/ngày** → 347.000/s trung bình → **hơn 1 triệu/s giờ cao điểm**. Con số này thường bị tính thiếu một bậc, và khi tính thiếu thì toàn bộ phần thiết kế sau đó không còn đúng.
+
+Ghi: 150 triệu × 0,5 bài/ngày = 75 triệu bài/ngày = **~870 bài/s**, cao điểm **~2.600/s**.
+
+### Fan-out
+
+Fan-out lúc ghi: 2.600 bài/s × 200 follower trung bình = **520.000 lần ghi/s** vào feed cache. Con số này quyết định bạn cần bao nhiêu node và tại sao celebrity phải xử lý riêng.
+
+### Câu hỏi tự vấn sau khi làm xong
+
+1. Bạn có nói ra **hệ số cao điểm** không, hay chỉ tính trung bình?
+2. Bạn có vẽ sơ đồ **trước** khi đi sâu không?
+3. Bạn có tự nêu ra vấn đề celebrity **trước khi** người phỏng vấn hỏi không?
+4. Mỗi quyết định của bạn có **phương án bị loại** kèm lý do không?
+5. Bạn có kết thúc đúng giờ với một câu tóm tắt không?
+
+## Sản phẩm cần nộp
+
+1. **Bản ghi âm** 45 phút (hoặc ghi chú thời gian thực nếu không ghi âm được)
+2. **Bảng tự chấm** 6 tiêu chí, kèm một câu lý do cho mỗi điểm
+3. **Ba điều sẽ làm khác đi** ở lần sau, cụ thể đến mức hành động được
+
+## Tiêu chí đạt
+
+- [ ] Giữ đúng phân bổ thời gian 5/7/13/13/7
+- [ ] Có số ước lượng, không nói "khoảng vài triệu"
+- [ ] Deep dive đúng 2 thành phần, không dàn trải
+- [ ] Tự nêu được ít nhất một điểm yếu trong thiết kế của chính mình
+- [ ] Kết thúc bằng phần tóm tắt trade-off, không bị cắt giữa câu
+- [ ] Tự chấm điểm và giải thích được vì sao mất điểm ở từng tiêu chí

@@ -1,0 +1,107 @@
+---
+title: "Replication — nhân bản dữ liệu và cái giá của độ trễ"
+description: "Replication giải ba bài toán cùng lúc: sẵn sàng cao (node chết vẫn còn bản khác), scale đọc (nhiều replica cùng phục vụ), và giảm latency địa lý (replica gần user)."
+module: 3
+order: 4
+num: "3.4"
+sectionId: "replication"
+---
+<p>Replication giải ba bài toán cùng lúc: <span class="kw">sẵn sàng cao</span> (node chết vẫn còn bản khác), <span class="kw">scale đọc</span> (nhiều replica cùng phục vụ), và <span class="kw">giảm latency địa lý</span> (replica gần user). Nhưng nó tạo ra bài toán mới khó hơn: <span class="kw-r">replication lag</span>.</p>
+
+        <h3>Ba mô hình replication</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mô hình</th><th>Cách hoạt động</th><th>Ưu</th><th>Nhược</th><th>Dùng ở</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Single-leader</strong></td><td>Mọi ghi vào leader; follower replay log</td><td>Đơn giản, không xung đột, dễ suy luận</td><td>Leader là điểm nghẽn ghi; failover cần bầu chọn</td><td>Postgres, MySQL, MongoDB, SQL Server (mặc định)</td></tr>
+              <tr><td><strong>Multi-leader</strong></td><td>Nhiều node cùng nhận ghi, đồng bộ chéo</td><td>Ghi ở gần user, chịu được mất DC</td><td>Phải giải quyết xung đột (LWW, CRDT); thứ tự ghi không toàn cục</td><td>Multi-region active-active, CouchDB, mobile sync</td></tr>
+              <tr><td><strong>Leaderless</strong></td><td>Client ghi thẳng vào nhiều replica, dùng quorum</td><td>Không có SPOF, sẵn sàng cao nhất</td><td>Client phức tạp hơn; đọc cần đọc sửa</td><td>Cassandra, DynamoDB, Riak</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Đồng bộ hay bất đồng bộ?</h3>
+        <p>Đây là câu hỏi mà rất nhiều ứng viên trả lời sai. Câu trả lời đúng là: <strong>cả hai, tùy giai đoạn</strong>.</p>
+        <ul class="list-bullet">
+          <li><span class="kw">Synchronous:</span> leader chờ follower xác nhận rồi mới trả OK cho client. Không mất dữ liệu khi leader chết. Nhưng nếu follower chậm hoặc chết, <strong>toàn bộ ghi bị chặn</strong> — biến replica thành SPOF mới. MySQL semi-sync có <code>rpl_semi_sync_source_timeout</code> để tự chuyển về async sau N ms.</li>
+          <li><span class="kw">Asynchronous:</span> leader trả OK ngay, follower đuổi theo sau. Latency ghi thấp, chịu được follower chậm. Nhưng nếu leader chết trước khi replicate, <span class="kw-r">mất dữ liệu đã báo thành công</span> — điều tệ nhất có thể xảy ra với người dùng.</li>
+          <li><span class="kw-y">Semi-sync (thực dụng nhất):</span> 1 follower sync + N follower async. Bạn mất tối đa 0 dữ liệu ở điều kiện bình thường, và vẫn scale đọc được. Đây là cấu hình nên đề xuất trong phỏng vấn.</li>
+        </ul>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 340" role="img" aria-label="Sơ đồ single-leader replication với một follower đồng bộ, một follower trễ và các dị thường đọc">
+            <defs>
+              <marker id="m3d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+              <marker id="m3dr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/>
+              </marker>
+            </defs>
+            <rect x="286" y="24" width="180" height="66" rx="9" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="376" y="50" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">LEADER (primary)</text>
+            <text x="376" y="70" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">nhận mọi write, append WAL</text>
+
+            <rect x="52" y="168" width="180" height="66" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="142" y="194" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Follower A (sync)</text>
+            <text x="142" y="214" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">lag ≈ 0 ms</text>
+
+            <rect x="290" y="168" width="180" height="66" rx="9" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="380" y="194" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Follower B (async)</text>
+            <text x="380" y="214" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">lag ≈ 200 ms</text>
+
+            <rect x="528" y="168" width="180" height="66" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="618" y="194" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Follower C (async)</text>
+            <text x="618" y="214" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">lag ≈ 4 s ← đang tụt</text>
+
+            <path d="M330,90 L180,166" stroke="#505a68" stroke-width="2" marker-end="url(#m3d)"/>
+            <path d="M376,90 L380,166" stroke="#505a68" stroke-width="2" marker-end="url(#m3d)"/>
+            <path d="M422,90 L580,166" stroke="#ef4444" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#m3dr)"/>
+
+            <text x="188" y="122" font-family="JetBrains Mono, monospace" font-size="10" fill="#151515">ack trước khi trả OK</text>
+            <text x="404" y="128" font-family="JetBrains Mono, monospace" font-size="10" fill="#505a68">replay WAL</text>
+            <text x="500" y="112" font-family="JetBrains Mono, monospace" font-size="10" fill="#ef4444">replay chậm (I/O, mạng)</text>
+
+            <rect x="52" y="262" width="656" height="58" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="70" y="286" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Hệ quả với người dùng</text>
+            <text x="70" y="306" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">User cập nhật avatar → ghi vào leader → load balancer đẩy request đọc kế tiếp sang Follower C → thấy avatar cũ → tưởng hệ thống lỗi.</text>
+          </svg>
+          <div class="diagram-cap">Hình 3.4 — Lag không phải lỗi cấu hình, nó là tính chất của replication bất đồng bộ</div>
+        </div>
+
+        <h3>Ba dị thường do lag và cách khắc phục</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Dị thường</th><th>Triệu chứng người dùng</th><th>Cách khắc phục</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Read-your-writes</strong></td><td>Vừa lưu profile, refresh đã thấy dữ liệu cũ</td><td>Route read của user đó về leader trong ~2–5s sau ghi; hoặc lưu LSN vào cookie/session và chỉ đọc replica đã vượt LSN đó</td></tr>
+              <tr><td><strong>Monotonic reads</strong></td><td>Refresh nhiều lần: lúc thấy comment mới, lúc lại mất</td><td>Ghim user vào một replica cố định (sticky theo user_id hash) thay vì round-robin</td></tr>
+              <tr><td><strong>Consistent prefix</strong></td><td>Thấy câu trả lời trước khi thấy câu hỏi</td><td>Đảm bảo các bản ghi liên quan đi cùng partition (cùng key) nên được replay đúng thứ tự</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Cách ly dữ liệu "của tôi" khỏi lag</div>
+            <p>Một pattern rất thực dụng: đọc dữ liệu <strong>của chính user đang đăng nhập</strong> (profile, giỏ hàng, đơn của tôi) thì đi leader; đọc dữ liệu <strong>công khai hoặc của người khác</strong> (feed, danh sách sản phẩm, profile người khác) thì đi replica. Vì read-your-writes chỉ bị vi phạm bởi chính user đó, và traffic "dữ liệu của tôi" thường chỉ chiếm 5–15% tổng read — bạn giữ được gần như toàn bộ lợi ích scale đọc mà không có bug khó chịu.</p>
+          </div>
+        </div>
+
+        <h3>Failover — phần nguy hiểm nhất của replication</h3>
+        <p>Khi leader chết, ai lên thay? Nếu hai node cùng nghĩ mình là leader, bạn có <span class="kw-r">split brain</span>: hai bên nhận ghi khác nhau, dữ liệu phân kỳ, không merge được. Đây là lý do các hệ thống nghiêm túc dùng <strong>consensus</strong> (Raft/Paxos, Module 4) chứ không dùng "node nào ping nhanh hơn thì thắng".</p>
+        <ul class="list-check">
+          <li><strong>Fencing token:</strong> mỗi lần bầu leader, epoch tăng. Mọi write gửi kèm epoch; storage từ chối epoch cũ. Leader "cũ" dù còn sống cũng không ghi được.</li>
+          <li><strong>STONITH:</strong> node mới chủ động tắt hẳn node cũ trước khi nhận quyền (không dùng được trong cloud multi-AZ).</li>
+          <li><strong>Majority quorum:</strong> cần ≥ (N/2 + 1) node đồng ý. Với N=3, chịu được 1 node chết; với N=5, chịu 2. Không bao giờ cấu hình N=2 cho cluster cần HA — mất 1 node là mất luôn khả năng bầu chọn.</li>
+          <li><strong>Fencing + lease:</strong> leader có lease thời hạn ngắn và phải gia hạn liên tục; hết lease thì tự ngừng nhận ghi.</li>
+        </ul>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Async replication + automatic failover = mất dữ liệu</div>
+            <p>Đây là cặp đôi nguy hiểm nhất trong vận hành DB. Khi leader chết, replica được promote có thể thiếu vài giây ghi cuối. Những ghi đó <strong>đã báo thành công cho client</strong>. Không có cách "khôi phục" — chúng chưa từng tồn tại ở node mới. Giảm thiểu: (1) semi-sync ít nhất 1 replica; (2) failover thủ công cho hệ thống tài chính; (3) thiết kế nghiệp vụ chịu được (ví dụ dùng idempotency key để client retry an toàn); (4) theo dõi <code>pg_stat_replication</code> / <code>SHOW REPLICA STATUS</code> và cảnh báo khi lag &gt; 1s.</p>
+          </div>
+        </div>

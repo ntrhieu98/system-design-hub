@@ -1,0 +1,122 @@
+---
+title: "Cost optimization — kỹ thuật như một bài toán kinh tế"
+description: "Ở quy mô lớn, chi phí cloud thường là khoản chi lớn thứ hai sau lương. Và nghịch lý: kiến trúc \"đúng kỹ thuật\" có thể tốn gấp 5 lần."
+module: 6
+order: 6
+num: "6.6"
+sectionId: "cost"
+---
+<p>Ở quy mô lớn, chi phí cloud thường là khoản chi lớn thứ hai sau lương. Và nghịch lý: kiến trúc "đúng kỹ thuật" có thể tốn gấp 5 lần. Bài toán tối ưu chi phí là bài toán <span class="kw">đo lường trước, cắt sau</span>.</p>
+
+        <h3>Chi phí thật nằm ở đâu</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thành phần</th><th>Tỉ lệ điển hình</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td>Compute (VM/pod)</td><td>30–45%</td><td>Thường bị lãng phí 30–50% do over-provision</td></tr>
+              <tr><td><strong>Egress / data transfer</strong></td><td>10–25%</td><td><span class="kw-r">Khoản bị đánh giá thấp nhất</span> — cross-AZ, ra internet, giữa region</td></tr>
+              <tr><td>Storage</td><td>10–20%</td><td>Tăng đơn điệu, không ai xoá</td></tr>
+              <tr><td>Managed services (DB, cache, queue)</td><td>15–30%</td><td>Phần lớn tốn kém nhất theo đơn vị</td></tr>
+              <tr><td>Observability</td><td>5–15%</td><td><span class="kw-r">Tăng nhanh nhất</span> — log/metrics volume không ai kiểm soát</td></tr>
+              <tr><td>Idle / orphaned</td><td>5–15%</td><td>Volume không gắn, IP không dùng, snapshot cũ, môi trường dev quên tắt</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-note">
+          <div class="callout-ico">∑</div>
+          <div class="callout-body">
+            <div class="callout-title">Con số làm bạn giật mình: cross-AZ</div>
+            <p>Trong AWS, traffic cross-AZ tốn ~$0,01/GB mỗi chiều. Một service gọi DB 1.000 lần/s với response 10KB = 10 MB/s = <strong>25 TB/tháng</strong>. Cross-AZ hai chiều = 50 TB × $0,02 = <strong>$1.000/tháng</strong> chỉ cho việc "nói chuyện giữa các AZ" của <em>một</em> service. Với 20 service, đó là $20.000/tháng không tạo ra giá trị nào cho user. Đây là lý do <strong>zone-aware routing</strong> (route request tới replica cùng AZ) là tối ưu chi phí quan trọng, không chỉ là tối ưu latency.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 400" role="img" aria-label="Bốn đòn tối ưu chi phí theo thứ tự hiệu quả: xoá lãng phí, right-sizing, pricing model và kiến trúc">
+            <defs>
+              <marker id="m6e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">BỐN ĐÒN THEO THỨ TỰ HIỆU QUẢ — làm từ trái sang</text>
+
+            <rect x="16" y="36" width="174" height="150" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="103" y="60" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">1. XOÁ LÃNG PHÍ</text>
+            <text x="103" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">giảm 5–20%, 1 tuần</text>
+            <text x="30" y="102" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• volume không gắn</text>
+            <text x="30" y="118" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• IP/ELB không dùng</text>
+            <text x="30" y="134" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• snapshot &gt; 90 ngày</text>
+            <text x="30" y="150" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• dev/staging chạy 24/7</text>
+            <text x="30" y="166" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• log retention vô hạn</text>
+
+            <rect x="206" y="36" width="174" height="150" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="293" y="60" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">2. RIGHT-SIZING</text>
+            <text x="293" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#5294ff">giảm 20–40%, 1 tháng</text>
+            <text x="220" y="102" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• CPU thật &lt; 20% ⇒ giảm</text>
+            <text x="220" y="118" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• memory thật &lt; 40% ⇒ giảm</text>
+            <text x="220" y="134" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• đặt request đúng cho K8s</text>
+            <text x="220" y="150" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• dùng ARM (Graviton) −20%</text>
+            <text x="220" y="166" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• đo p95, không đo peak</text>
+
+            <rect x="396" y="36" width="174" height="150" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="483" y="60" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">3. PRICING MODEL</text>
+            <text x="483" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#b45309">giảm 30–60%, ngay</text>
+            <text x="410" y="102" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Savings Plan 1–3 năm: −40%</text>
+            <text x="410" y="118" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Spot cho batch/CI: −70%</text>
+            <text x="410" y="134" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• S3 tiering (Glacier): −80%</text>
+            <text x="410" y="150" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• reserved DB instance: −35%</text>
+            <text x="410" y="166" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• không có workload tĩnh ⇒</text>
+            <text x="410" y="178" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">  Savings Plan cam kết sai = lỗ</text>
+
+            <rect x="586" y="36" width="158" height="150" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="665" y="60" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">4. KIẾN TRÚC</text>
+            <text x="665" y="78" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8c4fff">giảm 50%+, 6 tháng</text>
+            <text x="600" y="102" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• cache giảm egress DB</text>
+            <text x="600" y="118" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• zone-aware routing</text>
+            <text x="600" y="134" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• batch thay vì per-request</text>
+            <text x="600" y="150" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• archive sang object store</text>
+            <text x="600" y="166" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• giảm telemetry volume</text>
+
+            <rect x="16" y="204" width="360" height="90" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="228" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Ba thứ thường bị bỏ quên nhất</text>
+            <text x="34" y="250" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">1. Observability: log 100% request với full body →</text>
+            <text x="34" y="266" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">   vài TB/ngày, tốn hơn cả compute. Sample 1–10%.</text>
+            <text x="34" y="284" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">2. Cross-AZ traffic: bật zone-aware routing.</text>
+
+            <rect x="392" y="204" width="352" height="90" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="410" y="228" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515"> 3. Môi trường non-prod</text>
+            <text x="410" y="250" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Dev/staging chạy 24/7 với size bằng production là</text>
+            <text x="410" y="266" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">lãng phí 20–30% hoá đơn. Lịch tắt 19h–7h và</text>
+            <text x="410" y="282" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">cuối tuần giảm 60% mà không ai phàn nàn.</text>
+
+            <rect x="16" y="310" width="728" height="76" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="334" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Đo chi phí theo đơn vị nghiệp vụ — nguyên tắc quan trọng nhất</text>
+            <text x="34" y="356" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Không ai tối ưu được "hoá đơn $50k". Hãy quy về: <strong>cost per 1.000 request</strong>, <strong>cost per active user</strong>, <strong>cost per order</strong>.</text>
+            <text x="34" y="374" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Khi có con số đó, team mới thấy tác động của việc thêm 1 query N+1 hoặc cache hit ratio giảm 5%. Đây là gắn tag resource theo team/service (cost allocation tags) ngay từ đầu.</text>
+          </svg>
+          <div class="diagram-cap">Hình 6.5 — Tối ưu chi phí: làm từ trái sang, đừng bắt đầu bằng việc đổi kiến trúc</div>
+        </div>
+
+        <h3>Những quyết định kiến trúc tác động chi phí nhiều nhất</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Quyết định</th><th>Tác động chi phí</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td>Chatty API (N+1 qua mạng)</td><td><span class="kw-r">Rất lớn</span> — mỗi round-trip tốn latency + egress</td><td>Gộp bằng batch API hoặc GraphQL/field selection</td></tr>
+              <tr><td>Không cache</td><td>Lớn — DB phải to hơn, thêm replica</td><td>Cache là tối ưu chi phí, không chỉ latency</td></tr>
+              <tr><td>Log/metrics không sample</td><td>Lớn và tăng nhanh</td><td>Sample traces 1–10%, log chỉ giữ 7–30 ngày</td></tr>
+              <tr><td>Multi-region active-active</td><td><span class="kw-r">2–3×</span> toàn bộ</td><td>Chỉ khi thật cần; warm standby rẻ hơn 60%</td></tr>
+              <tr><td>Managed service thay vì tự vận hành</td><td>Thường <span class="kw-g">rẻ hơn</span> khi tính lương người vận hành</td><td>RDS đắt hơn EC2 + Postgres ~2×, nhưng rẻ hơn 0,5 FTE</td></tr>
+              <tr><td>Chọn đúng storage tier</td><td>Rất lớn — S3 Standard vs Glacier = 10×</td><td>Lifecycle policy ngay từ ngày đầu</td></tr>
+              <tr><td>Serverless cho traffic bursty</td><td><span class="kw-g">Rẻ hơn</span> khi tải thấp, <span class="kw-r">đắt hơn</span> khi tải cao liên tục</td><td>Lambda rẻ dưới ~10% utilization; trên đó container rẻ hơn</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Đừng tối ưu chi phí bằng cách giảm reliability</div>
+            <p>Có một ranh giới rõ: cắt lãng phí là tốt, cắt redundancy là nguy hiểm. Bỏ read replica, giảm từ 3 AZ xuống 2, tắt backup cross-region — những thứ này tiết kiệm 20–30% nhưng biến một sự cố nhỏ thành thảm hoạ. Quy tắc: <strong>tối ưu chi phí trên phần thừa, không tối ưu trên phần bảo vệ</strong>. Và luôn tính chi phí của downtime: nếu 1 giờ downtime tốn $50k doanh thu + mất uy tín, thì tiết kiệm $2k/tháng bằng cách bỏ redundancy là quyết định tồi. Con số nên có trong đầu khi tranh luận: chi phí downtime thường gấp 10–100× chi phí hạ tầng tiết kiệm được.</p>
+          </div>
+        </div>

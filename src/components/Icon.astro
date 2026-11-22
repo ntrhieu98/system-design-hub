@@ -1,0 +1,22 @@
+---
+// Renders one of the inline stroke icons out of src/lib/icons.js.
+// Icons are plain SVG strings, so they are injected with set:html rather than
+// being copied into every call site.
+import { ICONS } from '../lib/icons.js';
+
+interface Props {
+  name: keyof typeof ICONS | string;
+  size?: number;
+  class?: string;
+}
+
+const { name, size = 16, class: className = '' } = Astro.props;
+const svg = ICONS[name];
+if (!svg) throw new Error(`Icon không tồn tại: ${name}`);
+const sized = svg.replace(
+  '<svg',
+  `<svg width="${size}" height="${size}" aria-hidden="true" focusable="false"`
+);
+---
+
+<span class:list={['ico', className]} set:html={sized} />

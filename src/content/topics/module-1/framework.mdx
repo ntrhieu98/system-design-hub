@@ -1,0 +1,78 @@
+---
+title: "Khung 4 bước trả lời mọi bài toán thiết kế"
+description: "Alex Xu mô tả khung 4 bước trong System Design Interview. Điều quan trọng nhất không phải là thiết kế cuối cùng mà là quá trình bạn đi đến đó — người phỏng vấn chấm cách bạn suy nghĩ."
+module: 1
+order: 1
+num: "1.1"
+sectionId: "framework"
+---
+<p>Alex Xu mô tả khung 4 bước trong <em>System Design Interview</em>. Điều quan trọng nhất không phải là thiết kế cuối cùng mà là <span class="kw">quá trình</span> bạn đi đến đó — người phỏng vấn chấm cách bạn suy nghĩ.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 720 300" role="img" aria-label="Khung 4 bước thiết kế hệ thống">
+            <defs><marker id="m1a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><polygon points="0 0, 10 4, 0 8" fill="#151515"/></marker></defs>
+            <g font-size="11.5" font-weight="800">
+              <rect x="20" y="40" width="150" height="86" rx="10" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+              <text x="95" y="64" text-anchor="middle" fill="#151515">BƯỚC 1</text>
+              <text x="95" y="84" text-anchor="middle" fill="#151515" font-size="11">Hiểu bài toán</text>
+              <text x="95" y="100" text-anchor="middle" fill="#505a68" font-size="9.5" font-weight="600">clarify + scope</text>
+              <text x="95" y="116" text-anchor="middle" fill="#505a68" font-size="9.5" font-weight="600">5–10 phút</text>
+
+              <rect x="196" y="40" width="150" height="86" rx="10" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="271" y="64" text-anchor="middle" fill="#151515">BƯỚC 2</text>
+              <text x="271" y="84" text-anchor="middle" fill="#151515" font-size="11">Thiết kế tổng thể</text>
+              <text x="271" y="100" text-anchor="middle" fill="#505a68" font-size="9.5" font-weight="600">components + data flow</text>
+              <text x="271" y="116" text-anchor="middle" fill="#505a68" font-size="9.5" font-weight="600">10–15 phút</text>
+
+              <rect x="372" y="40" width="150" height="86" rx="10" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="447" y="64" text-anchor="middle" fill="#151515">BƯỚC 3</text>
+              <text x="447" y="84" text-anchor="middle" fill="#151515" font-size="11">Đào sâu</text>
+              <text x="447" y="100" text-anchor="middle" fill="#505a68" font-size="9.5" font-weight="600">bottleneck, scaling</text>
+              <text x="447" y="116" text-anchor="middle" fill="#505a68" font-size="9.5" font-weight="600">10–15 phút</text>
+
+              <rect x="548" y="40" width="150" height="86" rx="10" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+              <text x="623" y="64" text-anchor="middle" fill="#151515">BƯỚC 4</text>
+              <text x="623" y="84" text-anchor="middle" fill="#151515" font-size="11">Kết thúc</text>
+              <text x="623" y="100" text-anchor="middle" fill="#505a68" font-size="9.5" font-weight="600">trade-off + mở rộng</text>
+              <text x="623" y="116" text-anchor="middle" fill="#505a68" font-size="9.5" font-weight="600">5 phút</text>
+            </g>
+            <g stroke="#151515" stroke-width="2" marker-end="url(#m1a)">
+              <line x1="172" y1="83" x2="190" y2="83"/>
+              <line x1="348" y1="83" x2="366" y2="83"/>
+              <line x1="524" y1="83" x2="542" y2="83"/>
+            </g>
+
+            <rect x="20" y="160" width="678" height="112" rx="10" fill="#f8fafc" stroke="#151515" stroke-width="2" stroke-dasharray="5 4"/>
+            <text x="36" y="184" font-size="11" font-weight="800" fill="#151515">Hai vòng lặp chạy xuyên suốt:</text>
+            <text x="36" y="208" font-size="10.5" font-weight="600" fill="#505a68">① Hỏi &amp; xác nhận — mỗi bước đều phải "chốt" với interviewer trước khi đi tiếp (get buy-in)</text>
+            <text x="36" y="230" font-size="10.5" font-weight="600" fill="#505a68">② Ước lượng — dùng back-of-envelope để kiểm tra thiết kế có chịu được quy mô không</text>
+            <text x="36" y="252" font-size="10.5" font-weight="600" fill="#505a68">Sai lầm phổ biến: nhảy ngay vào vẽ kiến trúc mà chưa biết cần phục vụ bao nhiêu user</text>
+          </svg>
+          <div class="diagram-cap">Hình 1.1 — Khung 4 bước. Tổng 30–45 phút cho một buổi phỏng vấn.</div>
+        </div>
+
+        <h3>Bước 1 — Hiểu bài toán (đừng đoán)</h3>
+        <p>Bài toán phỏng vấn luôn mơ hồ có chủ đích. Bạn phải hỏi để thu hẹp phạm vi. Danh sách câu hỏi Alex Xu gợi ý:</p>
+        <ul class="list-bullet">
+          <li>Tính năng <strong>cụ thể</strong> nào cần xây? (không phải "một mạng xã hội" mà là "đăng bài + xem feed")</li>
+          <li>Bao nhiêu user? Quy mô tăng thế nào sau 3 / 6 / 12 tháng?</li>
+          <li>Nền tảng nào: mobile, web, hay cả hai?</li>
+          <li>Có thể dùng hạ tầng/ dịch vụ có sẵn để đơn giản hoá không?</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Nếu interviewer nói "cứ giả định đi"</div>
+            <p>Hãy <strong>viết giả định ra giấy/whiteboard</strong>. Ví dụ: "Giả định 10 triệu DAU, tỉ lệ đọc/ghi 100:1, dữ liệu lưu 5 năm." Điều này cho phép bạn quay lại kiểm tra sau, và cho interviewer thấy bạn có kỷ luật.</p>
+          </div>
+        </div>
+
+        <h3>Bước 2 — Thiết kế tổng thể và lấy đồng thuận</h3>
+        <p>Vẽ sơ đồ khối: client (mobile/web) → API → web servers → data stores → cache → CDN → message queue. Đừng đi vào chi tiết implementation. <strong>Hỏi ý kiến interviewer</strong>: "Phần này em định dùng cache-aside, anh/chị thấy hợp lý không?" — đây là điểm cộng, không phải điểm trừ.</p>
+
+        <h3>Bước 3 — Đào sâu</h3>
+        <p>Chọn 1–2 thành phần quan trọng nhất và đi sâu: thiết kế schema, chọn shard key, xử lý race condition, tính toán capacity. Người phỏng vấn thường gợi ý: "Hãy nói kỹ hơn về phần X".</p>
+
+        <h3>Bước 4 — Kết thúc</h3>
+        <p>Không phải "xong rồi". Đây là lúc nói về: điểm nghẽn còn lại, single point of failure, cách monitor, và nếu có thêm thời gian sẽ làm gì. Đây là phần nhiều người bỏ qua và mất điểm.</p>

@@ -1,0 +1,154 @@
+---
+title: "Chat System — WebSocket, presence và thứ tự message"
+description: "Chat khó hơn vẻ ngoài: cần realtime hai chiều, phải không mất message khi user offline, phải giữ đúng thứ tự, và phải biết ai đang online mà không đánh sập hệ thống bằng heartbeat."
+module: 5
+order: 5
+num: "5.5"
+sectionId: "chat"
+---
+<p>Chat khó hơn vẻ ngoài: cần <span class="kw">realtime hai chiều</span>, phải <span class="kw">không mất message</span> khi user offline, phải giữ <span class="kw-y">đúng thứ tự</span>, và phải biết ai đang online mà không đánh sập hệ thống bằng heartbeat.</p>
+
+        <h3>Chọn giao thức</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Giao thức</th><th>Ưu</th><th>Nhược</th><th>Dùng khi</th></tr></thead>
+            <tbody>
+              <tr><td><strong>WebSocket</strong></td><td>Hai chiều, overhead thấp, latency &lt; 50ms</td><td>Stateful — khó scale, cần sticky, tốn connection</td><td>Chat realtime (mặc định)</td></tr>
+              <tr><td><strong>SSE</strong></td><td>Một chiều server→client, qua HTTP/2, đơn giản</td><td>Client gửi qua HTTP riêng</td><td>Notification, feed update</td></tr>
+              <tr><td><strong>Long polling</strong></td><td>Hoạt động mọi nơi, không cần hạ tầng đặc biệt</td><td>Tốn connection, latency cao hơn</td><td>Fallback khi WS bị chặn</td></tr>
+              <tr><td><strong>MQTT</strong></td><td>Rất nhẹ, tốt cho mobile/IoT</td><td>Cần broker riêng</td><td>Mobile app, thiết bị yếu</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 420" role="img" aria-label="Kiến trúc chat với WebSocket gateway, presence service, message service và luồng gửi nhận offline">
+            <defs>
+              <marker id="m5e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+              <marker id="m5ep" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#8c4fff"/>
+              </marker>
+            </defs>
+            <rect x="16" y="30" width="96" height="56" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="64" y="54" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Sender</text>
+            <text x="64" y="72" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">WS</text>
+
+            <rect x="16" y="196" width="96" height="56" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="64" y="220" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Receiver</text>
+            <text x="64" y="238" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">WS / HTTP</text>
+
+            <rect x="138" y="30" width="130" height="56" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="203" y="52" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">WS Gateway 1</text>
+            <text x="203" y="68" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">giữ 50k conn</text>
+            <text x="203" y="80" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">epoll/epoll</text>
+
+            <rect x="138" y="196" width="130" height="56" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="203" y="218" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">WS Gateway N</text>
+            <text x="203" y="234" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">user có thể ở đây</text>
+            <text x="203" y="246" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#8b95a3">registry theo user_id</text>
+
+            <rect x="296" y="30" width="126" height="56" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="359" y="52" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Message svc</text>
+            <text x="359" y="68" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">gán msg_id</text>
+            <text x="359" y="80" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">Snowflake</text>
+
+            <rect x="296" y="196" width="126" height="56" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="359" y="218" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Presence</text>
+            <text x="359" y="234" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">Redis TTL 30s</text>
+            <text x="359" y="246" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#8b95a3">heartbeat mỗi 10s</text>
+
+            <rect x="450" y="30" width="120" height="56" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="510" y="52" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Kafka</text>
+            <text x="510" y="68" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">partition by</text>
+            <text x="510" y="80" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">conversation_id</text>
+
+            <rect x="450" y="196" width="120" height="56" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="510" y="218" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Cassandra</text>
+            <text x="510" y="234" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">messages</text>
+            <text x="510" y="246" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">(conv_id, msg_id)</text>
+
+            <rect x="596" y="112" width="152" height="108" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="614" y="136" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Receiver offline?</text>
+            <text x="614" y="158" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">→ push notification</text>
+            <text x="614" y="174" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">→ lưu inbox/queue</text>
+            <text x="614" y="190" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">→ client sync khi mở app</text>
+            <text x="614" y="210" font-family="JetBrains Mono, monospace" font-size="8" fill="#8b95a3">last_seen_msg_id cursor</text>
+
+            <path d="M112,58 L136,58" stroke="#505a68" stroke-width="2" marker-end="url(#m5e)"/>
+            <path d="M268,58 L294,58" stroke="#505a68" stroke-width="2" marker-end="url(#m5e)"/>
+            <path d="M422,58 L448,58" stroke="#505a68" stroke-width="2" marker-end="url(#m5e)"/>
+            <path d="M510,86 L510,194" stroke="#505a68" stroke-width="2" marker-end="url(#m5e)"/>
+            <path d="M450,224 L424,224" stroke="#505a68" stroke-width="2" marker-end="url(#m5e)"/>
+            <path d="M294,224 L268,224" stroke="#505a68" stroke-width="2" marker-end="url(#m5e)"/>
+            <path d="M138,224 L112,224" stroke="#505a68" stroke-width="2" marker-end="url(#m5e)"/>
+            <path d="M406,224 L448,224" stroke="#8c4fff" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#m5ep)"/>
+            <path d="M203,86 L203,194" stroke="#505a68" stroke-width="2" marker-end="url(#m5e)"/>
+            <path d="M570,196 L618,222" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m5e)"/>
+
+            <rect x="16" y="284" width="360" height="122" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="308" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Thứ tự message — không dùng timestamp</text>
+            <text x="34" y="330" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Hai client ở hai múi giờ, đồng hồ lệch 40ms →</text>
+            <text x="34" y="346" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">message hiển thị sai thứ tự, không sửa được.</text>
+            <text x="34" y="368" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">Giải: msg_id = Snowflake (đơn điệu, tăng dần)</text>
+            <text x="34" y="386" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">hoặc server-assigned sequence theo conversation.</text>
+
+            <rect x="396" y="284" width="352" height="122" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="414" y="308" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Scale 50 triệu connection</text>
+            <text x="414" y="330" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">1 node giữ ~50k–100k WS conn (tuỳ RAM/fd).</text>
+            <text x="414" y="346" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">→ 500–1.000 gateway node.</text>
+            <text x="414" y="368" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Registry: user_id → gateway_id (Redis). Khi gửi,</text>
+            <text x="414" y="386" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">tra registry rồi forward tới đúng gateway.</text>
+          </svg>
+          <div class="diagram-cap">Hình 5.5 — Chat: gateway là stateful, nên registry user→gateway là thành phần sống còn</div>
+        </div>
+
+        <h3>Gửi message đi qua những đâu</h3>
+        <ol class="list-num">
+          <li>Sender gửi qua WebSocket tới gateway đang giữ connection của mình.</li>
+          <li>Gateway chuyển cho Message service (gRPC nội bộ). Message service sinh <code>msg_id</code> (Snowflake), lưu vào Cassandra, publish vào Kafka topic <code>messages</code> partition theo <code>conversation_id</code>.</li>
+          <li>Một fan-out worker đọc Kafka: tra registry, tìm gateway của receiver. Nếu online → đẩy qua WS. Nếu offline → lưu vào inbox queue + gửi push notification.</li>
+          <li>Receiver nhận, gửi ACK. Nếu sender không nhận được ACK sau timeout → hiển thị "đang gửi" và retry với cùng <code>msg_id</code> (idempotent).</li>
+          <li>Message đã đọc: ghi <code>read_receipt</code> vào bảng riêng, publish event để sender thấy tick.</li>
+        </ol>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Group chat — fan-out ở đâu</div>
+            <p>Group 500 người: khi có message, worker đẩy tới 500 gateway lookup. Với group 100.000 (Discord-style), fan-out trực tiếp quá đắt → dùng <strong>read path</strong>: client subscribe vào một channel, gateway giữ subscription list, message publish tới channel thay vì từng user. Nghĩa là: <em>small group → fan-out per user; large channel → pub/sub theo channel</em>. Ngưỡng thực tế vài trăm đến vài nghìn thành viên. Và luôn có câu hỏi: lưu message một lần (Cassandra) rồi mọi người đọc chung, <strong>không</strong> copy message vào inbox từng người — đó là sai lầm tốn kém nhất trong thiết kế chat.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Presence ở quy mô lớn — đừng fan-out mọi thay đổi</div>
+            <p>Nếu user có 500 bạn và mỗi lần ai đó online/offline bạn đều nhận event, với 50 triệu user online trung bình, số event = 50M × 500 / (thời gian session) — hàng tỷ event/giờ. Cách làm thực tế: <strong>presence theo nhu cầu</strong> — chỉ subscribe trạng thái của người đang mở conversation với họ. Client gửi "tôi đang xem chat với X, Y, Z" và gateway subscribe 3 người đó. Khi đóng app, huỷ subscribe. Giảm từ 500× xuống còn 3–10× — đây là con số quyết định tính khả thi.</p>
+          </div>
+        </div>
+
+        <h3>Ước lượng, điểm nghẽn & quyết định gây tranh cãi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+            <tbody>
+              <tr><td>DAU</td><td>50 triệu</td><td>Đề bài</td></tr>
+              <tr><td>Kết nối đồng thời</td><td><strong>5 triệu</strong></td><td>50M × 10% online cùng lúc</td></tr>
+              <tr><td>Message/ngày</td><td>~500 triệu</td><td>50M × 10 message</td></tr>
+              <tr><td>QPS message</td><td>~5.800/s, đỉnh ~15.000/s</td><td>500M / 86.400 ≈ 5.787; đỉnh ×2,6</td></tr>
+              <tr><td>Bộ nhớ mỗi kết nối</td><td>~10 KB</td><td>Socket buffer + session state + TLS</td></tr>
+              <tr><td>RAM cho 5 triệu kết nối</td><td><strong>~50 GB</strong></td><td>5×10⁶ × 10 KB = 5×10¹⁰ byte — chia đều cho nhiều gateway</td></tr>
+              <tr><td>Gateway cần</td><td>~20 node</td><td>Mỗi node giữ 250.000 kết nối, RAM 16 GB</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm nghẽn của chat là <span class="kw-r">số kết nối đồng thời đang mở</span>, không phải QPS. Mỗi kết nối chiếm một file descriptor, một ít RAM, và một entry trong bộ định tuyến "user X đang ở gateway nào". 5 triệu kết nối không thể nằm trên một máy — không phải vì CPU mà vì file descriptor và băng thông. Đây là lý do phải có một <strong>connection registry</strong> (Redis) để biết gateway nào đang giữ user nào, và một pub/sub để chuyển message tới đúng gateway.</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Quyết định gây tranh cãi: lưu message ở đâu, và giữ bao lâu?</div>
+            <p><strong>Chỉ Cassandra/ScyllaDB:</strong> đơn giản, ghi nhanh, nhưng mọi thao tác "cuộn lên xem tin cũ" đều đọc disk, và xoá một message (thu hồi) là ghi tombstone — chậm và dễ gây "tombstone storm" nếu ai đó thu hồi nhiều. <strong>Cassandra + Redis cho cửa sổ gần:</strong> 200 message gần nhất của mỗi conversation nằm trong Redis, đọc gần như tức thì; tin cũ đọc từ Cassandra. Đây là lựa chọn phổ biến nhất. <strong>Xoá vĩnh viễn thế nào</strong> — điểm ít ai nghĩ: message đã gửi tới 20 thiết bị, đã nằm trong notification, đã backup. "Thu hồi" trong thực tế là xoá ở nguồn và gửi lệnh xoá cho client, chứ không phải xoá khỏi mọi nơi đồng thời. Nói được điều này cho thấy bạn đã nghĩ tới cả phần khó nhất.</p>
+          </div>
+        </div>

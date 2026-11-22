@@ -1,0 +1,38 @@
+---
+// One page per topic: /modules/<module>/<slug>
+// The route list comes from the MDX collection, so no path is ever typed twice.
+import { render } from 'astro:content';
+import TopicLayout from '../../../layouts/TopicLayout.astro';
+import { getModulesWithTopics, getFlatTopics } from '../../../lib/content.js';
+
+export async function getStaticPaths() {
+  const groups = await getModulesWithTopics();
+  const flat = await getFlatTopics();
+
+  return flat.map((topic, i) => ({
+    params: { module: String(topic.module), slug: topic.slug },
+    props: {
+      groups,
+      topic,
+      moduleMeta: topic.moduleMeta,
+      prevTopic: flat[i - 1],
+      nextTopic: flat[i + 1],
+    },
+  }));
+}
+
+const { groups, topic, moduleMeta, prevTopic, nextTopic } = Astro.props;
+const { Content } = await render(topic.entry);
+const body = topic.entry.body ?? '';
+---
+
+<TopicLayout
+  groups={groups}
+  topic={topic}
+  moduleMeta={moduleMeta}
+  body={body}
+  prevTopic={prevTopic}
+  nextTopic={nextTopic}
+>
+  <Content />
+</TopicLayout>

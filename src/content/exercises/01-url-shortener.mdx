@@ -1,0 +1,96 @@
+---
+id: "01"
+title: "URL Shortener — ước lượng và thiết kế"
+level: beginner
+summary: "Bài tập mở đầu: từ 10K QPS đọc, tự tính dung lượng bảng mã base62, chọn khoá lưu trữ và giải thích cache-aside trước khi xem đáp án."
+specs: [{ k: "QPS đọc", v: "10K" }, { k: "QPS ghi", v: "1K (tỉ lệ 10%)" }, { k: "Độ trễ redirect", v: "< 100ms" }, { k: "Độ dài mã", v: "6 ký tự base62" }, { k: "Module liên quan", v: "1 và 5" }]
+module: 5
+order: 1
+---
+
+## Mục tiêu
+
+Thiết kế dịch vụ rút gọn URL chịu được 10K QPS đọc với độ trễ dưới 100ms.
+
+## Yêu cầu
+
+### Yêu cầu chức năng
+
+1. **Rút gọn URL**: cho một URL dài, sinh mã ngắn và lưu ánh xạ
+2. **Chuyển hướng**: cho một mã ngắn, chuyển hướng về URL gốc
+3. **Alias tuỳ chọn**: cho phép người dùng tự đặt mã ngắn (không bắt buộc)
+
+### Yêu cầu phi chức năng
+
+1. **Availability**: uptime 99,9%
+2. **Độ trễ**: dưới 100ms cho thao tác redirect
+3. **Khả năng mở rộng**: chịu được 10 triệu URL trở lên, 10K QPS đọc
+4. **Nhất quán**: không cần read-after-write; eventual consistency là đủ
+
+## Gợi ý
+
+### Ước lượng back-of-envelope
+
+- **Lưu trữ**: 10 triệu URL × 500 byte trung bình ≈ 5GB dữ liệu
+- **Không gian mã**: 10 triệu mã chiếm 0,018% không gian 62^6, nên 6 ký tự là đủ trong nhiều năm ở quy mô này. Không gian 6 ký tự dùng hết sau khoảng 568 ngày nếu mỗi ngày có 100 triệu URL mới
+- **QPS**: 10K đọc, 1K ghi (tỉ lệ ghi 10%)
+- **Băng thông**: 10K × 500 byte × 3600s = 18GB/giờ, 432GB/ngày
+
+### Kiến trúc tổng thể
+
+```
+Client → Load Balancer → API Service → Cache (Redis) → Database (SQL/NoSQL)
+```
+
+### Quyết định thiết kế chính
+
+1. **Sinh mã**: base62 (0-9, a-z, A-Z) với 6 ký tự = 62^6 = 56.800.235.584 ≈ **56,8 tỷ** tổ hợp (35,7 bit). Bảy ký tự = 62^7 = 3,52 nghìn tỷ (41,7 bit)
+2. **Lưu trữ**: key-value đơn giản (code → URL gốc)
+3. **Cache**: cache-aside với Redis (code → URL)
+4. **Mở rộng**: sharding theo `hash(code) % N`
+
+<div class="callout callout-warn"><div class="callout-ico">!</div><div class="callout-body"><div class="callout-title">Bẫy thường gặp</div><p>Đừng nhầm <strong>số tổ hợp</strong> với <strong>số bit</strong>. 6 ký tự base62 cho 56,8 tỷ tổ hợp, nhưng chỉ tương đương 35,7 bit chứ không phải 56,8 bit. Nhầm hai đại lượng này dẫn tới tính sai thời gian dùng hết không gian mã hàng trăm lần.</p></div></div>
+
+### Schema cơ sở dữ liệu (rút gọn)
+
+```sql
+CREATE TABLE urls (
+    code VARCHAR(6) PRIMARY KEY,
+    original_url TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    click_count INTEGER DEFAULT 0
+);
+```
+
+### Thiết kế API
+
+```
+POST /shorten
+{
+  "long_url": "https://example.com/very/long/path",
+  "custom_alias": "my-custom-code"  // không bắt buộc
+}
+
+GET /{code}
+# Trả về: 301/302 redirect tới original_url
+```
+
+### Xử lý lỗi
+
+- Mã đã tồn tại? → sinh mã mới, hoặc dùng alias người dùng đặt
+- Không tìm thấy URL? → 404 Not Found
+- Cache miss? → truy vấn database rồi ghi lại vào cache
+
+## Sản phẩm cần nộp
+
+1. **Sơ đồ**: sơ đồ kiến trúc (dùng Excalidraw, draw.io hoặc ASCII)
+2. **ADR**: Architecture Decision Record cho các lựa chọn chính
+3. **Kế hoạch mở rộng**: chịu 100 triệu URL, 100K QPS như thế nào
+4. **Chế độ lỗi**: cache miss, database chết, mã bị trùng
+
+## Tiêu chí đạt
+
+- [ ] Sơ đồ thể hiện đủ luồng dữ liệu
+- [ ] ADR bao phủ sinh mã, cache và mở rộng
+- [ ] Các ước lượng hợp lý và có ghi chép
+- [ ] Chế độ lỗi được nhận diện và xử lý

@@ -1,0 +1,76 @@
+---
+// Static architecture illustration for the hero. Inlined (not an <img>)
+// so it inherits the page palette and stays crisp at any zoom.
+---
+
+<div class="hero-art" aria-hidden="true">
+  <svg viewBox="0 0 440 440" role="img" aria-label="Minh hoạ kiến trúc hệ thống nhiều tầng">
+            <defs>
+              <marker id="heroArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-soft)"/>
+              </marker>
+            </defs>
+  
+            <rect x="20" y="18" width="400" height="404" rx="20" fill="var(--art-surface)" stroke="var(--art-line)" stroke-width="2.5"/>
+            <rect x="20" y="18" width="400" height="46" rx="20" fill="var(--art-accent)" stroke="var(--art-line)" stroke-width="2.5"/>
+            <rect x="20" y="48" width="400" height="16" fill="var(--art-accent)"/>
+            <circle cx="44" cy="41" r="5" fill="var(--art-line)"/>
+            <circle cx="62" cy="41" r="5" fill="var(--art-line)" opacity="0.35"/>
+            <circle cx="80" cy="41" r="5" fill="var(--art-line)" opacity="0.35"/>
+            <text x="330" y="46" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--art-accent-ink)">design.vn</text>
+  
+            <rect x="46" y="84" width="96" height="48" rx="8" fill="var(--art-accent)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="94" y="105" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="var(--art-accent-ink)">Client</text>
+            <text x="94" y="121" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--art-accent-ink)">web / mobile</text>
+  
+            <rect x="172" y="84" width="96" height="48" rx="8" fill="var(--blue-soft)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="220" y="105" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="var(--art-ink)">CDN</text>
+            <text x="220" y="121" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">edge cache</text>
+  
+            <rect x="298" y="84" width="96" height="48" rx="8" fill="var(--orange-soft)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="346" y="105" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="var(--art-ink)">Load Bal.</text>
+            <text x="346" y="121" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">L7</text>
+  
+            <path d="M142,108 L170,108" stroke="var(--ink-soft)" stroke-width="2" marker-end="url(#heroArrow)"/>
+            <path d="M268,108 L296,108" stroke="var(--ink-soft)" stroke-width="2" marker-end="url(#heroArrow)"/>
+  
+            <rect x="46" y="158" width="112" height="48" rx="8" fill="var(--green-soft)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="102" y="179" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="var(--art-ink)">API × 3</text>
+            <text x="102" y="195" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">stateless</text>
+  
+            <rect x="182" y="158" width="96" height="48" rx="8" fill="var(--purple-soft)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="230" y="179" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="var(--art-ink)">Redis</text>
+            <text x="230" y="195" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">90% hit</text>
+  
+            <rect x="302" y="158" width="92" height="48" rx="8" fill="var(--yellow-soft)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="348" y="179" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="var(--art-ink)">Queue</text>
+            <text x="348" y="195" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">async</text>
+  
+            <path d="M346,132 L346,148 L102,148 L102,156" fill="none" stroke="var(--ink-soft)" stroke-width="2" marker-end="url(#heroArrow)"/>
+            <path d="M102,206 L102,226 L230,226 L230,208" fill="none" stroke="var(--ink-soft)" stroke-width="2" marker-end="url(#heroArrow)"/>
+  
+            <rect x="46" y="236" width="168" height="60" rx="8" fill="var(--blue-soft)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="130" y="258" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="var(--art-ink)">Postgres leader</text>
+            <text x="130" y="274" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">writes · ACID</text>
+            <text x="130" y="288" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="var(--art-faint)">p99 8ms</text>
+  
+            <rect x="238" y="236" width="156" height="60" rx="8" fill="var(--green-soft)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="316" y="258" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="var(--art-ink)">Read replicas</text>
+            <text x="316" y="274" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">3 × other AZ</text>
+            <text x="316" y="288" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="var(--art-faint)">lag ~200ms</text>
+  
+            <path d="M130,206 L130,234" stroke="var(--ink-soft)" stroke-width="2" marker-end="url(#heroArrow)"/>
+            <path d="M214,266 L236,266" stroke="var(--ink-soft)" stroke-width="2" marker-end="url(#heroArrow)"/>
+  
+            <rect x="46" y="316" width="348" height="42" rx="8" fill="var(--red-soft)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="220" y="334" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="var(--art-ink)">11.600 QPS read · 1.160 QPS write</text>
+            <text x="220" y="349" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">36,5 TB / 10 năm · p99 mục tiêu 100ms</text>
+  
+            <rect x="46" y="372" width="112" height="34" rx="7" fill="var(--art-surface)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="102" y="393" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">Monitoring</text>
+            <rect x="170" y="372" width="112" height="34" rx="7" fill="var(--art-surface)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="226" y="393" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">Tracing</text>
+            <rect x="294" y="372" width="100" height="34" rx="7" fill="var(--art-surface)" stroke="var(--art-line)" stroke-width="2"/>
+            <text x="344" y="393" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="var(--ink-soft)">Alerting</text>
+          </svg>
+</div>

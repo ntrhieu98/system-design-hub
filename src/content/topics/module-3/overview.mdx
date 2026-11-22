@@ -1,0 +1,88 @@
+---
+title: "Chọn đúng loại storage — bản đồ quyết định"
+description: "Câu hỏi đầu tiên không phải \"SQL hay NoSQL\" mà là \"truy vấn sẽ trông như thế nào?\"."
+module: 3
+order: 1
+num: "3.1"
+sectionId: "overview"
+---
+<p>Câu hỏi đầu tiên không phải "SQL hay NoSQL" mà là <span class="kw">"truy vấn sẽ trông như thế nào?"</span>. Người mới hay chọn storage theo độ hot của công nghệ; người có kinh nghiệm chọn theo <em>access pattern</em> và <em>tính chất nhất quán</em> mà nghiệp vụ chịu được.</p>
+
+        <h3>Mười loại storage và vùng sử dụng thật</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Loại</th><th>Ví dụ</th><th>Mô hình dữ liệu</th><th>Dùng khi</th><th>Tránh khi</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Relational (OLTP)</strong></td><td>PostgreSQL, MySQL</td><td>Bảng + ràng buộc + JOIN</td><td>Cần transaction, quan hệ phức tạp, báo cáo ad-hoc</td><td>Ghi &gt; 100k/s liên tục, dữ liệu phi cấu trúc</td></tr>
+              <tr><td><strong>Document</strong></td><td>MongoDB, Couchbase</td><td>JSON lồng nhau</td><td>Schema thay đổi, đọc nguyên object theo id</td><td>Cần JOIN nhiều bảng, transaction nhiều document</td></tr>
+              <tr><td><strong>Wide-column</strong></td><td>Cassandra, ScyllaDB, HBase</td><td>Row key → cột động</td><td>Ghi cực lớn, multi-DC, time-series theo key</td><td>Cần query linh hoạt, ad-hoc, aggregate phức tạp</td></tr>
+              <tr><td><strong>Key-Value</strong></td><td>Redis, DynamoDB, etcd</td><td>key → value</td><td>Lookup O(1), session, cache, counter, lock</td><td>Cần scan theo range, cần nhiều index</td></tr>
+              <tr><td><strong>Object / Blob</strong></td><td>S3, GCS, MinIO</td><td>Object bất biến + metadata</td><td>Ảnh, video, backup, log archive, data lake</td><td>Cần sửa 1 phần file, cần latency &lt; 10ms</td></tr>
+              <tr><td><strong>Time-series</strong></td><td>TimescaleDB, InfluxDB, Prometheus</td><td>timestamp + tag + value</td><td>Metric, IoT, monitoring, downsampling</td><td>Dữ liệu có update, cần join phức tạp</td></tr>
+              <tr><td><strong>Search index</strong></td><td>Elasticsearch, OpenSearch, Meilisearch</td><td>Inverted index + document</td><td>Full-text, fuzzy, facet, relevance ranking</td><td>Nguồn dữ liệu gốc (source of truth)</td></tr>
+              <tr><td><strong>Graph</strong></td><td>Neo4j, Neptune</td><td>Node + edge có thuộc tính</td><td>Quan hệ sâu nhiều tầng (bạn của bạn, fraud ring)</td><td>Dữ liệu dạng bảng đơn giản, volume cực lớn</td></tr>
+              <tr><td><strong>OLAP / Columnar</strong></td><td>ClickHouse, DuckDB, Snowflake, BigQuery</td><td>Cột, nén, vector hoá</td><td>Analytics scan hàng tỷ dòng, dashboard</td><td>Point update, transaction, độ trễ thấp từng dòng</td></tr>
+              <tr><td><strong>Vector</strong></td><td>pgvector, Pinecone, Qdrant</td><td>Embedding + ANN index (HNSW/IVF)</td><td>Semantic search, RAG, recommendation</td><td>Cần lọc chính xác tuyệt đối theo điều kiện phức tạp</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 720 350" role="img" aria-label="Sơ đồ ánh xạ access pattern sang loại storage phù hợp">
+            <defs>
+              <marker id="m3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="16" y="140" width="150" height="72" rx="10" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="91" y="168" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="800" fill="#151515">Access pattern</text>
+            <text x="91" y="188" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">(câu hỏi thật sự)</text>
+
+            <path d="M166,176 C230,176 240,48 300,48" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m3a)"/>
+            <path d="M166,176 C230,176 240,132 300,132" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m3a)"/>
+            <path d="M166,176 C230,176 240,216 300,216" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m3a)"/>
+            <path d="M166,176 C230,176 240,300 300,300" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m3a)"/>
+
+            <rect x="300" y="20" width="404" height="58" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="316" y="42" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Lookup theo id, không cần JOIN</text>
+            <text x="316" y="62" font-family="JetBrains Mono, monospace" font-size="11" fill="#505a68">→ KV (Redis/DynamoDB) hoặc Document</text>
+
+            <rect x="300" y="104" width="404" height="58" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="316" y="126" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Quan hệ + ràng buộc + transaction</text>
+            <text x="316" y="146" font-family="JetBrains Mono, monospace" font-size="11" fill="#505a68">→ Relational (Postgres/MySQL)</text>
+
+            <rect x="300" y="188" width="404" height="58" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="316" y="210" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Append liên tục theo thời gian</text>
+            <text x="316" y="230" font-family="JetBrains Mono, monospace" font-size="11" fill="#505a68">→ Time-series / Wide-column</text>
+
+            <rect x="300" y="272" width="404" height="58" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="316" y="294" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Tìm theo từ khoá / ngữ nghĩa</text>
+            <text x="316" y="314" font-family="JetBrains Mono, monospace" font-size="11" fill="#505a68">→ Search index / Vector DB</text>
+          </svg>
+          <div class="diagram-cap">Hình 3.1 — Bốn nhóm access pattern chiếm ~90% quyết định chọn storage</div>
+        </div>
+
+        <h3>Năm câu hỏi phải trả lời trước khi chọn</h3>
+        <ol class="list-num">
+          <li><strong>Tỉ lệ đọc/ghi là bao nhiêu?</strong> 100:1 (đọc nhiều) thiên về B+ tree + cache + read replica. 1:100 (ghi nhiều) thiên về LSM tree.</li>
+          <li><strong>Cần nhất quán mức nào?</strong> Trừ tiền, tồn kho: cần strong consistency, ưu tiên DB quan hệ có transaction. Đếm view, gợi ý sản phẩm: eventual consistency được.</li>
+          <li><strong>Có cần transaction nhiều entity không?</strong> Nếu có, SQL gần như bắt buộc — hoặc phải tự xây Saga (Module 4).</li>
+          <li><strong>Query có biết trước không?</strong> NoSQL yêu cầu biết trước access pattern để thiết kế partition key. Nếu cần ad-hoc query, SQL/OLAP.</li>
+          <li><strong>Dung lượng và tốc độ tăng?</strong> 10GB tăng 1GB/năm thì một Postgres là đủ trong nhiều năm. 10TB tăng 1TB/ngày thì phải nghĩ khác.</li>
+        </ol>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Polyglot persistence — đúng nhưng đắt</div>
+            <p>Dùng nhiều loại storage cho từng nhu cầu là hợp lý về kỹ thuật, nhưng mỗi loại thêm vào là thêm một hệ thống phải vận hành, backup, nâng cấp, monitoring, và <strong>thêm một nguồn bất nhất quán</strong> (đồng bộ giữa chúng ra sao?). Trong phỏng vấn, hãy nêu 2–3 loại có lý do rõ ràng thay vì liệt kê 7 loại. Nếu chưa có lý do chính đáng, <span class="kw">bắt đầu bằng PostgreSQL</span>: nó có JSONB, full-text search, geo (PostGIS), queue nhẹ, và cả vector (pgvector) — đủ xa trước khi cần hệ chuyên dụng.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Câu nói ghi điểm</div>
+            <p>"Tôi bắt đầu với một Postgres có read replica vì access pattern chưa rõ và dữ liệu còn nhỏ. Khi write vượt ~50k/s hoặc bảng vượt ~2TB, tôi sẽ tách phần append-only sang wide-column, và phần search sang Elasticsearch đồng bộ qua CDC. Việc tách này không đổi API, chỉ đổi implementation." — thể hiện bạn biết <em>ngưỡng</em> chứ không chỉ biết tên công nghệ.</p>
+          </div>
+        </div>

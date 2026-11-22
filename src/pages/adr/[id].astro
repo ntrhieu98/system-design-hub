@@ -1,0 +1,103 @@
+---
+// /adr/[id] — one decision record, rendered inside the site shell so the reader
+// keeps the header, the sidebar and a way back.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/Icon.astro';
+import { getCollection, render } from 'astro:content';
+import { MODULES } from '../../data/modules.js';
+
+export async function getStaticPaths() {
+  const adrs = await getCollection('adrs');
+  return adrs.map((a) => ({ params: { id: a.data.id }, props: { adr: a } }));
+}
+
+const { adr } = Astro.props;
+const { Content } = await render(adr);
+const B = import.meta.env.BASE_URL;
+const all = (await getCollection('adrs')).sort((a, b) => a.data.order - b.data.order);
+const i = all.findIndex((a) => a.data.id === adr.data.id);
+const prev = i > 0 ? all[i - 1] : null;
+const next = i < all.length - 1 ? all[i + 1] : null;
+const meta = MODULES.find((m) => m.id === adr.data.module);
+
+const statusLabel: Record<string, string> = {
+  proposed: 'Đề xuất',
+  accepted: 'Đã chấp nhận',
+  rejected: 'Đã từ chối',
+  superseded: 'Đã thay thế',
+};
+---
+
+<BaseLayout
+  title={`ADR ${adr.data.id} — ${adr.data.title} | System Design Hub`}
+  description={adr.data.summary}
+  active="adr"
+  ogType="article"
+>
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href={`${B}/`}>Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <a href={`${B}/adr`}>ADR</a>
+        <span aria-hidden="true">/</span>
+        <span>ADR {adr.data.id}</span>
+      </nav>
+
+      <div class="chip-row mb-3">
+        <span class="chip chip-yellow">ADR {adr.data.id}</span>
+        <span class="chip">{statusLabel[adr.data.status] ?? adr.data.status}</span>
+        <span class="chip">{adr.data.date}</span>
+        {adr.data.tags.map((t) => <span class="chip chip-mono">{t}</span>)}
+      </div>
+
+      <h1 class="page-title">{adr.data.title}</h1>
+      <p class="page-lead">{adr.data.summary}</p>
+
+      {meta && (
+        <p class="mt-4">
+          <a class="btn btn-sm btn-secondary" href={`${B}/modules/${meta.id}`}>
+            <Icon name="book" size={14} /> Học Module {meta.id} — {meta.title}
+          </a>
+        </p>
+      )}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container doc-single">
+      <div class="doc-shell">
+        <div class="doc-main">
+          <article class="lesson" id={adr.data.id}>
+            <Content />
+          </article>
+
+          <nav class="pager" aria-label="Điều hướng ADR">
+            {prev ? (
+              <a class="pager-link pager-prev" href={`${B}/adr/${prev.data.id}`}>
+                <span class="dir">← ADR trước</span>
+                <span class="name">{prev.data.title}</span>
+              </a>
+            ) : (
+              <span />
+            )}
+            {next ? (
+              <a class="pager-link pager-next" href={`${B}/adr/${next.data.id}`}>
+                <span class="dir">ADR tiếp →</span>
+                <span class="name">{next.data.title}</span>
+              </a>
+            ) : (
+              <span />
+            )}
+          </nav>
+
+          <p class="mt-6">
+            <a class="btn btn-sm btn-ghost" href={`${B}/adr`}>
+              <Icon name="arrowLeft" size={14} /> Tất cả ADR
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

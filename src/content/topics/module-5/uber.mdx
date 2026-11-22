@@ -1,0 +1,143 @@
+---
+title: "Geo & Ride-hailing — bài toán không gian"
+description: "Bài toán: với 10 triệu tài xế và 5 triệu request/ngày, tìm tài xế gần nhất trong bán kính 2km, và cập nhật vị trí mỗi 4 giây."
+module: 5
+order: 10
+num: "5.10"
+sectionId: "uber"
+---
+<p>Bài toán: với 10 triệu tài xế và 5 triệu request/ngày, tìm tài xế gần nhất trong bán kính 2km, và cập nhật vị trí mỗi 4 giây. Điểm khó không phải "tìm gần nhất" mà là <span class="kw">ghi vị trí với tần suất cực cao</span>.</p>
+
+        <h3>Ước lượng trước</h3>
+        <div class="callout callout-note">
+          <div class="callout-ico">∑</div>
+          <div class="callout-body">
+            <div class="callout-title">Con số quyết định kiến trúc</div>
+            <p>1 triệu tài xế online × cập nhật mỗi 4 giây = <strong>250.000 write/s</strong> liên tục. Nếu mỗi vị trí là một <code>UPDATE</code> vào DB quan hệ (kèm index địa lý), DB sẽ chết. Và một bản ghi vị trí chỉ sống 4 giây — đây là <em>ephemeral data</em>, không cần lưu bền. Đây là nhận định quyết định toàn bộ thiết kế.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 420" role="img" aria-label="Kiến trúc ride-hailing với lưới geohash, cập nhật vị trí vào Redis và tìm kiếm tài xế theo ô lân cận">
+            <defs>
+              <marker id="m5j" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#8b95a3">LƯỚI GEOHASH — ô khoảng 1,2km × 0,6km (precision 6)</text>
+
+            <rect x="16" y="34" width="96" height="70" rx="6" fill="#f8fafc" stroke="#e7ebf1" stroke-width="2"/>
+            <rect x="112" y="34" width="96" height="70" rx="6" fill="#f8fafc" stroke="#e7ebf1" stroke-width="2"/>
+            <rect x="208" y="34" width="96" height="70" rx="6" fill="#f8fafc" stroke="#e7ebf1" stroke-width="2"/>
+            <rect x="16" y="104" width="96" height="70" rx="6" fill="#f8fafc" stroke="#e7ebf1" stroke-width="2"/>
+            <rect x="112" y="104" width="96" height="70" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <rect x="208" y="104" width="96" height="70" rx="6" fill="#f8fafc" stroke="#e7ebf1" stroke-width="2"/>
+            <rect x="16" y="174" width="96" height="70" rx="6" fill="#f8fafc" stroke="#e7ebf1" stroke-width="2"/>
+            <rect x="112" y="174" width="96" height="70" rx="6" fill="#f8fafc" stroke="#e7ebf1" stroke-width="2"/>
+            <rect x="208" y="174" width="96" height="70" rx="6" fill="#f8fafc" stroke="#e7ebf1" stroke-width="2"/>
+
+            <circle cx="140" cy="122" r="6" fill="#10b981"/>
+            <circle cx="168" cy="140" r="6" fill="#10b981"/>
+            <circle cx="128" cy="152" r="6" fill="#10b981"/>
+            <circle cx="40" cy="60" r="6" fill="#8b95a3"/>
+            <circle cx="250" cy="190" r="6" fill="#8b95a3"/>
+            <circle cx="60" cy="200" r="6" fill="#8b95a3"/>
+
+            <circle cx="160" cy="139" r="30" fill="none" stroke="#5294ff" stroke-width="2" stroke-dasharray="4 3"/>
+            <circle cx="160" cy="139" r="5" fill="#5294ff" stroke="#151515" stroke-width="2"/>
+            <text x="160" y="200" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#5294ff">user, bán kính 2km</text>
+
+            <text x="16" y="266" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#10b981">● tài xế rảnh trong ô này</text>
+            <text x="180" y="266" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">● tài xế ở ô khác</text>
+
+            <rect x="330" y="34" width="200" height="210" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="348" y="58" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Bước tìm tài xế</text>
+            <text x="348" y="80" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">1. Tính geohash của user</text>
+            <text x="348" y="98" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">2. Lấy 8 ô lân cận (3×3)</text>
+            <text x="348" y="116" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">3. Với mỗi ô: ZRANGE geohash</text>
+            <text x="348" y="134" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">4. Tính khoảng cách chính xác</text>
+            <text x="348" y="152" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">5. Sắp xếp, chọn top-K</text>
+            <text x="348" y="174" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">GEOSEARCH key FROMLONLAT lng lat</text>
+            <text x="348" y="188" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">  BYRADIUS 2 km ASC COUNT 10</text>
+            <text x="348" y="212" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#8b95a3">Redis GEOSEARCH làm hết bước 1–4.</text>
+            <text x="348" y="228" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#8b95a3">Nhưng cần filter "chỉ tài xế rảnh".</text>
+
+            <rect x="548" y="34" width="200" height="210" rx="9" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="566" y="58" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">250.000 write/s</text>
+            <text x="566" y="80" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Không thể ghi vào Postgres.</text>
+            <text x="566" y="98" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Giải:</text>
+            <text x="566" y="118" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">• Redis GEOADD (in-memory)</text>
+            <text x="566" y="136" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">• shard theo geohash prefix</text>
+            <text x="566" y="154" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">• batch update (gom 4s → 1 write)</text>
+            <text x="566" y="172" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">• chỉ giữ vị trí mới nhất</text>
+            <text x="566" y="194" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">Không lưu lịch sử ở đây —</text>
+            <text x="566" y="210" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">lịch sử đi vào Kafka → data lake.</text>
+            <text x="566" y="232" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">Redis mất dữ liệu khi restart là OK.</text>
+
+            <rect x="16" y="292" width="360" height="112" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="316" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Vấn đề biên ô (boundary problem)</text>
+            <text x="34" y="338" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">User ở mép ô, tài xế cách 100m nhưng ở ô</text>
+            <text x="34" y="354" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">bên cạnh → nếu chỉ query 1 ô sẽ bỏ sót.</text>
+            <text x="34" y="376" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">Giải: luôn query 3×3 = 9 ô, hoặc dùng</text>
+            <text x="34" y="394" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">GEORADIUS (Redis tự xử lý) / S2 / H3.</text>
+
+            <rect x="392" y="292" width="356" height="112" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="410" y="316" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Vì sao H3/S2 tốt hơn geohash</text>
+            <text x="410" y="338" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Geohash dùng hình chữ nhật, gần cực thì méo;</text>
+            <text x="410" y="354" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">H3 (Uber) dùng lục giác → mọi ô có 6 hàng xóm</text>
+            <text x="410" y="370" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">đều nhau, khoảng cách tâm đều hơn, và phân</text>
+            <text x="410" y="386" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">cấp (res 0–15) cho phép zoom mượt.</text>
+            <text x="410" y="402" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">S2 (Google) dùng hình chiếu Hilbert trên mặt cầu.</text>
+          </svg>
+          <div class="diagram-cap">Hình 5.10 — Geo: lưới chia không gian, luôn query 9 ô để tránh bỏ sót ở biên</div>
+        </div>
+
+        <h3>Matching — phần thực sự khó</h3>
+        <p>Tìm 10 tài xế gần nhất là bài toán dễ. <strong>Chọn ai trong 10 người đó</strong> mới là bài toán kinh doanh:</p>
+        <ul class="list-bullet">
+          <li><strong>ETA</strong> (thời gian đến, không phải khoảng cách) — cần graph routing trên đường thật, không phải đường chim bay. Đây là service riêng (OSRM, Valhalla) với dữ liệu bản đồ.</li>
+          <li><strong>Cân bằng cung cầu:</strong> nếu cùng một tài xế nhận 5 request, hệ thống phải "giữ" tài xế đó (assignment lock có TTL 15s) để 4 request kia chuyển sang người khác.</li>
+          <li><strong>Fairness:</strong> tài xế rating cao không nên nhận hết; cần round-robin hoặc scoring có trọng số.</li>
+          <li><strong>Surge pricing:</strong> khi cầu &gt; cung trong một ô, tăng giá để điều tiết. Cần aggregate realtime theo ô (cửa sổ 5 phút).</li>
+          <li><strong>Dispatch loop:</strong> không phải "tìm 1 lần rồi thôi" mà là vòng lặp: đề nghị → chờ 15s → không nhận → đề nghị người tiếp theo.</li>
+        </ul>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Assignment phải atomic</div>
+            <p>Hai request cùng lúc thấy cùng một tài xế rảnh → cả hai gán. Kết quả: tài xế nhận 2 chuyến, một khách bị bỏ. Giải: dùng <strong>conditional claim</strong> — <code>SET driver:&#123;id&#125;:assigned &#123;trip_id&#125; NX EX 15</code>. Chỉ request nào <code>SETNX</code> thành công mới được gán. Hoặc dùng Redis Lua để kiểm tra "rảnh" và "gán" trong một bước atomic. Không bao giờ "đọc danh sách rảnh → chọn → ghi" mà không có điều kiện — đó là check-then-act race condition cổ điển.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba câu chốt cho bài toán geo</div>
+            <p><strong>1.</strong> "Vị trí tài xế là ephemeral — 250k write/s vào Redis GEO, không vào DB; lịch sử đi Kafka sang data lake." <strong>2.</strong> "Tìm kiếm dùng lưới (geohash/H3) và luôn query 9 ô để tránh lỗi biên." <strong>3.</strong> "Assignment dùng SETNX với TTL, không dùng check-then-act." Ba câu này cộng với con số 250k/s là phần lớn điểm của bài.</p>
+          </div>
+        </div>
+
+        <h3>Điểm nghẽn thật & quyết định gây tranh cãi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+            <tbody>
+              <tr><td>Tài xế online</td><td>1 triệu</td><td>Toàn cầu, giờ cao điểm</td></tr>
+              <tr><td>Tần suất gửi vị trí</td><td>4 giây/lần</td><td>Đủ mịn để hiển thị mượt, không quá tải</td></tr>
+              <tr><td>QPS ghi vị trí</td><td><strong>~250.000/s</strong></td><td>10⁶ / 4</td></tr>
+              <tr><td>Dung lượng nếu lưu vào DB</td><td>~90 GB/giờ</td><td>250k/s × 100 byte × 3.600</td></tr>
+              <tr><td>Trạng thái nóng (Redis GEO)</td><td>~80 MB</td><td>10⁶ tài xế × ~80 byte (geohash + id + ts)</td></tr>
+              <tr><td>Yêu cầu tìm tài xế</td><td>~100.000/s</td><td>10% tài xế đang có chuyến</td></tr>
+              <tr><td>Bán kính tìm</td><td>2–5 km</td><td>Nếu không đủ thì mở rộng dần</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm nghẽn là <span class="kw-r">write throughput của vị trí</span>, và nó buộc phải là in-memory. 250.000 write/s vào một database có durability là bất khả thi về chi phí; vào Redis GEO là chuyện bình thường. Điều này dẫn tới một hệ quả quan trọng phải nói ra: <strong>vị trí là dữ liệu tạm thời</strong> — mất 4 giây dữ liệu vị trí không sao, vì 4 giây sau có bản mới. Nhưng lịch sử chuyến đi thì phải bền vững, nên nó đi đường khác (Kafka → data lake). Hai loại dữ liệu, hai yêu cầu bền vững, hai hệ lưu trữ.</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Quyết định gây tranh cãi: ghép chuyến ở server hay để tài xế tự nhận?</div>
+            <p><strong>Server-side assignment:</strong> hệ thống chọn tài xế tối ưu (gần nhất, rating, đã lâu chưa có chuyến), gửi offer, chờ chấp nhận với timeout. Công bằng hơn và tối ưu được tổng thể — nhưng cần một bộ matching chạy liên tục, và khi tài xế từ chối thì phải thử người tiếp theo trong vài giây. <strong>Broadcast cho nhiều tài xế cùng nhận:</strong> ai nhanh tay thắng — đơn giản, độ trễ thấp, nhưng tài xế học cách bấm bừa, chuyến xa bị bỏ, và trải nghiệm khách tệ. <strong>Thực tế:</strong> dùng server-side assignment với offer tuần tự cho top-3, và một thuật toán batch (matching theo cửa sổ 2–5 giây) để tối ưu toàn cục thay vì tham lam từng chuyến. Điểm tranh cãi thật là <em>tối ưu cục bộ hay toàn cục</em> — và câu trả lời đúng là "toàn cục, nhưng trong cửa sổ đủ ngắn để người dùng không thấy chờ".</p>
+          </div>
+        </div>

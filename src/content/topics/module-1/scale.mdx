@@ -1,0 +1,111 @@
+---
+title: "Từ 1 server đến hàng triệu user (Alex Xu Ch.1)"
+description: "Đây là lộ trình mở rộng kinh điển. Mỗi bước giải quyết một giới hạn cụ thể — hiểu tại sao cần bước đó quan trọng hơn thuộc tên."
+module: 1
+order: 4
+num: "1.4"
+sectionId: "scale"
+---
+<p>Đây là lộ trình mở rộng kinh điển. Mỗi bước giải quyết một giới hạn cụ thể — hiểu <em>tại sao</em> cần bước đó quan trọng hơn thuộc tên.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 720 420" role="img" aria-label="Lộ trình mở rộng hệ thống từ một server đến nhiều datacenter">
+            <defs>
+              <marker id="m1b" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#505a68"/></marker>
+            </defs>
+            <g font-size="10" font-weight="700">
+              
+              <rect x="16" y="30" width="150" height="56" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+              <text x="91" y="52" text-anchor="middle" fill="#151515">① 1 Server</text>
+              <text x="91" y="70" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">web+db+cache chung</text>
+
+              <rect x="196" y="30" width="150" height="56" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+              <text x="271" y="52" text-anchor="middle" fill="#151515">② Tách DB</text>
+              <text x="271" y="70" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">web tier / data tier</text>
+
+              <rect x="376" y="30" width="150" height="56" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+              <text x="451" y="52" text-anchor="middle" fill="#151515">③ Load Balancer</text>
+              <text x="451" y="70" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">2+ web server</text>
+
+              <rect x="556" y="30" width="150" height="56" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="631" y="52" text-anchor="middle" fill="#151515">④ DB Replication</text>
+              <text x="631" y="70" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">master + slaves</text>
+
+              
+              <rect x="556" y="130" width="150" height="56" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="631" y="152" text-anchor="middle" fill="#151515">⑤ Cache tier</text>
+              <text x="631" y="170" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">Redis/Memcached</text>
+
+              <rect x="376" y="130" width="150" height="56" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="451" y="152" text-anchor="middle" fill="#151515">⑥ CDN</text>
+              <text x="451" y="170" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">static content</text>
+
+              <rect x="196" y="130" width="150" height="56" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="271" y="152" text-anchor="middle" fill="#151515">⑦ Stateless web</text>
+              <text x="271" y="170" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">session → Redis</text>
+
+              <rect x="16" y="130" width="150" height="56" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+              <text x="91" y="152" text-anchor="middle" fill="#151515">⑧ Multi-DC</text>
+              <text x="91" y="170" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">GeoDNS</text>
+
+              
+              <rect x="16" y="230" width="150" height="56" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+              <text x="91" y="252" text-anchor="middle" fill="#151515">⑨ Message Queue</text>
+              <text x="91" y="270" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">decouple + async</text>
+
+              <rect x="196" y="230" width="150" height="56" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+              <text x="271" y="252" text-anchor="middle" fill="#151515">⑩ Logging/Metrics</text>
+              <text x="271" y="270" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">observability</text>
+
+              <rect x="376" y="230" width="150" height="56" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+              <text x="451" y="252" text-anchor="middle" fill="#151515">⑪ Automation</text>
+              <text x="451" y="270" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">CI/CD, autoscale</text>
+
+              <rect x="556" y="230" width="150" height="56" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+              <text x="631" y="252" text-anchor="middle" fill="#151515">⑫ Sharding</text>
+              <text x="631" y="270" text-anchor="middle" fill="#505a68" font-size="9" font-weight="600">split data</text>
+            </g>
+            <g stroke="#505a68" stroke-width="1.6" marker-end="url(#m1b)" fill="none">
+              <line x1="168" y1="58" x2="192" y2="58"/>
+              <line x1="348" y1="58" x2="372" y2="58"/>
+              <line x1="528" y1="58" x2="552" y2="58"/>
+              <path d="M631 88 L631 126"/>
+              <line x1="552" y1="158" x2="530" y2="158"/>
+              <line x1="372" y1="158" x2="350" y2="158"/>
+              <line x1="192" y1="158" x2="170" y2="158"/>
+              <path d="M91 188 L91 226"/>
+              <line x1="170" y1="258" x2="192" y2="258"/>
+              <line x1="350" y1="258" x2="372" y2="258"/>
+              <line x1="530" y1="258" x2="552" y2="258"/>
+            </g>
+            <text x="360" y="330" text-anchor="middle" font-size="10.5" font-weight="700" fill="#505a68">Mỗi bước giải quyết một giới hạn — không phải "cứ thêm cho đủ bộ"</text>
+            <rect x="16" y="348" width="690" height="58" rx="8" fill="#f8fafc" stroke="#151515" stroke-width="2" stroke-dasharray="5 4"/>
+            <text x="32" y="370" font-size="10" font-weight="700" fill="#151515">Thứ tự thực tế: ② → ③ → ④ → ⑤ → ⑥ → ⑦ là bắt buộc. ⑧ → ⑫ chỉ làm khi thật sự cần.</text>
+            <text x="32" y="390" font-size="10" font-weight="600" fill="#505a68">Vẽ hết 12 bước trong phỏng vấn mà không giải thích lý do = điểm trừ (over-engineering).</text>
+          </svg>
+          <div class="diagram-cap">Hình 1.2 — 12 bước mở rộng của Alex Xu. Đây cũng là "bộ khung" để trả lời hầu hết bài toán thiết kế.</div>
+        </div>
+
+        <h3>Chi tiết từng bước — khi nào cần và tại sao</h3>
+        <ol class="list-num">
+          <li><strong>Single server</strong> — web app, DB, cache chung 1 máy. Đủ cho vài nghìn user. Giới hạn: không failover, không scale riêng phần nào.</li>
+          <li><strong>Tách web tier / data tier</strong> — mỗi tier scale độc lập. Đây là bước quan trọng nhất về mặt kiến trúc.</li>
+          <li><strong>Load balancer</strong> — user kết nối tới public IP của LB; web server dùng private IP. Lợi ích: failover (server chết → route sang server khác), thêm server không cần đổi DNS.</li>
+          <li><strong>Database replication</strong> — master nhận write, slave nhận read. Tăng read throughput + có bản sao dự phòng. Vấn đề: <span class="kw">replication lag</span> → đọc có thể thấy dữ liệu cũ.</li>
+          <li><strong>Cache tier</strong> — giảm tải DB, giảm latency. Cần chính sách expiration và chiến lược invalidation.</li>
+          <li><strong>CDN</strong> — nội dung tĩnh (JS/CSS/ảnh/video) đặt gần user. Giảm RTT từ 150ms xuống 5–20ms.</li>
+          <li><strong>Stateless web tier</strong> — chuyển session ra Redis/DB. Đây là <em>điều kiện tiên quyết</em> để autoscale: bất kỳ server nào cũng xử lý được request của bất kỳ user nào.</li>
+          <li><strong>Multi-datacenter</strong> — GeoDNS route user tới DC gần nhất. Phức tạp: đồng bộ dữ liệu giữa các DC, xử lý conflict, traffic failover.</li>
+          <li><strong>Message queue</strong> — decouple producer/consumer, xử lý async, chịu được burst. Producer không cần biết consumer là ai.</li>
+          <li><strong>Logging, metrics, automation</strong> — không có observability thì không biết hệ thống có đang chạy đúng. Metrics + log tập trung + alerting.</li>
+          <li><strong>Database sharding</strong> — khi 1 master không đủ chứa/ghi. Chọn shard key quyết định mọi thứ.</li>
+          <li><strong>Tối ưu tiếp</strong> — tách service, CQRS, event sourcing... chỉ khi cần.</li>
+        </ol>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Bẫy khi phỏng vấn</div>
+            <p>Vẽ đủ 12 bước cho một hệ thống 10.000 user là <strong>over-engineering</strong> — một red flag Alex Xu nêu rõ. Hãy nói: "Với 10K user, em chỉ cần bước 1–4. Bước 5–7 em sẽ chuẩn bị sẵn về mặt thiết kế nhưng chưa triển khai."</p>
+          </div>
+        </div>

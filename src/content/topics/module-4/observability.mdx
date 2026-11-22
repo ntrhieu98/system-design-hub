@@ -1,0 +1,161 @@
+---
+title: "Observability — nhìn thấy hệ thống đang nghĩ gì"
+description: "Trong hệ một máy, bạn debug bằng print và stack trace. Trong hệ 30 service, một request đi qua 12 service, 3 queue, 2 cache — log rời rạc không đủ để suy luận."
+module: 4
+order: 8
+num: "4.8"
+sectionId: "observability"
+---
+<p>Trong hệ một máy, bạn debug bằng <code>print</code> và stack trace. Trong hệ 30 service, một request đi qua 12 service, 3 queue, 2 cache — <span class="kw">log rời rạc không đủ để suy luận</span>. Observability không phải "thêm dashboard"; nó là khả năng trả lời câu hỏi bạn chưa biết trước.</p>
+
+        <h3>Ba trụ cột và câu hỏi chúng trả lời</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Trụ cột</th><th>Trả lời câu hỏi</th><th>Chi phí</th><th>Công cụ</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Metrics</strong></td><td>"Hệ thống có đang khoẻ không? Từ khi nào?" — số liệu tổng hợp theo thời gian</td><td>Thấp (cardinality thấp)</td><td>Prometheus, CloudWatch, Datadog</td></tr>
+              <tr><td><strong>Logs</strong></td><td>"Chính xác chuyện gì đã xảy ra với request này?" — sự kiện rời rạc</td><td>Cao (volume)</td><td>Loki, ELK, Splunk</td></tr>
+              <tr><td><strong>Traces</strong></td><td>"Thời gian đi đâu? Service nào chậm?" — đường đi + timing</td><td>Trung bình (sampling)</td><td>Jaeger, Tempo, OpenTelemetry</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 400" role="img" aria-label="Một request đi qua bốn service với trace span hiển thị thời gian từng chặng">
+            <defs>
+              <marker id="m4i" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#8b95a3">MỘT REQUEST — trace_id = 7f3a9c</text>
+
+            <rect x="16" y="34" width="180" height="46" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="106" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">API Gateway</text>
+
+            <rect x="224" y="34" width="180" height="46" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="314" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Order Service</text>
+
+            <rect x="432" y="34" width="160" height="46" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="512" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Payment</text>
+
+            <rect x="620" y="34" width="126" height="46" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="683" y="62" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Inventory</text>
+
+            <path d="M196,57 L222,57" stroke="#505a68" stroke-width="2" marker-end="url(#m4i)"/>
+            <path d="M404,57 L430,57" stroke="#505a68" stroke-width="2" marker-end="url(#m4i)"/>
+            <path d="M592,57 L618,57" stroke="#505a68" stroke-width="2" marker-end="url(#m4i)"/>
+
+            <rect x="16" y="110" width="730" height="124" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="132" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Waterfall — mỗi thanh là một span</text>
+
+            <rect x="34" y="144" width="700" height="16" rx="4" fill="#f4d77c" stroke="#151515" stroke-width="1.5"/>
+            <text x="40" y="156" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">gateway · 420ms</text>
+
+            <rect x="120" y="166" width="520" height="16" rx="4" fill="#e9f0fc" stroke="#151515" stroke-width="1.5"/>
+            <text x="126" y="178" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">order-svc · 380ms</text>
+
+            <rect x="180" y="188" width="300" height="16" rx="4" fill="#dcfce7" stroke="#151515" stroke-width="1.5"/>
+            <text x="186" y="200" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">payment · 220ms</text>
+
+            <rect x="500" y="210" width="130" height="16" rx="4" fill="#fee2e2" stroke="#151515" stroke-width="1.5"/>
+            <text x="506" y="222" font-family="JetBrains Mono, monospace" font-size="8" fill="#ef4444">inventory · 95ms ← chậm bất thường</text>
+
+            <text x="16" y="264" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Hai con số phải đọc đúng</text>
+
+            <rect x="16" y="276" width="352" height="108" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="298" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">p50 vs p99</text>
+            <text x="34" y="318" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">p50 = 200ms (một nửa nhanh hơn)</text>
+            <text x="34" y="334" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">p99 = 3.200ms (1% user chờ 3,2s)</text>
+            <text x="34" y="352" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#ef4444">Với 10M user, p99 = 100.000 người</text>
+            <text x="34" y="368" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#ef4444">đang có trải nghiệm tệ mỗi ngày.</text>
+
+            <rect x="384" y="276" width="362" height="108" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="402" y="298" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Tại sao KHÔNG dùng trung bình</text>
+            <text x="402" y="318" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">99 request 10ms + 1 request 10s</text>
+            <text x="402" y="334" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">→ trung bình = 110ms, trông "ổn"</text>
+            <text x="402" y="350" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">nhưng p99 = 10s, thảm hoạ</text>
+            <text x="402" y="370" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">Trung bình che giấu đuôi phân bố.</text>
+          </svg>
+          <div class="diagram-cap">Hình 4.9 — Trace biến "request chậm" thành "chặng thứ 4 chậm 95ms"</div>
+        </div>
+
+        <h3>Bốn tín hiệu vàng (Google SRE)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tín hiệu</th><th>Định nghĩa</th><th>Ví dụ metric</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Latency</strong></td><td>Thời gian phục vụ; tách success và failure</td><td><code>http_request_duration_seconds</code></td></tr>
+              <tr><td><strong>Traffic</strong></td><td>Nhu cầu đặt lên hệ thống</td><td><code>http_requests_total</code></td></tr>
+              <tr><td><strong>Errors</strong></td><td>Tỉ lệ request thất bại (5xx, exception, timeout)</td><td><code>http_requests_total&#123;status=~"5.."&#125;</code></td></tr>
+              <tr><td><strong>Saturation</strong></td><td>Mức bão hoà tài nguyên</td><td>CPU, memory, connection pool, queue depth</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Cardinality bomb — cách tự làm sập Prometheus</div>
+            <p>Metric có label <code>user_id</code>, <code>email</code>, <code>request_id</code>, hoặc <code>url</code> chứa path param sẽ tạo ra <strong>hàng triệu time series</strong>. Mỗi series tốn RAM và CPU; Prometheus chết vì OOM, và khi Prometheus chết bạn mất luôn khả năng quan sát trong lúc đang có sự cố. Quy tắc: label chỉ được chứa giá trị có cardinality thấp (&lt; 100). URL phải được normalize (<code>/users/:id</code> thay vì <code>/users/12345</code>). Muốn phân tích theo chiều cao cardinality → dùng logs hoặc traces, không dùng metrics.</p>
+          </div>
+        </div>
+
+        <h3>SLI, SLO, SLA — ngôn ngữ để nói về độ tin cậy</h3>
+        <ul class="list-bullet">
+          <li><span class="kw">SLI</span> (Indicator): con số đo được. "Tỉ lệ request <code>/checkout</code> thành công dưới 300ms."</li>
+          <li><span class="kw">SLO</span> (Objective): mục tiêu nội bộ cho SLI. "99,9% trong 30 ngày."</li>
+          <li><span class="kw">SLA</span> (Agreement): cam kết với khách hàng, có phạt tiền. Thường thấp hơn SLO một chút để có đệm.</li>
+          <li><span class="kw-y">Error budget</span>: 100% − SLO. Với SLO 99,9%/30 ngày = <strong>43 phút</strong> downtime được phép. Hết budget → đóng băng feature, dồn vào reliability. Đây là công cụ quản lý, không chỉ là số liệu.</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Nếu chỉ có 1 giờ để thêm observability</div>
+            <p>Bật <strong>OpenTelemetry auto-instrumentation</strong> (1 dòng config cho Java/Go/Node/Python) — bạn có ngay traces + metrics HTTP/gRPC/DB miễn phí. Thêm <strong>structured logging dạng JSON</strong> với mandatory fields <code>trace_id</code>, <code>user_id</code>, <code>route</code>, <code>status</code>, <code>duration_ms</code>. Đặt <strong>3 alert</strong>: error rate &gt; 1%, p99 latency &gt; 1s, và saturation &gt; 80%. Ba thứ đó che được 80% sự cố thực tế. Đừng bắt đầu bằng việc xây dashboard đẹp.</p>
+          </div>
+        </div>
+
+        <h3>Sampling — quyết định điều gì được giữ lại</h3>
+        <p>Ở 10.000 request/giây, mỗi request sinh khoảng 10 span: <strong>8,6 tỷ span/ngày</strong>. Với ~300 byte mỗi span đã qua xử lý, đó là <strong>~2,6 TB/ngày</strong> chỉ riêng traces. Không ai giữ 100%. Câu hỏi không phải "có sample hay không" mà "sample theo cách nào để không mất đúng cái mình cần".</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cách sample</th><th>Quyết định ở đâu</th><th>Giữ được gì</th><th>Mất gì</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Head-based</strong></td><td>Tại service đầu tiên, theo tỉ lệ cố định (1%)</td><td>Rẻ, không cần buffer, quyết định tức thì</td><td>Trace lỗi cũng bị bỏ 99% — đúng lúc cần nhất lại không có</td></tr>
+              <tr><td><strong>Tail-based</strong></td><td>Tại collector, sau khi đã gom đủ span của trace</td><td>Giữ 100% trace lỗi và trace chậm, 1% phần còn lại</td><td>Collector phải buffer toàn bộ span → tốn RAM, cần gom theo trace_id</td></tr>
+              <tr><td><strong>Adaptive</strong></td><td>Collector, theo tải và theo ngân sách span/giây</td><td>Tự giảm tỉ lệ khi traffic tăng vọt</td><td>Khó giải thích "vì sao trace này có mà trace kia không"</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Cấu hình tail-sampling hay dùng</div>
+            <p>Giữ <strong>100%</strong> trace có <code>status = error</code>, <strong>100%</strong> trace có latency &gt; p99, và <strong>1%</strong> trace còn lại. Như vậy khi có sự cố bạn luôn có trace đầy đủ của request hỏng, mà chi phí lưu vẫn ở mức của 1% traffic bình thường. Điều kiện bắt buộc: mọi span phải mang cùng <code>trace_id</code> và collector phải nhận được span từ tất cả service — mất một chặng là mất cả quyết định.</p>
+          </div>
+        </div>
+
+        <h3>Cảnh báo theo triệu chứng, không theo nguyên nhân</h3>
+        <ul class="list-bullet">
+          <li><strong>Cảnh báo theo nguyên nhân</strong> (CPU &gt; 90%, disk &gt; 85%, một pod restart): rất nhiều alert, phần lớn không ảnh hưởng người dùng. Kết quả là on-call mệt và bắt đầu bỏ qua alert — đúng lúc alert thật đến.</li>
+          <li><strong>Cảnh báo theo triệu chứng</strong> (error rate của <code>/checkout</code> &gt; 1%, p99 &gt; 1s, tỉ lệ đăng nhập thành công tụt): gắn trực tiếp với điều người dùng cảm nhận. Đây là thứ nên đánh thức người lúc 3 giờ sáng.</li>
+          <li><span class="kw">Multi-window burn rate</span>: thay vì "error rate &gt; 1%" (một ngưỡng, dễ rung), so tỉ lệ đốt error budget ở nhiều cửa sổ. SLO 99,9%/30 ngày có budget 43,2 phút.</li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cửa sổ</th><th>Đốt bao nhiêu budget</th><th>Hành động</th></tr></thead>
+            <tbody>
+              <tr><td>1 giờ, burn rate &gt; 14,4×</td><td>2% budget</td><td>Page ngay — on-call dậy</td></tr>
+              <tr><td>6 giờ, burn rate &gt; 6×</td><td>5% budget</td><td>Page, kiểm tra trong 30 phút</td></tr>
+              <tr><td>3 ngày, burn rate &gt; 1×</td><td>10% budget</td><td>Tạo ticket, xử lý trong giờ làm việc</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Mỗi alert phải có runbook, nếu không thì xoá</div>
+            <p>Một alert không kèm hành động cụ thể chỉ dạy on-call cách bỏ qua alert. Tiêu chuẩn: alert phải trả lời được "tôi mở cái gì, xem số nào, quyết định gì trong 5 phút đầu". Không viết được ba câu đó thì đó là dashboard, không phải alert. Đây cũng là câu trả lời tốt trong phỏng vấn khi được hỏi về vận hành.</p>
+          </div>
+        </div>

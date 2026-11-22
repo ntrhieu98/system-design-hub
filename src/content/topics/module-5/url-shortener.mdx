@@ -1,0 +1,166 @@
+---
+title: "URL Shortener — bài toán khởi động hoàn hảo"
+description: "Đây là bài đầu tiên trong hầu hết mọi khoá system design vì nó nhỏ nhưng chứa đủ mọi thành phần: ước lượng, sinh ID, lưu trữ, cache, đọc nhiều hơn ghi."
+module: 5
+order: 1
+num: "5.1"
+sectionId: "url-shortener"
+---
+<p>Đây là bài đầu tiên trong hầu hết mọi khoá system design vì nó nhỏ nhưng chứa đủ mọi thành phần: ước lượng, sinh ID, lưu trữ, cache, đọc nhiều hơn ghi. Đừng xem nhẹ — người phỏng vấn dùng nó để kiểm tra bạn có <span class="kw">tư duy số liệu</span> hay không.</p>
+
+        <h3>Yêu cầu & ước lượng</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+            <tbody>
+              <tr><td>Ghi</td><td>100 triệu URL/ngày</td><td>Đề bài cho</td></tr>
+              <tr><td>QPS ghi</td><td>~1.160/s</td><td>100M / 86.400 ≈ 1.157</td></tr>
+              <tr><td>Tỉ lệ đọc/ghi</td><td>10:1</td><td>Đề bài cho</td></tr>
+              <tr><td>QPS đọc</td><td>~11.600/s</td><td>1.157 × 10</td></tr>
+              <tr><td>Dung lượng 10 năm</td><td>~36,5 TB</td><td>100M × 365 × 10 × 100 byte ≈ 36,5 TB</td></tr>
+              <tr><td>Số tổ hợp 7 ký tự</td><td>3,52×10¹²</td><td>62⁷ — đủ cho ~96 năm ở mức 100M/ngày</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-note">
+          <div class="callout-ico">∑</div>
+          <div class="callout-body">
+            <div class="callout-title">Chọn độ dài short code</div>
+            <p>62⁶ ≈ 5,68×10¹⁰ → hết sau <strong>568 ngày</strong> ở 100M/ngày. 62⁷ ≈ 3,52×10¹² → ~96 năm. 62⁸ ≈ 2,18×10¹⁴ → ~5.900 năm. Chọn <strong>7 ký tự</strong>: vừa đủ dài, URL không quá xấu, có dư địa. Đây là kiểu tính toán mà người phỏng vấn muốn nghe — không phải "chọn 7 vì nó đẹp".</p>
+          </div>
+        </div>
+
+        <h3>Ba cách sinh short code</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cách</th><th>Cơ chế</th><th>Ưu</th><th>Nhược</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Hash + base62</strong></td><td>MD5/SHA256(longURL) → lấy 7 byte → base62</td><td>Không cần coordination, cùng URL → cùng code</td><td><span class="kw-r">Va chạm</span>: 2 URL khác nhau ra cùng code; phải kiểm tra DB và thử salt</td></tr>
+              <tr><td><strong>Snowflake ID</strong></td><td>ID 64 bit tăng dần → base62</td><td>Không va chạm, không coordination, sort theo thời gian</td><td>Code dài dần theo thời gian (7→8 ký tự); lộ thông tin thời điểm tạo</td></tr>
+              <tr><td><strong>Counter (KGS)</strong></td><td>Key Generation Service cấp dải ID trước, mỗi app server giữ 1.000 ID trong RAM</td><td>Đơn giản, không va chạm, không coordination mỗi request</td><td>Phải xử lý khi server chết (mất dải ID — chỉ lãng phí, không sai)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 380" role="img" aria-label="Luồng ghi và đọc của URL shortener với key generation service cache Redis và database">
+            <defs>
+              <marker id="m5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#8b95a3">WRITE PATH — 1.160 QPS</text>
+
+            <rect x="16" y="36" width="110" height="52" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="71" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Client</text>
+            <text x="71" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">POST /urls</text>
+
+            <rect x="152" y="36" width="120" height="52" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="212" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">API Server</text>
+            <text x="212" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">validate URL</text>
+
+            <rect x="298" y="36" width="140" height="52" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="368" y="54" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">KGS</text>
+            <text x="368" y="70" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">cấp dải 1.000 ID</text>
+            <text x="368" y="82" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">base62 → 7 ký tự</text>
+
+            <rect x="464" y="36" width="130" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="529" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Postgres</text>
+            <text x="529" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">code → long_url</text>
+
+            <rect x="620" y="36" width="126" height="52" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="683" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Redis</text>
+            <text x="683" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">cache hot URLs</text>
+
+            <path d="M126,62 L150,62" stroke="#505a68" stroke-width="2" marker-end="url(#m5a)"/>
+            <path d="M272,62 L296,62" stroke="#505a68" stroke-width="2" marker-end="url(#m5a)"/>
+            <path d="M438,62 L462,62" stroke="#505a68" stroke-width="2" marker-end="url(#m5a)"/>
+            <path d="M594,62 L618,62" stroke="#505a68" stroke-width="2" marker-end="url(#m5a)"/>
+
+            <text x="16" y="126" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#8b95a3">READ PATH — 11.600 QPS, 301 redirect</text>
+
+            <rect x="16" y="140" width="110" height="52" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="71" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Browser</text>
+            <text x="71" y="178" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">GET /aB3xK9z</text>
+
+            <rect x="152" y="140" width="120" height="52" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="212" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">API / CDN</text>
+            <text x="212" y="178" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">cache 301</text>
+
+            <rect x="298" y="140" width="140" height="52" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="368" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Redis hit 90%</text>
+            <text x="368" y="178" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">&lt; 1ms</text>
+
+            <rect x="464" y="140" width="130" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="529" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">DB fallback</text>
+            <text x="529" y="178" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">1.160 QPS</text>
+
+            <rect x="620" y="140" width="126" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="683" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Đọc replica</text>
+            <text x="683" y="178" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">3 replica</text>
+
+            <path d="M126,166 L150,166" stroke="#505a68" stroke-width="2" marker-end="url(#m5a)"/>
+            <path d="M272,166 L296,166" stroke="#505a68" stroke-width="2" marker-end="url(#m5a)"/>
+            <path d="M438,166 L462,166" stroke="#505a68" stroke-width="2" marker-end="url(#m5a)"/>
+            <path d="M594,166 L618,166" stroke="#505a68" stroke-width="2" marker-end="url(#m5a)"/>
+
+            <rect x="16" y="216" width="352" height="150" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="240" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">301 vs 302 — quyết định quan trọng</text>
+            <text x="34" y="262" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68"><strong>301 Permanent:</strong> browser cache, giảm tải</text>
+            <text x="34" y="278" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">server, nhưng KHÔNG đổi được đích và</text>
+            <text x="34" y="294" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">không đếm được click.</text>
+            <text x="34" y="318" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68"><strong>302 Temporary:</strong> mọi click về server →</text>
+            <text x="34" y="334" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">đếm được analytics, đổi đích được.</text>
+            <text x="34" y="356" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">Chọn 302 nếu cần analytics (bit.ly dùng 302).</text>
+
+            <rect x="384" y="216" width="362" height="150" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="402" y="240" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Bảng dữ liệu tối giản</text>
+            <text x="402" y="262" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">urls (</text>
+            <text x="402" y="278" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">  code    CHAR(7) PRIMARY KEY,</text>
+            <text x="402" y="294" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">  long_url TEXT NOT NULL,</text>
+            <text x="402" y="310" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">  user_id BIGINT, created_at TIMESTAMPTZ</text>
+            <text x="402" y="326" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">)</text>
+            <text x="402" y="348" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Shard theo code (hash) — đọc/ghi đều point lookup.</text>
+          </svg>
+          <div class="diagram-cap">Hình 5.1 — URL shortener: 90% request đọc được phục vụ bởi cache, DB chỉ chịu 10%</div>
+        </div>
+
+        <h3>Chi tiết ghi điểm</h3>
+        <ul class="list-check">
+          <li><strong>Custom alias:</strong> user muốn <code>/my-brand</code>. Cần check trùng atomically — dùng <code>INSERT ... ON CONFLICT DO NOTHING</code> với unique index trên <code>code</code>.</li>
+          <li><strong>Expiration:</strong> cột <code>expires_at</code> + job xoá định kỳ, hoặc kiểm tra lazy khi đọc. Đừng xoá đồng bộ trong request đọc (chậm).</li>
+          <li><strong>Analytics:</strong> ghi click vào Kafka (không ghi đồng bộ vào DB), aggregate bằng batch job. Một redirect 10ms không thể chờ ghi 1 dòng analytics.</li>
+          <li><strong>Chống abuse:</strong> rate limit theo user/IP (Module 2), blocklist domain malware, và giới hạn số URL/giờ cho tài khoản free.</li>
+          <li><strong>Hot URL:</strong> một link viral nhận 1 triệu request/phút → cache nhiều tầng (CDN → Redis → DB), và nếu là <code>301</code> thì browser tự cache, gần như bằng 0 tải.</li>
+        </ul>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Hash + base62 — tại sao lại nguy hiểm</div>
+            <p>Với 100M URL/ngày trong 10 năm = 365 tỷ URL. Không gian mã 7 ký tự = 3,52×10¹². Xác suất va chạm theo <em>birthday paradox</em>: khi bạn có <code>n</code> item trong <code>d</code> ô, kỳ vọng số va chạm ≈ n²/(2d) = (3,65×10¹¹)²/(2×3,52×10¹²) ≈ <strong>1,9×10¹⁰ va chạm</strong>. Con số này khổng lồ vì bạn dùng gần hết không gian mã. Vì vậy nếu dùng hash, phải <strong>kiểm tra DB mỗi lần</strong> và retry với salt — nghĩa là mỗi lần ghi cần 1 read + có thể nhiều lần thử. Counter/Snowflake tránh hoàn toàn vấn đề này. Đây là câu trả lời đầy đủ cho "vì sao không dùng MD5".</p>
+          </div>
+        </div>
+
+        <h3>Điểm nghẽn thật & quyết định gây tranh cãi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thành phần</th><th>Tải thật</th><th>Có phải nghẽn không</th></tr></thead>
+            <tbody>
+              <tr><td>Ghi vào DB</td><td>1.160/s</td><td>Không — một Postgres đơn lẻ ghi được 5.000–10.000/s</td></tr>
+              <tr><td>Đọc từ DB khi cache miss</td><td>11.600 × 10% = <strong>1.160/s</strong></td><td>Không — nhưng chỉ vì tỉ lệ hit đã là 90%</td></tr>
+              <tr><td>Cache hit</td><td>10.440/s</td><td><strong>Đây là chỗ tiền nằm</strong> — 3 node Redis, mỗi node ~3.500 ops/s</td></tr>
+              <tr><td>Sinh ID (nếu chọn Snowflake)</td><td>1.160/s</td><td>Không — một generator làm được 10.000/s, nhưng phải HA</td></tr>
+              <tr><td>Analytics ghi mỗi lần redirect</td><td>11.600/s</td><td><strong>Có</strong> nếu ghi đồng bộ — biến một bài đọc thành bài ghi</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm nghẽn của bài này không phải QPS mà là <span class="kw-r">tỉ lệ cache hit</span>. Nếu hit rate tụt từ 90% xuống 80%, tải DB đọc tăng gấp đôi (1.160 → 2.320/s) — vẫn chịu được. Nếu tụt xuống 50%, DB nhận 5.800 đọc/s cộng 1.160 ghi/s và bắt đầu hàng đợi. Vì vậy mọi quyết định trong bài này phải trả lời: "cái này giữ hit rate hay làm nó tụt?"</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Quyết định gây tranh cãi: 301 hay 302?</div>
+            <p><strong>301 (permanent)</strong> được browser cache vĩnh viễn → giảm tải server gần như bằng 0 cho link phổ biến, nhưng <strong>mất khả năng thống kê và mất khả năng đổi đích</strong> — đã cache thì không thu hồi được. <strong>302 (temporary)</strong> luôn hỏi server → đo được click, đổi đích được, nhưng mỗi click là một request tới hạ tầng của bạn. Sản phẩm thật thường chọn <strong>302 + Cache-Control ngắn (60–300s)</strong>: vẫn giảm được phần lớn tải, vẫn thu hồi được trong vài phút. Chọn 301 chỉ khi cam kết link là vĩnh viễn và không cần analytics — và phải nói rõ điều đó trong phỏng vấn, vì đó chính là điểm người phỏng vấn đang chờ.</p>
+          </div>
+        </div>

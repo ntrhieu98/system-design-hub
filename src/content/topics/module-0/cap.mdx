@@ -1,0 +1,56 @@
+---
+title: "CAP, PACELC và các mô hình nhất quán"
+description: "CAP nói: khi có network partition (P), hệ thống phải chọn giữa Consistency (C) và Availability (A)."
+module: 0
+order: 7
+num: "0.7"
+sectionId: "cap"
+---
+<h3>CAP theorem — và cách nó bị hiểu sai</h3>
+        <p>CAP nói: khi có <span class="kw">network partition</span> (P), hệ thống phải chọn giữa <span class="kw">Consistency</span> (C) và <span class="kw">Availability</span> (A). Không có "chọn 2 trong 3" — P là điều bạn không kiểm soát được, nên thực chất chỉ chọn C hoặc A <em>khi partition xảy ra</em>.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 640 260" role="img" aria-label="Tam giác CAP và vị trí các hệ thống thực tế">
+            <polygon points="320,30 100,220 540,220" fill="#f8fafc" stroke="#151515" stroke-width="2"/>
+            <text x="320" y="22" text-anchor="middle" font-size="12" font-weight="900" fill="#151515">Consistency</text>
+            <text x="82" y="238" text-anchor="middle" font-size="12" font-weight="900" fill="#151515">Availability</text>
+            <text x="558" y="238" text-anchor="middle" font-size="12" font-weight="900" fill="#151515">Partition tolerance</text>
+
+            <text x="320" y="150" text-anchor="middle" font-size="10.5" font-weight="700" fill="#505a68">CP</text>
+            <text x="320" y="168" text-anchor="middle" font-size="9.5" font-weight="600" fill="#505a68">(từ chối khi mất kết nối)</text>
+
+            <text x="200" y="196" text-anchor="middle" font-size="10.5" font-weight="700" fill="#505a68">AP</text>
+            <text x="200" y="212" text-anchor="middle" font-size="9.5" font-weight="600" fill="#505a68">(vẫn phục vụ, có thể stale)</text>
+
+            <circle cx="320" cy="108" r="5" fill="#5294ff" stroke="#151515" stroke-width="1.6"/>
+            <text x="336" y="112" font-size="9.5" font-weight="700" fill="#151515">ZooKeeper, etcd, HBase</text>
+
+            <circle cx="240" cy="180" r="5" fill="#10b981" stroke="#151515" stroke-width="1.6"/>
+            <text x="136" y="150" font-size="9.5" font-weight="700" fill="#151515">Cassandra, DynamoDB</text>
+
+            <circle cx="330" cy="140" r="5" fill="#f4d77c" stroke="#151515" stroke-width="1.6"/>
+            <text x="344" y="144" font-size="9.5" font-weight="700" fill="#151515">MongoDB (majority)</text>
+          </svg>
+          <div class="diagram-cap">Hình 0.4 — Vị trí tương đối. Trong thực tế hệ thống có thể cấu hình được (DynamoDB có strong read, Mongo có write concern).</div>
+        </div>
+
+        <h3>PACELC — bổ sung phần quan trọng hơn</h3>
+        <p>Daniel Abadi nhận ra CAP chỉ nói về lúc có partition, trong khi phần lớn thời gian hệ thống <em>bình thường</em>. PACELC nói: <strong>nếu P → chọn A hoặc C; Else → chọn Latency hoặc Consistency</strong>.</p>
+        <p>Ví dụ: DynamoDB có thể cấu hình strongly consistent read, nhưng phải trả giá bằng <span class="kw">latency</span> cao hơn (phải chờ majority). Đây mới là trade-off bạn gặp hằng ngày.</p>
+
+        <h3>Các mô hình nhất quán</h3>
+        <ul class="list-bullet">
+          <li><span class="kw">Strong consistency</span> — đọc luôn thấy write mới nhất. Đắt, cần consensus hoặc single node.</li>
+          <li><span class="kw">Linearizability</span> — mạnh hơn strong: mọi operation trông như thực hiện tuần tự tại một thời điểm.</li>
+          <li><span class="kw">Causal consistency</span> — nếu A xảy ra trước B thì mọi node thấy A trước B. Thực dụng cho mạng xã hội.</li>
+          <li><span class="kw">Eventual consistency</span> — các replica sẽ hội tụ nếu không có write mới. Rẻ, scale tốt.</li>
+          <li><span class="kw">Read-your-writes</span> — user đọc thấy write của chính mình. Thường dùng session pin.</li>
+        </ul>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Áp dụng thực tế</div>
+            <p>Với hệ thống tin nhắn: gửi tin (write) — giữ nguyên thứ tự causal; hiển thị avatar — eventual consistency hoàn toàn ổn; số dư ví — bắt buộc strong/linearizable. Một hệ thống thường có nhiều mức nhất quán ở nhiều phần khác nhau.</p>
+          </div>
+        </div>

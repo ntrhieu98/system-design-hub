@@ -1,0 +1,120 @@
+---
+title: "Bản đồ building blocks — mỗi cái giải quyết vấn đề gì"
+description: "Trước khi học từng cái, hãy nhìn chúng như một bộ đồ nghề. Mỗi dụng cụ tồn tại vì một vấn đề cụ thể. Nếu bạn không nêu được vấn đề, bạn đang over-engineer."
+module: 2
+order: 1
+num: "2.1"
+sectionId: "overview"
+---
+<p>Trước khi học từng cái, hãy nhìn chúng như một <span class="kw">bộ đồ nghề</span>. Mỗi dụng cụ tồn tại vì một vấn đề cụ thể. Nếu bạn không nêu được vấn đề, bạn đang over-engineer.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Building block</th><th>Vấn đề nó giải quyết</th><th>Triệu chứng nếu thiếu</th><th>Triệu chứng nếu lạm dụng</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Load Balancer</strong></td><td>Một máy không chịu nổi tải; cần HA</td><td>1 server quá tải, downtime khi chết</td><td>Thêm 1 hop latency; LB thành SPOF nếu chỉ 1 cái</td></tr>
+              <tr><td><strong>Cache</strong></td><td>Đọc lặp lại tốn kém; DB là bottleneck</td><td>DB chết vì read; P99 cao</td><td>Dữ liệu stale, invalidate sai, cache stampede</td></tr>
+              <tr><td><strong>Rate Limiter</strong></td><td>Bảo vệ hệ thống khỏi abuse/burst</td><td>Bị DDoS, 1 client chiếm hết tài nguyên</td><td>Chặn nhầm user thật; thêm 1 round-trip Redis</td></tr>
+              <tr><td><strong>Message Queue</strong></td><td>Tách producer/consumer, xử lý bất đồng bộ</td><td>Request chậm vì gọi đồng bộ; mất task khi crash</td><td>Lag tăng vô hạn; khó debug; eventual consistency</td></tr>
+              <tr><td><strong>CDN</strong></td><td>Nội dung tĩnh đi xa; origin quá tải</td><td>Latency toàn cầu cao; egress cost lớn</td><td>Cache nội dung động → sai dữ liệu per-user</td></tr>
+              <tr><td><strong>Search Index</strong></td><td>Cần full-text search, fuzzy, ranking</td><td>LIKE '%x%' full scan, chậm và không xếp hạng</td><td>Đồng bộ index trễ; tốn storage gấp 2–3×</td></tr>
+              <tr><td><strong>API Gateway</strong></td><td>Xác thực, rate limit, routing tập trung</td><td>Mỗi service tự làm auth → trùng lặp, lệch nhau</td><td>Gateway phình to thành monolith mới</td></tr>
+              <tr><td><strong>Service Discovery</strong></td><td>Instance IP thay đổi liên tục</td><td>Hard-code IP; deploy xong là hỏng</td><td>Thêm phụ thuộc; DNS cache TTL gây lỗi</td></tr>
+              <tr><td><strong>ID Generator</strong></td><td>Cần ID duy nhất, không đoán được, sắp xếp được</td><td>Auto-increment 1 DB không scale; UUID random phá index</td><td>Clock skew làm ID trùng/lệch</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Thứ tự ưu tiên khi thiết kế</h3>
+        <p>Khi phỏng vấn, đừng vẽ cả 9 block. Thứ tự hợp lý là:</p>
+        <ol class="list-num">
+          <li><strong>Luồng cơ bản chạy được</strong> — client → API → DB. Vẽ cái này trước, nó chiếm 80% thời gian.</li>
+          <li><strong>Chỗ nào đọc nhiều</strong> → thêm cache + read replica.</li>
+          <li><strong>Chỗ nào cần scale ngang</strong> → thêm load balancer.</li>
+          <li><strong>Chỗ nào cần bảo vệ</strong> → rate limiter, auth.</li>
+          <li><strong>Chỗ nào chậm nhưng không cần đồng bộ</strong> → message queue.</li>
+          <li><strong>Chỗ nào cần tìm kiếm</strong> → search index.</li>
+        </ol>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Lỗi phổ biến: vẽ hết building block ngay từ phút thứ 5</div>
+            <p>Người phỏng vấn sẽ hỏi "tại sao cần cái này?" và bạn phải trả lời bằng <em>con số</em>. Nếu ước lượng ra 500 QPS, một Postgres đơn là đủ — thêm Kafka chỉ làm hệ thống khó vận hành hơn mà không giải quyết vấn đề nào.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 420" role="img" aria-label="Sơ đồ vị trí các building block trong một kiến trúc web điển hình">
+            <defs>
+              <marker id="m2a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                <polygon points="0 0, 10 4, 0 8" fill="#505a68"/>
+              </marker>
+            </defs>
+            <g font-size="11" font-weight="700" fill="#151515">
+              <rect x="18" y="180" width="88" height="46" rx="9" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+              <text x="62" y="200" text-anchor="middle">Client</text>
+              <text x="62" y="214" text-anchor="middle" font-size="9.5" fill="#505a68">browser/app</text>
+
+              <rect x="130" y="172" width="96" height="62" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="178" y="194" text-anchor="middle">CDN edge</text>
+              <text x="178" y="208" text-anchor="middle" font-size="9.5" fill="#505a68">static + TLS</text>
+              <text x="178" y="222" text-anchor="middle" font-size="9.5" fill="#505a68">cache</text>
+
+              <rect x="250" y="172" width="104" height="62" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="302" y="194" text-anchor="middle">API Gateway</text>
+              <text x="302" y="208" text-anchor="middle" font-size="9.5" fill="#505a68">auth · rate limit</text>
+              <text x="302" y="222" text-anchor="middle" font-size="9.5" fill="#505a68">routing</text>
+
+              <rect x="378" y="172" width="96" height="62" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="426" y="194" text-anchor="middle">Load Balancer</text>
+              <text x="426" y="208" text-anchor="middle" font-size="9.5" fill="#505a68">L7 · health</text>
+              <text x="426" y="222" text-anchor="middle" font-size="9.5" fill="#505a68">check</text>
+
+              <rect x="498" y="120" width="104" height="52" rx="9" fill="#ffffff" stroke="#151515" stroke-width="2"/>
+              <text x="550" y="142" text-anchor="middle">Service A</text>
+              <text x="550" y="156" text-anchor="middle" font-size="9.5" fill="#505a68">stateless ×N</text>
+
+              <rect x="498" y="184" width="104" height="52" rx="9" fill="#ffffff" stroke="#151515" stroke-width="2"/>
+              <text x="550" y="206" text-anchor="middle">Service B</text>
+              <text x="550" y="220" text-anchor="middle" font-size="9.5" fill="#505a68">stateless ×N</text>
+
+              <rect x="498" y="248" width="104" height="52" rx="9" fill="#ffffff" stroke="#151515" stroke-width="2"/>
+              <text x="550" y="270" text-anchor="middle">Worker</text>
+              <text x="550" y="284" text-anchor="middle" font-size="9.5" fill="#505a68">async ×N</text>
+
+              <rect x="640" y="60" width="104" height="48" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+              <text x="692" y="80" text-anchor="middle">Redis</text>
+              <text x="692" y="94" text-anchor="middle" font-size="9.5" fill="#505a68">cache</text>
+
+              <rect x="640" y="122" width="104" height="48" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+              <text x="692" y="142" text-anchor="middle">Kafka</text>
+              <text x="692" y="156" text-anchor="middle" font-size="9.5" fill="#505a68">event log</text>
+
+              <rect x="640" y="184" width="104" height="48" rx="9" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+              <text x="692" y="204" text-anchor="middle">Primary DB</text>
+              <text x="692" y="218" text-anchor="middle" font-size="9.5" fill="#505a68">write</text>
+
+              <rect x="640" y="246" width="104" height="48" rx="9" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+              <text x="692" y="266" text-anchor="middle">Replicas</text>
+              <text x="692" y="280" text-anchor="middle" font-size="9.5" fill="#505a68">read</text>
+
+              <rect x="640" y="308" width="104" height="48" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="692" y="328" text-anchor="middle">Elasticsearch</text>
+              <text x="692" y="342" text-anchor="middle" font-size="9.5" fill="#505a68">search index</text>
+
+              <line x1="106" y1="203" x2="128" y2="203" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+              <line x1="226" y1="203" x2="248" y2="203" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+              <line x1="354" y1="203" x2="376" y2="203" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+              <line x1="474" y1="192" x2="496" y2="150" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+              <line x1="474" y1="203" x2="496" y2="208" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+              <line x1="474" y1="214" x2="496" y2="268" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+              <line x1="602" y1="146" x2="638" y2="90" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+              <line x1="602" y1="200" x2="638" y2="206" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+              <line x1="602" y1="274" x2="638" y2="148" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+              <line x1="602" y1="212" x2="638" y2="268" stroke="#505a68" stroke-width="2" marker-end="url(#m2a)"/>
+            </g>
+            <text x="380" y="398" text-anchor="middle" font-size="11" fill="#505a68" font-weight="600">Luồng đọc: CDN → Gateway → LB → Service → Redis (hit) hoặc Replica (miss)</text>
+          </svg>
+          <div class="diagram-cap">Hình 1 — Vị trí tương đối của 9 building block trong một kiến trúc web điển hình</div>
+        </div>

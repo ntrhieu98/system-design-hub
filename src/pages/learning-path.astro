@@ -1,0 +1,228 @@
+---
+// 12-week study plan. The per-step counts (số chủ đề, số câu hỏi, số diagram)
+// are read from the real content, so the plan can never advertise a topic or a
+// quiz that does not exist.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import { getModulesWithTopics, moduleExtras } from '../lib/content.js';
+import { SITE_STATS } from '../data/stats.js';
+
+const groups = await getModulesWithTopics();
+const stat = (id: number) => {
+  const g = groups.find((x) => x.meta.id === id);
+  const extras = moduleExtras(id);
+  return {
+    topics: g?.topics.length ?? 0,
+    keywords: extras.keywords.length,
+    quiz: extras.quiz.length,
+  };
+};
+
+const B = import.meta.env.BASE_URL;
+
+const steps = [
+  {
+    week: 'Tuần 1–2',
+    modules: [0],
+    title: 'Nền tảng — Module 0',
+    desc: 'Mạng (OSI, TCP/IP, DNS, TLS), tiến trình và luồng, ACID, index, CAP. Đây là module hay bị bỏ qua nhất và cũng là module khiến nhiều người trượt phỏng vấn — vì họ không giải thích được <em>tại sao</em> một thiết kế hoạt động.',
+    chips: [`${stat(0).topics} chủ đề`, `${stat(0).keywords} từ khoá highlight`, `${stat(0).quiz} câu hỏi`],
+    task: '<strong>Bài tập:</strong> Vẽ lại sơ đồ OSI vs TCP/IP từ trí nhớ. Giải thích bằng lời (không nhìn tài liệu) quá trình gõ một URL đến khi thấy trang.',
+  },
+  {
+    week: 'Tuần 3',
+    modules: [1],
+    title: 'Phương pháp — Module 1',
+    desc: 'Khung trả lời, cách hỏi yêu cầu, ước lượng back-of-envelope, đọc chỉ số độ trễ. Tuần này không dạy công nghệ mới — nó dạy <strong>cách suy nghĩ</strong>, và nó ảnh hưởng đến mọi tuần sau.',
+    chips: [`${stat(1).topics} chủ đề`, `${stat(1).quiz} câu hỏi`],
+    task: '<strong>Bài tập:</strong> Ước lượng 3 hệ thống bạn dùng hằng ngày (ví dụ Zalo, Shopee, YouTube) — QPS, storage/năm, bandwidth. Viết ra giấy, không dùng máy tính.',
+  },
+  {
+    week: 'Tuần 4–5',
+    modules: [2],
+    title: 'Building blocks — Module 2',
+    desc: 'Load balancer, cache, rate limiter, message queue, CDN, search index, unique ID. Đây là bộ đồ nghề — mỗi dụng cụ gắn với một vấn đề cụ thể. Tuần này nặng nhất về số lượng khái niệm.',
+    chips: [`${stat(2).topics} chủ đề`, `${stat(2).quiz} câu hỏi`],
+    task: '<strong>Bài tập:</strong> Với mỗi building block, viết 2 dòng: "vấn đề nó giải quyết" và "khi nào KHÔNG nên dùng". Phần thứ hai quan trọng hơn.',
+  },
+  {
+    week: 'Tuần 6–7',
+    modules: [3],
+    title: 'Dữ liệu & lưu trữ — Module 3',
+    desc: 'B+ tree vs LSM tree, index, replication, quorum, sharding, CDC. Module này giải thích <em>tại sao</em> các hệ thống bạn dùng có hành vi như vậy — kể cả những hành vi gây khó chịu như replication lag.',
+    chips: [`${stat(3).topics} chủ đề`, `${stat(3).quiz} câu hỏi`],
+    task: '<strong>Bài tập:</strong> Với một bảng 500 triệu dòng, thiết kế index cho 3 query khác nhau và giải thích cái nào dùng được index, cái nào full scan.',
+  },
+  {
+    week: 'Tuần 8 — mốc kiểm tra 1',
+    modules: [0, 1, 2, 3],
+    title: 'Tự làm bài đầu tiên (45 phút, bấm giờ)',
+    desc: 'Chưa học Module 4–7. Đây là lúc kiểm tra xem 7 tuần vừa rồi có vào đầu chưa: chọn một bài trong Module 5 (URL shortener), tự làm trong 45 phút, ghi âm lại.',
+    chips: ['Mốc kiểm tra', '45 phút'],
+    mark: true,
+    task: '<strong>Tự đánh giá:</strong> Nghe lại bản ghi. Có nêu con số không? Có nói trade-off không? Có nói failure mode không? Nếu thiếu 2 trong 3, quay lại ôn Module 1 và 2.',
+  },
+  {
+    week: 'Tuần 9',
+    modules: [4],
+    title: 'Hệ thống phân tán — Module 4',
+    desc: 'CAP/PACELC, Raft, 2PC vs Saga, circuit breaker, idempotency, distributed lock, observability, zero trust. Module khó nhất về mặt khái niệm — dành đủ thời gian.',
+    chips: [`${stat(4).topics} chủ đề`, `${stat(4).quiz} câu hỏi`],
+    task: '<strong>Bài tập:</strong> Giải thích trong 2 phút: "Vì sao exactly-once delivery bất khả thi nhưng exactly-once processing làm được?" Ghi âm, nghe lại.',
+  },
+  {
+    week: 'Tuần 10',
+    modules: [5],
+    title: 'Bài toán kinh điển — Module 5 (phần 1)',
+    desc: 'URL shortener, rate limiter, KV store, news feed, chat. Năm bài này lặp lại trong 80% buổi phỏng vấn thật. Làm kỹ 5 bài tốt hơn làm qua loa 20 bài.',
+    chips: ['5 bài đầu', `${Math.ceil(stat(5).topics / 2)} chủ đề`],
+    task: '<strong>Bài tập:</strong> Mỗi ngày một bài, 45 phút, bấm giờ. Ghi âm. Không xem đáp án trước khi hết giờ.',
+  },
+  {
+    week: 'Tuần 11',
+    modules: [5, 6],
+    title: 'Bài toán kinh điển — Module 5 (phần 2) + Module 6',
+    desc: 'Search/autocomplete, video, file storage, payment ledger, geo. Sau đó đọc Module 6 để biết cách đưa những thiết kế này vào vận hành thật: container, SRE, multi-region, chi phí.',
+    chips: ['5 bài sau', `${stat(6).topics} chủ đề M6`],
+    task: '<strong>Bài tập:</strong> Chọn 2 bài khó nhất (payment, news feed) và làm lại lần hai — lần này phải nói được cả chi phí hạ tầng.',
+  },
+  {
+    week: 'Tuần 12 — mốc kiểm tra 2',
+    modules: [0, 1, 2, 3, 4, 5, 6, 7],
+    title: 'Mock interview & Module 7',
+    desc: 'Tuần cuối là huấn luyện trình bày: khung 45 phút, nói trade-off, xử lý phản biện, checklist trước khi kết thúc. Làm 2–3 buổi mock với người thật.',
+    chips: ['Mốc kiểm tra', `${stat(7).topics} chủ đề`, '3 mock'],
+    mark: true,
+    task: '<strong>Bài tập:</strong> Mock với người chuyên ngắt mỗi 2 phút và hỏi "tại sao không dùng cách khác?". Chịu được 3 buổi là bạn sẵn sàng.',
+  },
+];
+
+const shortcuts = [
+  {
+    icon: '7', bg: 'bg-red', title: '7 ngày — chỉ để phỏng vấn',
+    lead: 'Đã có nền, phỏng vấn trong một tuần.',
+    list: ['Ngày 1–2: Module 7 (khung + trade-off)', 'Ngày 3–4: Module 5, bài 1–5', 'Ngày 5: Module 4 (CAP, idempotency)', 'Ngày 6: Module 5, bài 6–10', 'Ngày 7: Mock interview'],
+    ordered: true,
+  },
+  {
+    icon: '4', bg: 'bg-blue', title: '4 tuần — cân bằng',
+    lead: 'Có nền cơ bản, muốn hệ thống hoá.',
+    list: ['Tuần 1: Module 2 + 3', 'Tuần 2: Module 5, bài 1–5', 'Tuần 3: Module 4 + 5, bài 6–10', 'Tuần 4: Module 6 + 7, mock'],
+    ordered: true,
+  },
+  {
+    icon: '∞', bg: 'bg-green', title: 'Không có deadline',
+    lead: 'Học đều mỗi tuần 3 giờ, không áp lực.',
+    list: ['Mỗi tuần 1 module nhỏ, hoặc nửa module lớn', 'Luôn làm quiz trước khi chuyển module', 'Mỗi tháng làm lại 1 bài cũ', 'Ghi chép 3 dòng sau mỗi chủ đề'],
+    ordered: false,
+  },
+];
+---
+
+<BaseLayout
+  title="Lộ trình 12 tuần — System Design"
+  description="Lộ trình học system design 12 tuần: mỗi tuần một module, mục tiêu rõ ràng, bài tập và mốc tự đánh giá."
+  active="path"
+>
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href={`${B}/`}>Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <span>Lộ trình</span>
+      </nav>
+      <h1 class="page-title">Lộ trình {SITE_STATS.weeks} tuần</h1>
+      <p class="page-lead">
+        Mỗi tuần khoảng 6–8 giờ: 3 giờ đọc, 3 giờ làm bài, 1–2 giờ ôn và ghi chép.
+        Đừng học 2 module cùng lúc — khoá học được thiết kế để đi tuần tự.
+      </p>
+
+      <div class="chip-row mt-4">
+        <span class="chip chip-yellow">{SITE_STATS.weeks} tuần</span>
+        <span class="chip">{SITE_STATS.modules} module</span>
+        <span class="chip">≈ 80 giờ</span>
+        <span class="chip">{steps.filter((s) => s.mark).length} mốc kiểm tra</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="callout callout-info mb-6">
+        <div class="callout-ico">i</div>
+        <div class="callout-body">
+          <div class="callout-title">Cách dùng lộ trình này</div>
+          <p>
+            Đây là <strong>đề xuất</strong>, không phải luật. Nếu bạn đã có nền về mạng và database,
+            gộp tuần 1–2 lại. Nếu bạn đang đi làm và chỉ cần ôn phỏng vấn, bắt đầu từ tuần 8.
+            Điều quan trọng là <span class="kw">làm bài tập</span> — đọc mà không làm thì sau 3 tuần sẽ quên.
+          </p>
+        </div>
+      </div>
+
+      <div class="timeline">
+        {steps.map((s) => (
+          <div class="tl-item" data-step-modules={s.modules.join(',')}>
+            <div class="tl-week">{s.week}</div>
+            <h3 class="tl-title">{s.title}</h3>
+            <p class="tl-desc" set:html={s.desc} />
+            <div class="tl-meta">
+              {s.chips.map((c) => (
+                <span class:list={['chip chip-mono', { 'chip-yellow': s.mark }]}>{c}</span>
+              ))}
+            </div>
+            <p class="tl-task" set:html={s.task} />
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Nếu bạn ít thời gian</div>
+          <h2 class="section-title">Ba lộ trình rút gọn</h2>
+        </div>
+      </div>
+
+      <div class="grid grid-3">
+        {shortcuts.map((c) => (
+          <div class="card">
+            <div class={`card-ico ${c.bg}`}>{c.icon}</div>
+            <h3 class="card-title">{c.title}</h3>
+            <p class="card-text">{c.lead}</p>
+            {c.ordered ? (
+              <ol class="list-num list-compact">
+                {c.list.map((li) => <li>{li}</li>)}
+              </ol>
+            ) : (
+              <ul class="list-bullet list-compact">
+                {c.list.map((li) => <li>{li}</li>)}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-cta">
+    <div class="container">
+      <div class="cta-box">
+        <div class="cta-copy">
+          <h2 class="cta-title">Sẵn sàng bắt đầu?</h2>
+          <p class="cta-text">
+            Tuần 1 bắt đầu bằng Module 0. Mất khoảng 2 tuần, và nó là module quan trọng nhất
+            cho mọi thứ phía sau.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary btn-lg" href={`${B}/modules/0`}>Bắt đầu Module 0 →</a>
+          <a class="btn btn-lg" href={`${B}/modules`}>Xem tất cả module</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

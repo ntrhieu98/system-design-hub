@@ -1,0 +1,132 @@
+---
+title: "Bảo mật trong hệ phân tán — zero trust & defence in depth"
+description: "Bảo mật không phải một lớp ở rìa (firewall) mà là nhiều lớp, trong đó giả định rằng lớp ngoài cùng sẽ bị vượt qua."
+module: 4
+order: 9
+num: "4.9"
+sectionId: "security"
+---
+<p>Bảo mật không phải một lớp ở rìa (firewall) mà là <span class="kw">nhiều lớp</span>, trong đó giả định rằng lớp ngoài cùng <em>sẽ</em> bị vượt qua. Zero trust nghĩa là: <span class="kw-r">không tin bất kỳ request nào chỉ vì nó đến từ trong mạng</span>.</p>
+
+        <h3>Vòng đời một request — mỗi bước là một cơ hội</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Lớp</th><th>Kiểm soát</th><th>Nếu thiếu</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Edge</strong></td><td>WAF, DDoS protection, rate limit theo IP</td><td>Bị flood, bị khai thác lỗ hổng web phổ biến</td></tr>
+              <tr><td><strong>AuthN</strong></td><td>OIDC/OAuth2, MFA, session/token ngắn hạn</td><td>Không biết ai đang gọi</td></tr>
+              <tr><td><strong>AuthZ</strong></td><td>RBAC/ABAC, kiểm tra ở <em>từng</em> service</td><td>IDOR: đổi <code>/orders/123</code> thành <code>/orders/124</code> đọc được đơn người khác</td></tr>
+              <tr><td><strong>Service-to-service</strong></td><td>mTLS, SPIFFE identity, JWT ngắn hạn</td><td>Một pod bị chiếm → gọi được mọi service khác</td></tr>
+              <tr><td><strong>Data at rest</strong></td><td>Mã hoá volume (KMS), mã hoá cột nhạy cảm</td><td>Lộ ổ đĩa/backup là lộ toàn bộ dữ liệu</td></tr>
+              <tr><td><strong>Data in transit</strong></td><td>TLS 1.3 mọi nơi, kể cả trong VPC</td><td>Sniffing giữa pod</td></tr>
+              <tr><td><strong>Secrets</strong></td><td>Vault/KMS, rotation tự động, không trong env/git</td><td>Secret lộ trong image hoặc log</td></tr>
+              <tr><td><strong>Audit</strong></td><td>Log mọi thao tác admin/privileged, không sửa được</td><td>Không biết ai đã làm gì khi sự cố xảy ra</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 330" role="img" aria-label="Kiến trúc zero trust với các lớp kiểm soát từ edge qua authN authZ tới service mesh và dữ liệu">
+            <defs>
+              <marker id="m4j" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#8b95a3">MỖI ĐƯỜNG VIỀN LÀ MỘT LẦN KIỂM TRA — KHÔNG TIN AI</text>
+
+            <rect x="16" y="40" width="728" height="200" rx="12" fill="#f8fafc" stroke="#8b95a3" stroke-width="2" stroke-dasharray="7 4"/>
+            <text x="32" y="62" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#8b95a3">INTERNET (không tin)</text>
+
+            <rect x="140" y="76" width="112" height="52" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="196" y="100" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">WAF + DDoS</text>
+            <text x="196" y="116" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">rate limit IP</text>
+
+            <rect x="276" y="76" width="112" height="52" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="332" y="100" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">AuthN</text>
+            <text x="332" y="116" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">OIDC + MFA</text>
+
+            <rect x="412" y="76" width="112" height="52" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="468" y="100" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">AuthZ</text>
+            <text x="468" y="116" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">RBAC/ABAC</text>
+
+            <rect x="548" y="76" width="180" height="52" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="638" y="100" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Service mesh</text>
+            <text x="638" y="116" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">mTLS + SPIFFE ID</text>
+
+            <path d="M252,102 L274,102" stroke="#505a68" stroke-width="2" marker-end="url(#m4j)"/>
+            <path d="M388,102 L410,102" stroke="#505a68" stroke-width="2" marker-end="url(#m4j)"/>
+            <path d="M524,102 L546,102" stroke="#505a68" stroke-width="2" marker-end="url(#m4j)"/>
+
+            <rect x="140" y="152" width="260" height="66" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="156" y="174" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Service A → Service B</text>
+            <text x="156" y="192" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Kiểm tra lại AuthZ với resource cụ thể:</text>
+            <text x="156" y="208" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">can(user, "read", order#123)?</text>
+
+            <rect x="424" y="152" width="304" height="66" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="440" y="174" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Dữ liệu</text>
+            <text x="440" y="192" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">TLS in transit · KMS at rest · cột nhạy cảm mã hoá riêng</text>
+            <text x="440" y="208" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">Secrets từ Vault, rotate 30 ngày, không trong env</text>
+
+            <rect x="16" y="256" width="352" height="60" rx="9" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="280" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">IDOR — lỗ hổng phổ biến nhất</text>
+            <text x="34" y="300" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Đổi id trong URL và đọc được dữ liệu người khác. Luôn kiểm tra ownership.</text>
+
+            <rect x="384" y="256" width="362" height="60" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="402" y="280" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Least privilege cho service account</text>
+            <text x="402" y="300" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Mỗi service chỉ có quyền trên bảng/topic nó thật sự cần.</text>
+          </svg>
+          <div class="diagram-cap">Hình 4.10 — Zero trust: mỗi bước là một lần xác thực, không có "vùng tin cậy"</div>
+        </div>
+
+        <h3>Ba lỗi bảo mật hay xuất hiện trong thiết kế</h3>
+        <ol class="list-num">
+          <li><strong>AuthZ chỉ ở gateway.</strong> Gateway kiểm tra "user đã đăng nhập chưa" nhưng không kiểm tra "user có quyền với resource này không". Khi service B nhận request nội bộ, nó tin tưởng hoàn toàn. Sửa: kiểm tra authorization ở <em>service sở hữu dữ liệu</em>, dùng token mang đủ claim hoặc gọi authz service.</li>
+          <li><strong>JWT không kiểm tra <code>aud</code> và <code>iss</code>.</strong> Token của service A bị dùng để gọi service B. Sửa: mỗi service chỉ chấp nhận token có <code>aud</code> đúng mình, và verify signature với JWKS đúng issuer. Đặt TTL ngắn (5–15 phút) + refresh token.</li>
+          <li><strong>Mã hoá nhưng không quản lý khoá.</strong> Mã hoá cột SSN bằng một key hard-code trong config. Khi key lộ, mọi dữ liệu lộ và bạn không thể rotate vì phải re-encrypt toàn bộ. Sửa: envelope encryption (KMS giữ master key, mỗi record có data key riêng), cột lưu <code>key_id</code> để rotate dần.</li>
+        </ol>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Bảo mật trong phỏng vấn — nói 3 câu là đủ</div>
+            <p>Đừng cố trình bày toàn bộ mô hình mối đe doạ. Chỉ cần: <strong>(1)</strong> "AuthN ở edge, AuthZ ở từng service với kiểm tra ownership." <strong>(2)</strong> "mTLS giữa các service, secret trong Vault có rotation, không bao giờ trong env hay image." <strong>(3)</strong> "Audit log bất biến cho mọi thao tác privileged, và PII được mã hoá ở cấp cột với key riêng để rotate được." Ba câu này che được phần lớn điểm bảo mật trong một buổi system design 45 phút — và quan trọng hơn, chúng đúng.</p>
+          </div>
+        </div>
+
+        <h3>Hai mô hình phân quyền — và giá của chúng</h3>
+        <p>AuthZ trong phỏng vấn thường bị trả lời bằng một từ "RBAC" rồi bỏ qua. Nhưng chọn RBAC hay ABAC quyết định số dòng code, số bảng, và số lần phải deploy khi luật thay đổi.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tiêu chí</th><th>RBAC (role-based)</th><th>ABAC / ReBAC (attribute, relationship)</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Mô hình</strong></td><td>User → Role → Permission. Kiểm tra "user có role X không"</td><td>Kiểm tra quan hệ: "user này có là editor của document này không"</td></tr>
+              <tr><td><strong>Câu hỏi trả lời được</strong></td><td>"Ai được xoá order?"</td><td>"User này được xoá <em>order này</em> không?"</td></tr>
+              <tr><td><strong>Độ phức tạp dữ liệu</strong></td><td>Vài bảng, join nhẹ</td><td>Bảng quan hệ (relationship tuples) tăng theo số cặp object; cần index theo object</td></tr>
+              <tr><td><strong>Khi luật thay đổi</strong></td><td>Thêm role/bit mới, thường không cần deploy</td><td>Thêm rule; thay đổi cấu trúc quan hệ đôi khi cần migrate dữ liệu</td></tr>
+              <tr><td><strong>Điểm chết người</strong></td><td><span class="kw-r">Role explosion</span>: "editor-của-phòng-ban-A-ở-chi-nhánh-HN" — không thể liệt kê hết</td><td>Mỗi request tốn nhiều truy vấn quan hệ; cache dễ sai khi quyền bị thu hồi</td></tr>
+              <tr><td><strong>Công cụ</strong></td><td>Casbin, Keycloak roles, policy engine đơn giản</td><td>OpenFGA, SpiceDB (Zanzibar-style), OPA với dữ liệu ngoài</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Cách trả lời đủ ý trong 30 giây</div>
+            <p>"RBAC cho những gì thuộc về vai trò toàn cục — admin, support, billing. ABAC/ReBAC cho những gì phụ thuộc vào từng object — chủ sở hữu document, thành viên project, người được share. Phần lớn hệ thống cần cả hai, và điểm quan trọng là kiểm tra ở service sở hữu dữ liệu, không chỉ ở gateway. Cache quyết định AuthZ theo TTL ngắn, và luôn có đường thu hồi tức thì khi user bị xoá khỏi project."</p>
+          </div>
+        </div>
+
+        <h3>Bí mật, khoá và vòng đời của chúng</h3>
+        <ul class="list-bullet">
+          <li><span class="kw">Envelope encryption</span>: KMS giữ <em>master key</em>; mỗi bản ghi hoặc mỗi file có <em>data key</em> riêng, data key được mã hoá bằng master key và lưu cạnh dữ liệu. Rotate master key không phải giải mã lại toàn bộ dữ liệu — chỉ cần giải mã lại các data key.</li>
+          <li><strong>Mã hoá theo cột, không theo bảng.</strong> Mã hoá cả bảng thì query trở nên vô dụng. Chỉ mã hoá cột thật nhạy cảm (số giấy tờ, số thẻ, ghi chú y tế) và lưu kèm <code>key_id</code> để biết bản ghi đó được mã hoá bằng key nào.</li>
+          <li><strong>Khoá không bao giờ trong env, image, hay git.</strong> Env của container đọc được từ <code>/proc</code>, image layer đọc được bằng <code>docker history</code>, và git thì không xoá được. Dùng Vault với short-lived credential, hoặc IAM role gắn với workload identity.</li>
+          <li><strong>Rotate phải luyện tập.</strong> Một quy trình rotate chưa từng chạy là một quy trình sẽ hỏng đúng lúc khẩn cấp. Chạy rotate định kỳ 90 ngày như một bài tập, không phải như một sự kiện.</li>
+        </ul>
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba thứ làm mất tác dụng của toàn bộ mô hình bảo mật</div>
+            <p><strong>(1) Service account dùng chung</strong> — không thể biết service nào làm gì, và rotate khoá là dừng toàn hệ thống. <strong>(2) "Internal network tin cậy"</strong> — một pod bị chiếm là đi khắp nơi; đây chính là lý do zero trust tồn tại. <strong>(3) Log chứa PII hoặc token</strong> — log là nơi ít ai bảo vệ nhất nhưng lại được replicate nhiều nhất. Ba lỗi này không nằm trong code mà nằm trong cách vận hành, nên chúng tồn tại lâu hơn mọi bug.</p>
+          </div>
+        </div>

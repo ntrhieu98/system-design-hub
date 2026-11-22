@@ -1,0 +1,56 @@
+---
+title: "Nói trade-off — kỹ năng được chấm điểm cao nhất"
+description: "Interviewer senior không quan tâm bạn chọn Kafka hay RabbitMQ. Họ quan tâm bạn có biết cái giá của lựa chọn đó và có thể bảo vệ nó trước phản biện."
+module: 7
+order: 3
+num: "7.3"
+sectionId: "tradeoffs"
+---
+<p>Interviewer senior không quan tâm bạn chọn Kafka hay RabbitMQ. Họ quan tâm bạn có biết <span class="kw">cái giá của lựa chọn đó</span> và có thể bảo vệ nó trước phản biện. Đây là phần dễ mất điểm nhất và cũng dễ ghi điểm nhất.</p>
+
+        <h3>Cấu trúc câu trade-off</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">PATTERN</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">// Công thức 4 phần</span>&#10;&#10;<span class="c-str">"Tôi chọn [X]"</span>&#10;  <span class="c-str">"vì [lý do gắn với yêu cầu cụ thể của bài này],"</span>&#10;  <span class="c-str">"đánh đổi là [nhược điểm cụ thể],"</span>&#10;  <span class="c-str">"và tôi giảm nhẹ bằng [biện pháp]."</span>&#10;&#10;<span class="c-com">// Ví dụ 1 — chọn cache-aside</span>&#10;<span class="c-str">"Tôi chọn cache-aside vì 95% traffic là read lặp lại và chấp nhận</span>&#10;<span class="c-str"> stale 60 giây. Đánh đổi là có cửa sổ stale và 3 round-trip khi miss.</span>&#10;<span class="c-str"> Tôi giảm nhẹ bằng TTL có jitter và single-flight lock cho key hot."</span>&#10;&#10;<span class="c-com">// Ví dụ 2 — chọn CP cho payment</span>&#10;<span class="c-str">"Với thanh toán tôi chọn CP — khi mất quorum tôi từ chối ghi. Đánh đổi</span>&#10;<span class="c-str"> là availability giảm trong sự cố network partition. Tôi giảm nhẹ bằng</span>&#10;<span class="c-str"> cách trả 503 kèm Retry-After và client có idempotency key để retry an toàn."</span>&#10;&#10;<span class="c-com">// Ví dụ 3 — chọn monolith</span>&#10;<span class="c-str">"Tôi chọn modular monolith cho giai đoạn này vì team 8 người chưa có</span>&#10;<span class="c-str"> vấn đề tổ chức. Đánh đổi là scale cả khối và một bug có blast radius</span>&#10;<span class="c-str"> lớn. Tôi giảm nhẹ bằng module boundary rõ + tách service khi có module</span>&#10;<span class="c-str"> cần scale khác biệt."</span></code></pre>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba câu trả lời tự động mất điểm</div>
+            <p><strong>1. "Nó tuỳ."</strong> — Không giải thích gì. Interviewer sẽ nghĩ bạn không biết. Nếu thật sự tuỳ, hãy nói: "Nó tuỳ vào X. Nếu X thì A, nếu không thì B. Với bài này tôi giả định X nên chọn A." <strong>2. "Giải pháp của tôi không có nhược điểm."</strong> — Mọi giải pháp đều có. Nói không có nghĩa là bạn chưa nghĩ đủ sâu hoặc đang bán ý tưởng. <strong>3. "Tôi dùng microservices vì nó scalable."</strong> — Đây là câu trả lời của người đọc blog, không phải kỹ sư. Scalable là thuộc tính, không phải lý do; lý do phải gắn với yêu cầu cụ thể (team size, deploy frequency, independent scaling).</p>
+          </div>
+        </div>
+
+        <h3>Bảng trade-off cho các quyết định phổ biến</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Quyết định</th><th>Chọn A khi</th><th>Chọn B khi</th></tr></thead>
+            <tbody>
+              <tr><td>SQL vs NoSQL</td><td><strong>SQL:</strong> cần transaction, quan hệ, query linh hoạt, dữ liệu &lt; TB</td><td><strong>NoSQL:</strong> access pattern biết trước, write cực lớn, schema thay đổi, multi-DC</td></tr>
+              <tr><td>Sync vs async</td><td><strong>Sync:</strong> user cần kết quả ngay, logic đơn giản, ít service</td><td><strong>Async:</strong> xử lý lâu, cần decouple, chịu được eventual</td></tr>
+              <tr><td>Normalize vs denormalize</td><td><strong>Normalize:</strong> ghi nhiều, dữ liệu hay đổi, cần nhất quán</td><td><strong>Denormalize:</strong> đọc nhiều, chấp nhận cập nhật lan rộng, cần tốc độ đọc</td></tr>
+              <tr><td>Cache ngắn vs dài TTL</td><td><strong>Ngắn:</strong> dữ liệu nhạy cảm thời gian (tồn kho, giá)</td><td><strong>Dài:</strong> dữ liệu ít đổi (profile, catalog), giảm tải nhiều hơn</td></tr>
+              <tr><td>Strong vs eventual</td><td><strong>Strong:</strong> tiền, tồn kho, uniqueness, auth</td><td><strong>Eventual:</strong> like, view, feed, gợi ý, analytics</td></tr>
+              <tr><td>Push vs pull (feed)</td><td><strong>Push:</strong> user thường, follower ít, đọc nhiều</td><td><strong>Pull:</strong> celebrity, follower lớn, đọc ít</td></tr>
+              <tr><td>Managed vs self-hosted</td><td><strong>Managed:</strong> team nhỏ, cần nhanh, không có chuyên gia</td><td><strong>Self-hosted:</strong> cần kiểm soát chi phí ở quy mô lớn, cần tuỳ biến sâu</td></tr>
+              <tr><td>Shard sớm vs muộn</td><td><strong>Sớm:</strong> biết chắc sẽ vượt 2TB hoặc 50k write/s</td><td><strong>Muộn:</strong> hầu hết trường hợp — shard là bước nhảy phức tạp</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Kỹ thuật nâng cao: nói trade-off của chính câu trả lời trước</div>
+            <p>Sau khi trình bày xong một phần, hãy tự phản biện: <em>"Cách này có một điểm yếu: nếu X xảy ra thì Y. Tôi chấp nhận vì Z, nhưng nếu yêu cầu là W thì tôi sẽ đổi sang cách khác."</em> Đây là dấu hiệu rất mạnh của senior — bạn không chỉ biết giải pháp mà còn biết <strong>điều kiện áp dụng</strong> của nó. Interviewer thường hỏi đúng vào điểm yếu đó, và bạn đã có câu trả lời sẵn.</p>
+          </div>
+        </div>
+
+        <h3>Xử lý khi bị phản biện</h3>
+        <ul class="list-check">
+          <li><strong>Không phòng thủ.</strong> "Đó là điểm hay, tôi chưa nghĩ đến. Với ràng buộc đó, tôi sẽ..." — thừa nhận nhanh, điều chỉnh nhanh. Đây là dấu hiệu của người làm việc được với người khác.</li>
+          <li><strong>Hỏi lại để hiểu ràng buộc mới.</strong> "Anh/chị đang giả định team không có ai biết vận hành Kafka — đúng không? Nếu vậy tôi sẽ đổi sang SQS."</li>
+          <li><strong>Phân biệt "sai" và "khác".</strong> Nếu interviewer đề xuất cách khác, không có nghĩa cách bạn sai. Nói: "Cách đó cũng đúng, và nó tối ưu cho Y thay vì X. Với yêu cầu ban đầu tôi vẫn nghiêng về cách của mình, nhưng nếu ưu tiên Y thì cách anh/chị nói tốt hơn."</li>
+          <li><strong>Thừa nhận khi thật sự không biết.</strong> "Tôi không nhớ chính xác cơ chế đó. Tôi biết nó liên quan đến X và tôi sẽ kiểm tra lại. Nhưng về mặt thiết kế, tôi cần nó đảm bảo Y." — Tốt hơn nhiều so với bịa.</li>
+        </ul>

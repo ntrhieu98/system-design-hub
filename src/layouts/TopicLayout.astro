@@ -1,0 +1,137 @@
+---
+// Layout for a single topic page: module hero is not repeated (the topic owns
+// the page), so this is sidebar + lesson + sticky TOC + prev/next pager.
+import BaseLayout from './BaseLayout.astro';
+import Sidebar from '../components/Sidebar.astro';
+import Icon from '../components/Icon.astro';
+import KeywordGrid from '../components/KeywordGrid.astro';
+import QuizSection from '../components/QuizSection.astro';
+import { moduleExtras, readingTime, topicUrl } from '../lib/content.js';
+
+interface Props {
+  groups: any[];
+  topic: any;
+  moduleMeta: any;
+  body: string;
+  prevTopic?: any;
+  nextTopic?: any;
+}
+
+const { groups, topic, moduleMeta, body, prevTopic, nextTopic } = Astro.props;
+const B = import.meta.env.BASE_URL;
+
+// Keywords and quiz belong to the module, so they are shown once — on the last
+// topic of the module — instead of being repeated on all eight pages.
+const isLast = topic.isLastInModule;
+const extras = moduleExtras(moduleMeta.id);
+const minutes = readingTime(body, topic.entry.data.estimatedMinutes);
+
+// Sibling topics inside the same module drive the "trong module này" list,
+// which is what a reader actually wants while studying one topic.
+const siblings = groups.find((g) => g.meta.id === moduleMeta.id)?.topics ?? [];
+---
+
+<BaseLayout title={`${topic.title} | Module ${moduleMeta.id} — ${moduleMeta.title}`} description={topic.description} active="topic">
+  <div class="progress-bar" role="progressbar" aria-label="Tiến độ đọc"></div>
+
+  <div class="container doc-shell">
+    <Sidebar groups={groups} currentModule={moduleMeta.id} currentSlug={topic.slug} />
+
+    <article class="doc-main">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href={`${B}/`}>Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <a href={`${B}/modules`}>Modules</a>
+        <span aria-hidden="true">/</span>
+        <a href={`${B}/modules/${moduleMeta.id}`}>Module {moduleMeta.id}</a>
+      </nav>
+
+      <div class="module-hero">
+        <div class="module-hero-top">
+          <span class="badge badge-yellow">Module {moduleMeta.id}</span>
+          <span class="badge">{moduleMeta.badge}</span>
+          <span class="badge badge-blue">{moduleMeta.level}</span>
+          <span class="badge badge-num" aria-label={`Chủ đề ${topic.num}`}>{topic.num}</span>
+        </div>
+        <h1 id="topic-title">{topic.title}</h1>
+        <p class="lead">{topic.description}</p>
+        <div class="meta-row">
+          <span class="meta-item"><Icon name="clock" size={14} /><span>{minutes} phút đọc</span></span>
+          <span class="meta-item"><Icon name="book" size={14} /><span>{siblings.length} mục trong module</span></span>
+          <span class="meta-item"><Icon name="gauge" size={14} /><span>{moduleMeta.level}</span></span>
+        </div>
+      </div>
+
+      <div class="topic-body">
+        <div id="lessonColumn">
+          {/* Below 1100px the course sidebar is hidden, so this panel holds
+              both the in-page <h3> TOC (filled by site.js) and the sibling
+              topics of the current module. */}
+          <details class="toc-mobile">
+            <summary>
+              <Icon name="book" size={14} />
+              <span>Mục lục &amp; chủ đề Module {moduleMeta.id}</span>
+            </summary>
+            <div class="toc-mobile-body">
+              <div class="toc-mobile-group" data-toc-headings hidden>
+                <div class="toc-mobile-label">Trong bài này</div>
+                <ul class="toc-mobile-list"></ul>
+              </div>
+              <div class="toc-mobile-group">
+                <div class="toc-mobile-label">Module {moduleMeta.id} — {siblings.length} chủ đề</div>
+                <ul class="toc-mobile-list">
+                  {siblings.map((t: any) => (
+                    <li>
+                      <a
+                        href={`${B}/modules/${moduleMeta.id}/${t.slug}`}
+                        class:list={[{ 'is-active': t.slug === topic.slug }]}
+                      >
+                        <span class="toc-mobile-num">{t.num}</span>
+                        <span>{t.title}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </details>
+
+          {/* The page title lives in .module-hero. Repeating it as an <h2> right
+              below produced two identical headings in a row. The <h1> above is
+              the section heading now; #lessonColumn keeps the anchor target. */}
+          <section class="lesson" id={topic.sectionId} aria-labelledby="topic-title">
+            {/* Topic body copy starts at <h3>, which used to sit under the
+                repeated <h2>. With that gone the outline would jump h1 → h3,
+                so a hidden <h2> keeps the document structure valid without
+                showing a heading the reader has just read in the hero. */}
+            <h2 class="sr-only">Nội dung bài</h2>
+            <slot />
+          </section>
+
+          {isLast && <KeywordGrid keywords={extras.keywords} />}
+          {isLast && <QuizSection quiz={extras.quiz} />}
+
+          <nav class="pager" aria-label="Điều hướng chủ đề">
+            {prevTopic ? (
+              <a href={`${B}${topicUrl(prevTopic.module, prevTopic.slug)}`}>
+                <span class="dir">← Trước</span>
+                <span class="name">{prevTopic.num} {prevTopic.title}</span>
+              </a>
+            ) : (
+              <span />
+            )}
+            {nextTopic ? (
+              <a class="next" href={`${B}${topicUrl(nextTopic.module, nextTopic.slug)}`}>
+                <span class="dir">Tiếp →</span>
+                <span class="name">{nextTopic.num} {nextTopic.title}</span>
+              </a>
+            ) : (
+              <span />
+            )}
+          </nav>
+        </div>
+
+      </div>
+    </article>
+  </div>
+</BaseLayout>

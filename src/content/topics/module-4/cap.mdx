@@ -1,0 +1,110 @@
+---
+title: "CAP, PACELC và sự thật bị hiểu sai nhiều nhất"
+description: "CAP được trích dẫn nhiều nhất và hiểu sai nhiều nhất trong toàn bộ ngành. Định lý nói: khi xảy ra network partition, một hệ phân tán không thể đồng thời đảm bảo Consistency (linearizability) và Availability."
+module: 4
+order: 2
+num: "4.2"
+sectionId: "cap"
+---
+<p>CAP được trích dẫn nhiều nhất và hiểu sai nhiều nhất trong toàn bộ ngành. Định lý nói: khi xảy ra <span class="kw">network partition</span>, một hệ phân tán <strong>không thể</strong> đồng thời đảm bảo Consistency (linearizability) và Availability. Không có partition thì không phải chọn.</p>
+
+        <h3>Ba chữ cái — định nghĩa chính xác</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Chữ</th><th>Nghĩa chính xác</th><th>Hiểu sai phổ biến</th></tr></thead>
+            <tbody>
+              <tr><td><strong>C</strong></td><td><em>Linearizability</em>: mọi read thấy write gần nhất đã hoàn thành, toàn cục, theo thời gian thực</td><td>"ACID C" (ràng buộc dữ liệu trong 1 DB) — khác hoàn toàn</td></tr>
+              <tr><td><strong>A</strong></td><td>Mọi request tới node còn sống đều nhận được response <em>không lỗi</em> (không cam kết dữ liệu mới nhất)</td><td>"Hệ thống luôn chạy" — không, chỉ là "không trả lỗi"</td></tr>
+              <tr><td><strong>P</strong></td><td>Mạng chia cắt khiến các node không nói chuyện được</td><td>"Chọn P hay không" — P xảy ra ngoài ý muốn, không phải lựa chọn</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">"Chọn 2 trong 3" là câu trả lời của người chưa hiểu CAP</div>
+            <p>P không phải thứ bạn chọn — mạng sẽ partition dù bạn muốn hay không. Vì vậy lựa chọn thật sự chỉ là: <strong>khi có partition, bạn hy sinh C hay A?</strong> Hệ thống CP (HDFS, etcd, Spanner) từ chối phục vụ khi mất quorum. Hệ thống AP (Cassandra, DynamoDB, Riak) vẫn phục vụ nhưng có thể trả dữ liệu cũ. Và trong 99,9% thời gian không có partition, câu hỏi CAP <em>không áp dụng gì cả</em> — đó là lúc PACELC phát huy tác dụng.</p>
+          </div>
+        </div>
+
+        <h3>PACELC — mô hình hữu ích hơn nhiều</h3>
+        <p><strong>P</strong>artition → <strong>A</strong> hoặc <strong>C</strong>; <strong>E</strong>lse → <strong>L</strong> hoặc <strong>C</strong>. Nhánh ELC mô tả hành vi hằng ngày, khi mọi thứ bình thường: bạn vẫn phải chọn giữa <em>latency</em> và <em>consistency</em>.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 380" role="img" aria-label="Cây quyết định PACELC phân loại các cơ sở dữ liệu theo hành vi khi có partition và khi bình thường">
+            <defs>
+              <marker id="m4b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="286" y="14" width="188" height="46" rx="9" fill="#151515" stroke="#151515" stroke-width="2"/>
+            <text x="380" y="43" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="700" fill="#f4d77c">Có partition?</text>
+
+            <path d="M330,60 C300,80 220,80 190,104" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m4b)"/>
+            <path d="M430,60 C460,80 540,80 570,104" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m4b)"/>
+            <text x="228" y="86" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="700" fill="#10b981">CÓ</text>
+            <text x="530" y="86" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="700" fill="#ef4444">KHÔNG</text>
+
+            <rect x="60" y="108" width="260" height="46" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="190" y="130" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Hy sinh Availability → CP</text>
+            <text x="190" y="146" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">từ chối phục vụ khi mất quorum</text>
+
+            <rect x="440" y="108" width="260" height="46" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="570" y="130" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Hy sinh Consistency → AP</text>
+            <text x="570" y="146" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">vẫn trả lời, có thể dữ liệu cũ</text>
+
+            <path d="M150,154 C120,176 100,180 90,204" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m4b)"/>
+            <path d="M230,154 C260,176 280,180 290,204" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m4b)"/>
+            <path d="M530,154 C500,176 480,180 470,204" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m4b)"/>
+            <path d="M610,154 C640,176 660,180 670,204" fill="none" stroke="#505a68" stroke-width="2" marker-end="url(#m4b)"/>
+
+            <rect x="16" y="208" width="148" height="72" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="90" y="232" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">PC / EC</text>
+            <text x="90" y="250" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">etcd, ZooKeeper</text>
+            <text x="90" y="266" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Spanner, Cockroach</text>
+
+            <rect x="180" y="208" width="148" height="72" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="254" y="232" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">PC / EL</text>
+            <text x="254" y="250" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">MongoDB (w:1)</text>
+            <text x="254" y="266" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Postgres async replica</text>
+
+            <rect x="360" y="208" width="148" height="72" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="434" y="232" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">PA / EL</text>
+            <text x="434" y="250" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Cassandra, Riak</text>
+            <text x="434" y="266" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">DynamoDB (default)</text>
+
+            <rect x="524" y="208" width="220" height="72" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="634" y="232" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">PA / EC</text>
+            <text x="634" y="250" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Hiếm: vẫn phục vụ nhưng</text>
+            <text x="634" y="266" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">đọc luôn từ leader (Spanner read-only)</text>
+
+            <rect x="16" y="300" width="728" height="66" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="324" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Điểm mấu chốt trong phỏng vấn</text>
+            <text x="34" y="344" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Đừng hỏi "chọn C hay A". Hãy hỏi "với entity này, khi mất kết nối giữa 2 DC, ta muốn từ chối ghi hay chấp nhận dữ liệu phân kỳ?".</text>
+            <text x="34" y="360" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Với số dư tài khoản: từ chối. Với lượt like: chấp nhận, merge sau. Hai entity trong cùng hệ thống có thể chọn khác nhau.</text>
+          </svg>
+          <div class="diagram-cap">Hình 4.2 — PACELC: nhánh E (bình thường) mới là nhánh quyết định trải nghiệm người dùng</div>
+        </div>
+
+        <h3>Năm mức nhất quán — ngôn ngữ chung để nói chuyện</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mức</th><th>Đảm bảo</th><th>Chi phí</th><th>Ví dụ dùng</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Linearizable</strong></td><td>Như một máy duy nhất, thời gian thực</td><td>Cao nhất: cần consensus hoặc leader đơn</td><td>Số dư, khoá phân tán, bầu leader</td></tr>
+              <tr><td><strong>Sequential</strong></td><td>Mọi client thấy cùng một thứ tự, không cần đúng thời gian thực</td><td>Cao</td><td>Log system, event ordering</td></tr>
+              <tr><td><strong>Causal</strong></td><td>Giữ nhân quả: không thấy trả lời trước câu hỏi</td><td>Trung bình (vector clock/HLC)</td><td>Bình luận, chat, tài liệu cộng tác</td></tr>
+              <tr><td><strong>Read-your-writes</strong></td><td>User thấy ghi của chính mình</td><td>Thấp (sticky routing)</td><td>Profile, giỏ hàng</td></tr>
+              <tr><td><strong>Eventual</strong></td><td>Sẽ hội tụ nếu ngừng ghi</td><td>Thấp nhất</td><td>Like count, view count, recommendation</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Câu trả lời ăn điểm</div>
+            <p>"Với phần thanh toán tôi chọn CP: khi mất quorum tôi từ chối ghi thay vì chấp nhận rủi ro trừ tiền hai lần. Với phần feed và like tôi chọn AP: dữ liệu trễ 2 giây không ảnh hưởng gì, nhưng không thể để user không load được feed. Nghĩa là tôi dùng hai store khác nhau cho hai nhóm entity, và chấp nhận rằng <em>không có nhất quán mạnh xuyên suốt hai store</em> — tôi dùng Saga/outbox để bù trừ." Đây là câu trả lời của người đã vận hành thật.</p>
+          </div>
+        </div>

@@ -1,0 +1,43 @@
+---
+title: "Latency, throughput và tail latency"
+description: "Hai hệ thống có cùng average latency có thể có trải nghiệm người dùng hoàn toàn khác nhau. Đây là lý do percentile quan trọng hơn average."
+module: 1
+order: 5
+num: "1.5"
+sectionId: "latency"
+---
+<p>Hai hệ thống có cùng average latency có thể có trải nghiệm người dùng hoàn toàn khác nhau. Đây là lý do <span class="kw">percentile</span> quan trọng hơn average.</p>
+
+        <h3>Vì sao average đánh lừa bạn</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">text</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code>100 request, latency (ms):&#10;1 request   : 5000 ms   <span class="c-com">← user này bỏ đi</span>&#10;99 requests : 50 ms&#10;&#10;Average = (5000 + 99×50) / 100 = 99,5 ms    <span class="c-com">← "trông ổn"</span>&#10;P50     = 50 ms&#10;P99     = 5000 ms                            <span class="c-com">← sự thật</span>&#10;&#10;<span class="c-com"># Với page load gọi 10 service song song:</span>&#10;P(at least 1 service chậm) = 1 - (1 - 0,01)^10 = 9,6%&#10;<span class="c-out">→ 1% tail latency của 1 service = 10% user gặp chậm!</span></code></pre>
+        </div>
+
+        <h3>Nguyên nhân tail latency</h3>
+        <ul class="list-bullet">
+          <li><strong>Queueing</strong> — khi utilization &gt; 70%, thời gian chờ tăng phi tuyến tính (công thức M/M/1).</li>
+          <li><strong>GC pause</strong> — stop-the-world của JVM/Go GC.</li>
+          <li><strong>Hot shard / hot key</strong> — một partition nhận quá nhiều request.</li>
+          <li><strong>Retry storm</strong> — client retry làm tăng tải, gây càng chậm.</li>
+          <li><strong>Background job</strong> — compaction, backup chiếm I/O.</li>
+        </ul>
+
+        <h3>Cách xử lý</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Kỹ thuật</th><th>Cách làm</th><th>Đánh đổi</th></tr></thead>
+            <tbody>
+              <tr><td><span class="kw">Hedged request</span></td><td>Gửi request sang replica thứ 2 nếu quá P95, lấy cái về trước</td><td>Tăng tải 5–10%</td></tr>
+              <tr><td><span class="kw">Bulkhead</span></td><td>Tách pool riêng cho từng dependency</td><td>Tốn tài nguyên hơn</td></tr>
+              <tr><td><span class="kw">Timeout + fallback</span></td><td>Trả dữ liệu cache thay vì chờ</td><td>Có thể stale</td></tr>
+              <tr><td><span class="kw">Backpressure</span></td><td>Từ chối sớm (429) thay vì xếp hàng vô hạn</td><td>Giảm throughput</td></tr>
+              <tr><td><span class="kw">Jitter</span></td><td>Random hoá thời gian retry/refresh</td><td>Không</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">python</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># Exponential backoff + full jitter — chuẩn cho retry</span>&#10;<span class="c-key">import</span> random, time&#10;&#10;<span class="c-key">def</span> <span class="c-fn">retry_with_backoff</span>(fn, max_attempts=<span class="c-num">5</span>, base=<span class="c-num">0.1</span>, cap=<span class="c-num">10</span>):&#10;    <span class="c-key">for</span> attempt <span class="c-key">in</span> range(max_attempts):&#10;        <span class="c-key">try</span>:&#10;            <span class="c-key">return</span> fn()&#10;        <span class="c-key">except</span> TransientError:&#10;            <span class="c-key">if</span> attempt == max_attempts - <span class="c-num">1</span>:&#10;                <span class="c-key">raise</span>&#10;            <span class="c-com"># full jitter: sleep ngẫu nhiên trong [0, exp]</span>&#10;            exp = min(cap, base * <span class="c-num">2</span> ** attempt)&#10;            sleep = random.uniform(<span class="c-num">0</span>, exp)&#10;            time.sleep(sleep)&#10;&#10;<span class="c-com"># Không có jitter → tất cả client retry cùng lúc → thundering herd</span>&#10;<span class="c-com"># Có jitter → tải trải đều theo thời gian</span></code></pre>
+        </div>

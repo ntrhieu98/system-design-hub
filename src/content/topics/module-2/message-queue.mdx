@@ -1,0 +1,123 @@
+---
+title: "Message Queue & Event Log — tách rời producer và consumer"
+description: "Message queue xuất hiện khi có công việc không cần hoàn thành ngay trong request. Gửi email, tạo thumbnail, đồng bộ search index, charge thẻ — tất cả đều nên bất đồng bộ."
+module: 2
+order: 5
+num: "2.5"
+sectionId: "message-queue"
+---
+<p>Message queue xuất hiện khi có công việc <span class="kw">không cần hoàn thành ngay</span> trong request. Gửi email, tạo thumbnail, đồng bộ search index, charge thẻ — tất cả đều nên bất đồng bộ.</p>
+
+        <h3>Queue vs Log — hai mô hình khác nhau về bản chất</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tiêu chí</th><th>Message Queue</th><th>Event Log</th></tr></thead>
+            <tbody>
+              <tr><td>Đại diện</td><td>SQS, RabbitMQ, Redis Streams</td><td>Kafka, Kinesis, Pulsar, Redpanda</td></tr>
+              <tr><td>Sau khi consume</td><td>Message bị xoá khỏi queue</td><td>Vẫn nằm trong log, giữ theo retention</td></tr>
+              <tr><td>Nhiều consumer</td><td>Mỗi message chỉ 1 consumer (competing consumers)</td><td>Nhiều consumer group đọc độc lập cùng một dòng</td></tr>
+              <tr><td>Replay</td><td>Không (đã xoá)</td><td>Có — tua lại offset, xử lý lại lịch sử</td></tr>
+              <tr><td>Thứ tự</td><td>Không đảm bảo (trừ FIFO queue)</td><td>Đảm bảo trong một partition</td></tr>
+              <tr><td>Throughput</td><td>Cao, nhưng thấp hơn Kafka nhiều</td><td>Rất cao (hàng triệu msg/s mỗi cluster)</td></tr>
+              <tr><td>Dùng khi</td><td>Task queue, job nền, background work</td><td>Event sourcing, CDC, analytics, fan-out nhiều hệ thống</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 740 380" role="img" aria-label="So sánh mô hình message queue và event log với partition">
+            <defs>
+              <marker id="m2q" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+                <polygon points="0 0, 10 4, 0 8" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="170" y="24" text-anchor="middle" font-size="13" font-weight="800" fill="#151515">Queue — message biến mất</text>
+            <text x="560" y="24" text-anchor="middle" font-size="13" font-weight="800" fill="#151515">Log — message ở lại</text>
+
+            <g font-size="11" font-weight="700" fill="#151515">
+              <rect x="20" y="60" width="76" height="40" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+              <text x="58" y="85" text-anchor="middle">Producer</text>
+
+              <rect x="126" y="50" width="120" height="60" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="186" y="72" text-anchor="middle">Queue</text>
+              <text x="186" y="88" text-anchor="middle" font-size="9.5" fill="#505a68">m1 m2 m3</text>
+              <text x="186" y="102" text-anchor="middle" font-size="9.5" fill="#ef4444">xoá sau ack</text>
+
+              <rect x="276" y="36" width="80" height="36" rx="8" fill="#ffffff" stroke="#151515" stroke-width="2"/>
+              <text x="316" y="59" text-anchor="middle" font-size="10">Worker 1</text>
+              <rect x="276" y="82" width="80" height="36" rx="8" fill="#ffffff" stroke="#151515" stroke-width="2"/>
+              <text x="316" y="105" text-anchor="middle" font-size="10">Worker 2</text>
+
+              <line x1="96" y1="80" x2="124" y2="80" stroke="#505a68" stroke-width="2" marker-end="url(#m2q)"/>
+              <line x1="246" y1="68" x2="274" y2="56" stroke="#505a68" stroke-width="2" marker-end="url(#m2q)"/>
+              <line x1="246" y1="92" x2="274" y2="100" stroke="#505a68" stroke-width="2" marker-end="url(#m2q)"/>
+
+              <text x="186" y="150" text-anchor="middle" font-size="10" fill="#ef4444" font-weight="700">✗ Không replay được</text>
+              <text x="186" y="168" text-anchor="middle" font-size="10" fill="#505a68">✗ 1 message = 1 consumer</text>
+              <text x="186" y="186" text-anchor="middle" font-size="10" fill="#10b981">✓ Đơn giản, task queue tốt</text>
+
+              <rect x="400" y="60" width="76" height="40" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+              <text x="438" y="85" text-anchor="middle">Producer</text>
+
+              <rect x="506" y="44" width="210" height="72" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+              <text x="611" y="62" text-anchor="middle">Topic: orders (3 partitions)</text>
+              <rect x="514" y="70" width="62" height="36" rx="5" fill="#ffffff" stroke="#151515" stroke-width="1.5"/>
+              <text x="545" y="92" text-anchor="middle" font-size="9">P0: 0 1 2 3</text>
+              <rect x="580" y="70" width="62" height="36" rx="5" fill="#ffffff" stroke="#151515" stroke-width="1.5"/>
+              <text x="611" y="92" text-anchor="middle" font-size="9">P1: 0 1 2</text>
+              <rect x="646" y="70" width="62" height="36" rx="5" fill="#ffffff" stroke="#151515" stroke-width="1.5"/>
+              <text x="677" y="92" text-anchor="middle" font-size="9">P2: 0 1</text>
+
+              <line x1="476" y1="80" x2="504" y2="80" stroke="#505a68" stroke-width="2" marker-end="url(#m2q)"/>
+
+              <rect x="470" y="150" width="86" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="513" y="171" text-anchor="middle" font-size="9.5">Group A: billing</text>
+              <rect x="470" y="192" width="86" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="513" y="213" text-anchor="middle" font-size="9.5">Group B: search</text>
+              <rect x="470" y="234" width="86" height="34" rx="6" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="513" y="255" text-anchor="middle" font-size="9.5">Group C: analytics</text>
+
+              <path d="M611 116 L611 140 L558 140 L558 168" stroke="#505a68" stroke-width="2" fill="none" marker-end="url(#m2q)"/>
+              <path d="M611 116 L611 140 L558 140 L558 210" stroke="#505a68" stroke-width="2" fill="none" marker-end="url(#m2q)"/>
+              <path d="M611 116 L611 140 L558 140 L558 252" stroke="#505a68" stroke-width="2" fill="none" marker-end="url(#m2q)"/>
+
+              <text x="600" y="296" text-anchor="middle" font-size="10" fill="#10b981" font-weight="700">✓ Replay bằng cách reset offset</text>
+              <text x="600" y="314" text-anchor="middle" font-size="10" fill="#10b981" font-weight="700">✓ N consumer group độc lập</text>
+              <text x="600" y="332" text-anchor="middle" font-size="10" fill="#505a68">✓ Thứ tự trong 1 partition</text>
+            </g>
+            <text x="370" y="366" text-anchor="middle" font-size="11" fill="#505a68" font-weight="600">Queue cho công việc; Log cho sự kiện cần nhiều bên cùng đọc</text>
+          </svg>
+          <div class="diagram-cap">Hình 3 — Queue xoá message sau khi xử lý; Log giữ lại và cho phép nhiều consumer group</div>
+        </div>
+
+        <h3>Ba đảm bảo giao nhận và cái giá phải trả</h3>
+        <ul class="list-bullet">
+          <li><span class="kw">At-most-once</span> — gửi 1 lần, có thể mất. Nhanh, dùng cho metric, log không quan trọng.</li>
+          <li><span class="kw">At-least-once</span> — gửi tới khi được ack, có thể <em>trùng</em>. Mặc định của gần như mọi queue. Bắt buộc consumer phải <span class="kw-g">idempotent</span>.</li>
+          <li><span class="kw">Exactly-once</span> — chỉ có thể đạt được trong phạm vi hẹp (Kafka transactional producer + consumer, hoặc transaction trong DB). Trong hệ phân tán thực sự, "exactly-once delivery" là <em>bất khả thi</em> — chỉ có "exactly-once <strong>processing</strong>" đạt được bằng idempotency + dedupe.</li>
+        </ul>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Cách làm consumer idempotent</div>
+            <p>Một trong ba cách: (1) <strong>Idempotency key</strong> — producer sinh UUID cho mỗi message, consumer ghi vào bảng <code>processed_keys</code> với unique constraint, insert fail nghĩa là đã xử lý; (2) <strong>Upsert thay vì insert</strong> — <code>INSERT ... ON CONFLICT DO NOTHING</code> biến retry thành no-op; (3) <strong>State machine có điều kiện</strong> — <code>UPDATE orders SET status='paid' WHERE status='pending'</code>, nếu update 0 row thì đã xử lý rồi.</p>
+          </div>
+        </div>
+
+        <h3>Những vấn đề vận hành ít ai nói</h3>
+        <ul class="list-bullet">
+          <li><strong>Consumer lag</strong> — số message chưa xử lý. Lag tăng đều nghĩa là consumer chậm hơn producer. Phải alert trên lag, không chỉ trên error rate.</li>
+          <li><strong>Poison message</strong> — message luôn làm consumer crash. Không có dead-letter queue (DLQ) thì consumer chết vòng lặp vô hạn ở đầu queue, chặn toàn bộ message sau.</li>
+          <li><strong>Ordering</strong> — Kafka chỉ đảm bảo thứ tự trong 1 partition. Muốn tất cả event của 1 user theo thứ tự, phải set partition key = <code>user_id</code>. Hệ quả: hot user tạo hot partition.</li>
+          <li><strong>Rebalance</strong> — khi thêm consumer, partition bị chia lại, có khoảng dừng ngắn. Với processing lâu, phải cấu hình <code>max.poll.interval.ms</code> và heartbeat hợp lý.</li>
+          <li><strong>Backpressure</strong> — khi consumer không theo kịp, phải giới hạn producer (bounded queue, 429) thay vì để lag phình tới hàng tỷ message.</li>
+        </ul>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Đừng dùng queue để che giấu thiết kế sai</div>
+            <p>Nếu user phải <em>chờ</em> kết quả, queue không giúp gì — bạn chỉ chuyển latency từ đồng bộ sang polling. Queue đúng khi: công việc không cần kết quả ngay, cần retry bền bỉ, hoặc cần nhiều consumer độc lập. Queue sai khi: chỉ để "trông có vẻ scalable" mà không có lý do rõ ràng — bạn đánh đổi sự đơn giản lấy eventual consistency, vận hành phức tạp, và debug khó hơn nhiều.</p>
+          </div>
+        </div>

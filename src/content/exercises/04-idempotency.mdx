@@ -1,0 +1,90 @@
+---
+id: "04"
+title: "Idempotency & retry — chống trừ tiền hai lần"
+level: advanced
+summary: "Bài tập về tính đúng đắn trong hệ phân tán: thiết kế khoá idempotency cho API thanh toán, xử lý request trùng do client retry và do message queue giao lại, và chứng minh không có trường hợp nào trừ tiền hai lần."
+specs: [{ k: "Throughput", v: "2.000 TPS đỉnh" }, { k: "Tỉ lệ retry", v: "~3% tổng request" }, { k: "Cửa sổ idempotency", v: "24 giờ" }, { k: "Cơ chế giao nhận", v: "At-least-once" }, { k: "Module liên quan", v: "4" }]
+module: 4
+order: 4
+---
+
+## Mục tiêu
+
+Thiết kế API `POST /payments` sao cho dù client retry, mạng bị đứt giữa chừng, hay message queue giao lại, **mỗi giao dịch chỉ trừ tiền đúng một lần**. Đây là bài tập về tính đúng đắn, không phải về throughput.
+
+## Yêu cầu
+
+### Yêu cầu chức năng
+
+1. **Tạo thanh toán**: client gửi số tiền, tài khoản nguồn, tài khoản đích
+2. **Chống trùng**: cùng một ý định thanh toán gửi nhiều lần chỉ tạo một giao dịch
+3. **Truy vấn trạng thái**: client hỏi lại kết quả của một lần gọi trước
+4. **Hoàn tiền một phần**: cũng phải idempotent
+
+### Yêu cầu phi chức năng
+
+1. **Không trừ tiền hai lần** trong bất kỳ tình huống nào — đây là ràng buộc tuyệt đối
+2. **Độ trễ**: p99 dưới 800ms khi không phải chờ PSP
+3. **Cửa sổ chống trùng**: 24 giờ, sau đó key có thể bị xoá
+4. **Khả dụng**: nếu store idempotency chết thì không được tạo giao dịch
+
+## Gợi ý
+
+### Ước lượng trước khi thiết kế
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+    <tbody>
+      <tr><td>TPS đỉnh</td><td>2.000</td><td>Flash sale</td></tr>
+      <tr><td>Request trùng phải xử lý</td><td>~60/s</td><td>3% của 2.000 — client retry, LB retry, timeout</td></tr>
+      <tr><td>Số key trong 24h</td><td>~1,7×10⁸</td><td>2.000 × 86.400</td></tr>
+      <tr><td>Bộ nhớ key store</td><td>~17 GB</td><td>1,7×10⁸ × 100 byte (key + response hash + TTL)</td></tr>
+      <tr><td>Đọc key store</td><td>~4.000/s</td><td>2 ghi/đọc cho mỗi request: kiểm tra + ghi kết quả</td></tr>
+      <tr><td>Độ trễ thêm</td><td>~1–2ms</td><td>Một roundtrip Redis trong VPC</td></tr>
+    </tbody>
+  </table>
+</div>
+<p><strong>17 GB và 4.000 ops/s</strong> — vừa một cụm Redis nhỏ. Điều này quan trọng: cơ chế chống trùng không cần một hệ phân tán phức tạp, nó cần đúng một chỗ lưu trạng thái và một quy tắc rõ ràng về thứ tự thao tác.</p>
+
+### Sai lầm phổ biến: check-then-act
+
+<div class="codeblock">
+  <div class="codeblock-head"><span class="codeblock-lang">PSEUDO</span><button class="codeblock-copy" type="button">Copy</button></div>
+  <pre><code><span class="c-com">// SAI: hai request đồng thời cùng qua bước kiểm tra</span>&#10;<span class="c-key">if</span> (store.<span class="c-fn">exists</span>(key)) <span class="c-key">return</span> store.<span class="c-fn">get</span>(key);   <span class="c-com">// cả hai thấy false</span>&#10;<span class="c-fn">charge</span>(account);                                    <span class="c-com">// cả hai đều trừ tiền</span>&#10;store.<span class="c-fn">set</span>(key, result);&#10;&#10;<span class="c-com">// ĐÚNG: chiếm key nguyên tử trước khi làm bất cứ điều gì</span>&#10;<span class="c-key">if</span> (!store.<span class="c-fn">setnx</span>(key, <span class="c-str">"in_progress"</span>, ttl=<span class="c-num">24</span>h)) &#123;&#10;  <span class="c-key">return</span> store.<span class="c-fn">get</span>(key);   <span class="c-com">// người thứ hai đọc trạng thái của người thứ nhất</span>&#10;&#125;&#10;<span class="c-key">try</span> &#123;&#10;  result = <span class="c-fn">charge</span>(account);&#10;  store.<span class="c-fn">set</span>(key, result);&#10;&#125; <span class="c-key">catch</span> (e) &#123;&#10;  store.<span class="c-fn">del</span>(key);   <span class="c-com">// thất bại thì nhả key để client retry được</span>&#10;  <span class="c-key">throw</span> e;&#10;&#125;</code></pre>
+</div>
+<p>Ba chi tiết dễ bỏ sót trong đoạn trên: <strong>(1)</strong> trạng thái trung gian <code>in_progress</code> là bắt buộc — nếu không, request thứ hai thấy key đã tồn tại nhưng không có kết quả và trả về null. <strong>(2)</strong> phải nhả key khi lỗi, nếu không client mất khả năng retry trong 24 giờ. <strong>(3)</strong> TTL phải dài hơn thời gian retry tối đa của client, nếu không một retry muộn sẽ tạo giao dịch mới.</p>
+
+## Câu hỏi phải trả lời
+
+### 1. Nếu request thứ hai đến khi request thứ nhất đang xử lý?
+
+**Trả lời mẫu:** trả về <code>409 Conflict</code> kèm header <code>Retry-After</code>, hoặc chờ có giới hạn (long-poll 2 giây) rồi trả kết quả nếu đã xong. Không bao giờ để request thứ hai tự xử lý tiếp — đó chính là lỗi trừ tiền hai lần. Client phải hiểu 409 nghĩa là "đang xử lý, đừng tạo mới".
+
+### 2. Message queue giao lại thì sao?
+
+**Trả lời mẫu:** cùng một cơ chế, nhưng key không do client sinh mà do <strong>producer sinh một lần</strong> và nhét vào message. Consumer dùng chính key đó để chống trùng. Điểm quan trọng: nếu key do consumer sinh thì mỗi lần giao lại sẽ ra key mới và cơ chế vô dụng — đây là lỗi rất hay gặp khi review code.
+
+### 3. Làm sao chứng minh không thể trừ tiền hai lần?
+
+**Trả lời mẫu:** hai tầng. Tầng một: khoá idempotency với thao tác nguyên tử đảm bảo chỉ một luồng đi qua. Tầng hai: bút toán ledger có ràng buộc duy nhất trên <code>(idempotency_key)</code> ở database — nếu tầng một hỏng, database từ chối bản ghi thứ hai. Đây là nguyên tắc chung: <strong>đừng bao giờ chỉ dựa vào một lớp bảo vệ</strong>, và ràng buộc cuối cùng phải nằm ở tầng có durability.
+
+### 4. Hoàn tiền một phần thì idempotent thế nào?
+
+**Trả lời mẫu:** mỗi lần hoàn tiền là một bút toán mới với key riêng, không phải sửa bút toán cũ. Client sinh key cho từng ý định hoàn tiền. Ràng buộc thêm: tổng số tiền đã hoàn không được vượt số tiền gốc — kiểm tra này phải nằm trong cùng transaction với bút toán, dưới khoá của giao dịch gốc, nếu không hai lần hoàn tiền đồng thời có thể vượt ngưỡng.
+
+## Sản phẩm cần nộp
+
+1. **Thiết kế khoá**: ai sinh key, TTL bao lâu, trạng thái nào được lưu
+2. **Luồng xử lý**: pseudocode cho cả ba tình huống (mới, trùng, đang xử lý)
+3. **Ràng buộc database**: câu lệnh DDL thể hiện unique constraint và cách nó chặn trùng
+4. **Bộ test**: các ca biên — retry sau khi thành công, retry sau khi lỗi, hai request đồng thời, retry sau khi TTL hết
+
+## Tiêu chí đạt
+
+- [ ] Không dùng check-then-act ở bất kỳ đâu trong luồng
+- [ ] Có trạng thái trung gian và cách nhả key khi lỗi
+- [ ] Key do phía tạo ra ý định sinh, không phải consumer
+- [ ] Có ràng buộc duy nhất ở database làm lớp bảo vệ cuối
+- [ ] Có test cho hai request đồng thời cùng key
+- [ ] Giải thích được vì sao TTL phải dài hơn cửa sổ retry của client

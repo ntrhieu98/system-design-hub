@@ -1,0 +1,141 @@
+---
+title: "B+ tree vs LSM tree — vì sao chọn engine lại quan trọng đến vậy"
+description: "Hầu hết mọi cơ sở dữ liệu bạn dùng đều dựa trên một trong hai cấu trúc lưu trữ này."
+module: 3
+order: 2
+num: "3.2"
+sectionId: "storage-engines"
+---
+<p>Hầu hết mọi cơ sở dữ liệu bạn dùng đều dựa trên một trong hai cấu trúc lưu trữ này. Hiểu chúng, bạn giải thích được <span class="kw">tại sao Cassandra ghi nhanh hơn Postgres 10 lần</span> nhưng đọc point-lookup lại chậm hơn, và tại sao "xoá dữ liệu" trong LSM lại là một câu chuyện dài.</p>
+
+        <h3>B+ tree: cập nhật tại chỗ</h3>
+        <p>Dữ liệu được tổ chức thành các <span class="kw">page</span> 8KB (Postgres) hoặc 16KB (InnoDB). Mỗi page chứa nhiều key đã sắp xếp và con trỏ tới page con. Với fanout ~500 (mỗi page 16KB chứa ~500 cặp key+pointer 32 byte), chỉ cần <strong>4 tầng</strong> là lưu được 500⁴ ≈ 62,5 tỷ bản ghi. Chiều cao cây thấp như vậy nghĩa là mỗi lookup chỉ 3–4 lần đọc page — và tầng trên cùng gần như luôn nằm trong buffer pool.</p>
+        <ul class="list-bullet">
+          <li><strong>Ghi:</strong> tìm đúng page chứa key, sửa tại chỗ, ghi lại page. Đây là <span class="kw-r">random write</span> — trên HDD là ~5ms, trên SSD là ~0,1ms nhưng vẫn tốn IOPS. Trước khi sửa, mọi thay đổi được ghi vào <strong>WAL</strong> tuần tự để phục hồi sau crash.</li>
+          <li><strong>Đọc:</strong> đúng O(log n) page read, độ trễ <em>ổn định</em> và dự đoán được. Đây là lý do B+ tree được chọn cho OLTP có SLA p99 nghiêm ngặt.</li>
+          <li><strong>Range scan:</strong> rất tốt — các leaf page nối nhau bằng linked list, nên <code>WHERE created_at BETWEEN ...</code> chỉ cần tìm điểm bắt đầu rồi đi tiếp.</li>
+          <li><strong>Nhược điểm:</strong> mỗi lần ghi phải chạm 1 page ngẫu nhiên; page bị phân mảnh sau nhiều update; index và data tranh nhau buffer pool.</li>
+        </ul>
+
+        <h3>LSM tree: chỉ ghi tuần tự</h3>
+        <p>Ý tưởng cốt lõi: <span class="kw-y">không bao giờ sửa dữ liệu tại chỗ</span>. Mọi thứ là append.</p>
+        <ol class="list-num">
+          <li>Ghi vào <strong>WAL</strong> (tuần tự, nhanh) để không mất dữ liệu khi crash.</li>
+          <li>Ghi vào <strong>memtable</strong> — cấu trúc trong RAM, thường là skiplist để giữ thứ tự.</li>
+          <li>Memtable đầy (~64MB) → flush thành một <strong>SSTable</strong> (Sorted String Table) bất biến ở level 0. File mới không ghi đè file cũ.</li>
+          <li>Tiến trình nền <strong>compaction</strong> gộp các SSTable, xoá bản ghi trùng và tombstone, đẩy dữ liệu xuống level sâu hơn.</li>
+        </ol>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 380" role="img" aria-label="Luồng ghi và đọc của LSM tree với memtable, WAL, các level SSTable và bloom filter">
+            <defs>
+              <marker id="m3b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <text x="20" y="24" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#8b95a3">WRITE PATH</text>
+
+            <rect x="20" y="36" width="96" height="50" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="68" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="700" fill="#151515">write</text>
+
+            <rect x="152" y="36" width="120" height="50" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="212" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">WAL</text>
+            <text x="212" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">append, tuần tự</text>
+
+            <rect x="308" y="36" width="130" height="50" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="373" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">memtable</text>
+            <text x="373" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">skiplist trong RAM</text>
+
+            <rect x="474" y="36" width="120" height="50" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="534" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">L0 SST</text>
+            <text x="534" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">flush khi đầy</text>
+
+            <rect x="630" y="36" width="110" height="50" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="685" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">L1 → L2</text>
+            <text x="685" y="74" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">compaction</text>
+
+            <path d="M116,61 L150,61" stroke="#505a68" stroke-width="2" marker-end="url(#m3b)"/>
+            <path d="M272,61 L306,61" stroke="#505a68" stroke-width="2" marker-end="url(#m3b)"/>
+            <path d="M438,61 L472,61" stroke="#505a68" stroke-width="2" marker-end="url(#m3b)"/>
+            <path d="M594,61 L628,61" stroke="#505a68" stroke-width="2" marker-end="url(#m3b)"/>
+
+            <line x1="20" y1="112" x2="740" y2="112" stroke="#e7ebf1" stroke-width="2" stroke-dasharray="5 4"/>
+            <text x="20" y="136" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#8b95a3">READ PATH — dừng ở tầng đầu tiên tìm thấy key</text>
+
+            <rect x="20" y="150" width="120" height="46" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="80" y="178" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">1. memtable</text>
+
+            <rect x="168" y="150" width="120" height="46" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="228" y="178" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">2. L0 (mới→cũ)</text>
+
+            <rect x="316" y="150" width="120" height="46" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="376" y="178" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">3. L1</text>
+
+            <rect x="464" y="150" width="120" height="46" rx="8" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="524" y="178" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">4. L2 …</text>
+
+            <rect x="612" y="150" width="128" height="46" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="676" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#151515">5. không thấy</text>
+            <text x="676" y="187" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">→ trả về NOT FOUND</text>
+
+            <path d="M140,173 L166,173" stroke="#505a68" stroke-width="2" marker-end="url(#m3b)"/>
+            <path d="M288,173 L314,173" stroke="#505a68" stroke-width="2" marker-end="url(#m3b)"/>
+            <path d="M436,173 L462,173" stroke="#505a68" stroke-width="2" marker-end="url(#m3b)"/>
+            <path d="M584,173 L610,173" stroke="#505a68" stroke-width="2" marker-end="url(#m3b)"/>
+
+            <rect x="20" y="228" width="720" height="60" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="38" y="252" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Bloom filter cho mỗi SSTable</text>
+            <text x="38" y="272" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">~10 bit/key, false positive ~1% → bỏ qua hầu hết SSTable mà không cần đọc disk. Không có bloom filter, LSM đọc sẽ chậm hơn B+ tree rõ rệt.</text>
+
+            <rect x="20" y="304" width="352" height="60" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="38" y="326" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Delete = tombstone</text>
+            <text x="38" y="346" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">Ghi dấu "đã xoá"; dữ liệu biến mất sau compaction.</text>
+
+            <rect x="388" y="304" width="352" height="60" rx="9" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="406" y="326" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="800" fill="#151515">Update = append bản mới</text>
+            <text x="406" y="346" font-family="Plus Jakarta Sans, sans-serif" font-size="11" fill="#505a68">Bản mới nhất thắng nhờ số sequence tăng dần.</text>
+          </svg>
+          <div class="diagram-cap">Hình 3.2 — LSM tree: ghi chỉ append, đọc phải tra nhiều tầng, delete chỉ là tombstone</div>
+        </div>
+
+        <h3>Ba loại amplification — ngôn ngữ chung để so sánh engine</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Amplification</th><th>Định nghĩa</th><th>B+ tree</th><th>LSM tree</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Write amp</strong></td><td>Byte ghi xuống disk / byte dữ liệu logic</td><td>~2–3× (data + WAL + index)</td><td>10–30× với leveled compaction; 4–10× với size-tiered</td></tr>
+              <tr><td><strong>Read amp</strong></td><td>Số page/đơn vị đọc phải chạm để trả 1 query</td><td>~1–4 (chiều cao cây), ổn định</td><td>1 + số SSTable phải kiểm tra; giảm mạnh nhờ bloom filter + block cache</td></tr>
+              <tr><td><strong>Space amp</strong></td><td>Disk thực dùng / dữ liệu logic</td><td>~1,1–2× (page trống, bloat)</td><td>~1,1× (leveled) đến 2× (size-tiered); tăng tạm khi có tombstone chờ compaction</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Compaction không miễn phí</div>
+            <p>Compaction chạy nền và tranh IOPS với traffic thật. Đây là lý do một cluster Cassandra "đang chạy tốt" có thể đột nhiên p99 tăng vọt khi compaction debt tích tụ. Dấu hiệu: <code>pending compaction bytes</code> tăng liên tục, write latency tăng. Cách xử lý: thêm node, giới hạn throughput ghi, hoặc chọn chiến lược compaction phù hợp workload (<code>LeveledCompactionStrategy</code> cho read-heavy, <code>SizeTieredCompactionStrategy</code> cho write-heavy, <code>TimeWindowCompactionStrategy</code> cho time-series có TTL).</p>
+          </div>
+        </div>
+
+        <h3>Chọn engine theo workload — bảng quyết định</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Workload</th><th>Chọn</th><th>Lý do</th></tr></thead>
+            <tbody>
+              <tr><td>OLTP, transaction, query linh hoạt</td><td><strong>B+ tree</strong> (Postgres/MySQL)</td><td>Read ổn định, range scan tốt, JOIN, MVCC</td></tr>
+              <tr><td>Ghi log/metric ~500k/s, time-series có TTL</td><td><strong>LSM</strong> (Cassandra/ScyllaDB)</td><td>Ghi tuần tự, TTL xoá theo time window, không cần transaction</td></tr>
+              <tr><td>KV store cực lớn, multi-DC active-active</td><td><strong>LSM</strong> (RocksDB-based)</td><td>Compaction theo level, replica cùng ghi được</td></tr>
+              <tr><td>Bảng 50GB, 2000 QPS, team 3 người</td><td><strong>B+ tree</strong></td><td>LSM chỉ đáng khi volume/lưu lượng lớn; vận hành compaction là gánh nặng thật</td></tr>
+              <tr><td>Đếm counter cực nhanh, TTL</td><td>In-memory (Redis)</td><td>Không cần disk path; nhưng phải chấp nhận mất dữ liệu khi restart nếu không bật AOF</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Đừng chọn engine theo benchmark trên blog</div>
+            <p>Benchmark thường đo <strong>throughput trung bình</strong> với workload tổng hợp, không đo <strong>p99 dưới compaction debt</strong>, không đo hành vi khi một node chết, không đo chi phí vận hành của team bạn. Một con số bạn nên có trong đầu: nếu workload của bạn dưới ~20k write/s và dataset dưới ~1TB, B+ tree với tuning đúng gần như luôn thắng về tổng chi phí sở hữu.</p>
+          </div>
+        </div>

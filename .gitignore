@@ -26,3 +26,15 @@ node_modules/
 # Build output
 dist/
 build/
+
+# Astro
+.astro/
+
+# Reference ebooks are large and copyrighted, so the copies at the repo root
+# stay out of git. public/references/ is re-included below: those two files are
+# what the /references page serves, so they must ship with the site.
+*.pdf
+!public/references/*.pdf
+
+# Local docs & review reports
+docs/

@@ -1,0 +1,91 @@
+---
+// Shared shell for every page: <head> metadata, header, footer, theme bootstrap.
+import '../styles/app.css';
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SearchOverlay from '../components/SearchOverlay.astro';
+import { MODULES } from '../data/modules.js';
+import { MODULE_EXTRAS } from '../data/module-extras.js';
+import { SITE_STATS } from '../data/stats.js';
+
+interface Props {
+  title: string;
+  description: string;
+  active?: 'home' | 'modules' | 'adr' | 'exercises' | 'path' | 'topic' | 'references';
+  ogType?: string;
+}
+
+const {
+  title,
+  description,
+  active = 'home',
+  ogType = 'website',
+} = Astro.props;
+
+const B = import.meta.env.BASE_URL;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://ntrhieu98.github.io');
+---
+
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f3f6fa" />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL}/favicon.svg`} />
+
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:locale" content="vi_VN" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <script is:inline>
+      // Theme is applied before first paint, otherwise the page flashes light
+      // and then snaps to dark. Same key as the old site so saved choices and
+      // reading progress carry over.
+      (function () {
+        try {
+          var t = JSON.parse(localStorage.getItem('sd:theme') || 'null');
+          if (t) document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+
+  <body>
+    <SiteHeader
+      active={active}
+      moduleCount={MODULES.length}
+      topicCount={SITE_STATS.topics}
+      adrCount={SITE_STATS.adrs}
+      exerciseCount={SITE_STATS.exercises}
+    />
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <SiteFooter
+      topicCount={SITE_STATS.topics}
+      adrCount={SITE_STATS.adrs}
+      exerciseCount={SITE_STATS.exercises}
+      moduleExtras={MODULE_EXTRAS}
+    />
+
+    <SearchOverlay />
+
+    <script>
+      import '../scripts/site.js';
+    </script>
+  </body>
+</html>

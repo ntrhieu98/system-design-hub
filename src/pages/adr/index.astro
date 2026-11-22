@@ -1,0 +1,110 @@
+---
+// /adr — index of every Architecture Decision Record, rendered from the
+// collection so the list can never drift from the files on disk.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/Icon.astro';
+import { getCollection } from 'astro:content';
+import { MODULES } from '../../data/modules.js';
+
+const B = import.meta.env.BASE_URL;
+const adrs = (await getCollection('adrs')).sort((a, b) => a.data.order - b.data.order);
+const moduleTitle = (id: number) => MODULES.find((m) => m.id === id)?.title ?? '';
+
+const statusLabel: Record<string, string> = {
+  proposed: 'Đề xuất',
+  accepted: 'Đã chấp nhận',
+  rejected: 'Đã từ chối',
+  superseded: 'Đã thay thế',
+};
+---
+
+<BaseLayout
+  title="Architecture Decision Records | System Design Hub"
+  description="Sáu quyết định kiến trúc của khoá học: chọn gì, vì sao, phương án thay thế nào đã bị loại và cái giá phải trả."
+  active="adr"
+>
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href={`${B}/`}>Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <span>ADR</span>
+      </nav>
+      <h1 class="page-title">Architecture Decision Records</h1>
+      <p class="page-lead">
+        Mỗi ADR ghi lại một quyết định kiến trúc: bối cảnh, các phương án đã cân nhắc, phương án
+        được chọn và cái giá phải trả. Đọc theo thứ tự, hoặc nhảy tới quyết định bạn đang cần.
+      </p>
+      <div class="chip-row mt-4">
+        <span class="chip chip-yellow">{adrs.length} ADR</span>
+        <span class="chip">Tiếng Việt</span>
+        <span class="chip">Có phần phương án thay thế</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="callout callout-info mb-6">
+        <div class="callout-ico">i</div>
+        <div class="callout-body">
+          <div class="callout-title">Một ADR tốt trả lời được bốn câu</div>
+          <p>
+            Quyết định là gì? Vì sao chọn nó thay vì phương án khác? Cái giá phải trả là gì? Khi nào
+            thì nên xem lại? Thiếu câu nào thì sáu tháng sau không ai dám sửa hệ thống.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        {adrs.map((a) => (
+          <a class="card card-link" href={`${B}/adr/${a.id.split('-')[0]}`}>
+            <div class="card-top">
+              <span class="card-ico bg-yellow">ADR</span>
+              <span class="chip chip-mono">{a.data.id}</span>
+            </div>
+            <h2 class="card-title">{a.data.title}</h2>
+            <p class="card-text">{a.data.summary}</p>
+            <div class="chip-row mb-3">
+              <span class="chip">{statusLabel[a.data.status] ?? a.data.status}</span>
+              {a.data.module !== undefined && (
+                <span class="chip chip-blue">Module {a.data.module}</span>
+              )}
+              {a.data.tags.slice(0, 2).map((t) => <span class="chip">{t}</span>)}
+            </div>
+            <p class="card-note">
+              {a.data.module !== undefined ? moduleTitle(a.data.module) : ''} · {a.data.date}
+            </p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-ico bg-green">✓</div>
+          <h3 class="card-title">Nên viết ADR khi</h3>
+          <ul class="list-check list-compact">
+            <li>Chọn database, message queue, hay giao thức giao tiếp</li>
+            <li>Quyết định ranh giới service hoặc cách chia shard</li>
+            <li>Đổi mô hình nhất quán (strong → eventual)</li>
+            <li>Chấp nhận một giới hạn kỹ thuật có chủ đích</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-ico bg-red">×</div>
+          <h3 class="card-title">Không cần ADR khi</h3>
+          <ul class="list-bullet list-compact">
+            <li>Đổi tên biến, format code, thêm log</li>
+            <li>Quyết định dễ đảo ngược trong một ngày</li>
+            <li>Chi tiết triển khai mà người sau không cần biết lý do</li>
+            <li>Việc đã được mô tả đầy đủ trong một ADR khác còn hiệu lực</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

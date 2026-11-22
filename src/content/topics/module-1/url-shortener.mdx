@@ -1,0 +1,130 @@
+---
+title: "Ví dụ đầy đủ: URL Shortener (TinyURL)"
+description: "Bài toán đầu tiên ai cũng học. Nhưng nhiều người trả lời sai ở phần hash collision và 301 vs 302."
+module: 1
+order: 6
+num: "1.6"
+sectionId: "url-shortener"
+---
+<p>Bài toán đầu tiên ai cũng học. Nhưng nhiều người trả lời sai ở phần <span class="kw">hash collision</span> và <span class="kw">301 vs 302</span>.</p>
+
+        <h3>Bước 1 — Requirements</h3>
+        <ul class="list-bullet">
+          <li><strong>Functional:</strong> tạo short URL từ long URL; redirect short → long.</li>
+          <li><strong>Non-functional:</strong> high availability, low latency redirect, không cho xoá/sửa.</li>
+          <li><strong>Scale:</strong> 100 triệu URL/ngày (write), tỉ lệ read:write = 10:1.</li>
+        </ul>
+
+        <h3>Bước 2 — Ước lượng</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">text</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code>Write QPS  = 100M / 86.400 ≈ 1.160 QPS&#10;Read QPS   = 1.160 × 10    ≈ 11.600 QPS&#10;10 năm     = 100M × 365 × 10 = 365 tỉ bản ghi&#10;Storage    = 365 × 10⁹ × 100 bytes ≈ 36,5 TB (chưa tính index)&#10;<span class="c-out">→ 36,5 TB vừa một cluster, KHÔNG cần sharding ngay</span>&#10;<span class="c-out">→ Nhưng 11.600 read QPS cần cache + replica</span>&#10;&#10;<span class="c-com"># Độ dài code: base62, cần chứa 365 tỉ</span>&#10;62^6 = 56,8 × 10⁹   <span class="c-com">← 56 tỉ, KHÔNG đủ</span>&#10;62^7 = 3,52 × 10¹²  <span class="c-com">← 3,5 nghìn tỉ, ĐỦ ✓</span>&#10;<span class="c-out">→ Cần 7 ký tự base62</span></code></pre>
+        </div>
+
+        <h3>Bước 3 — API</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">http</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-key">POST</span> /api/v1/data/shorten&#10;<span class="c-key">Content-Type</span>: application/json&#10;&#123; "longUrl": "https://example.com/very/long/path?q=1" &#125;&#10;&#10;<span class="c-key">201 Created</span>&#10;&#123; "shortUrl": "https://sho.rt/aB3xK9p" &#125;&#10;&#10;<span class="c-key">GET</span> /&#123;code&#125;&#10;<span class="c-key">301 Moved Permanently</span>   <span class="c-com">hoặc</span> <span class="c-key">302 Found</span>&#10;<span class="c-key">Location</span>: https://example.com/very/long/path?q=1</code></pre>
+        </div>
+
+        <h3>301 vs 302 — câu hỏi phân biệt ứng viên giỏi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th></th><th>301 Permanent</th><th>302 Found (temporary)</th></tr></thead>
+            <tbody>
+              <tr><td>Browser cache</td><td>Có, cache vĩnh viễn</td><td>Không cache (hoặc cache ngắn)</td></tr>
+              <tr><td>Tải lên server</td><td>Giảm mạnh (browser không gọi lại)</td><td>Mỗi click đều gọi server</td></tr>
+              <tr><td>Analytics</td><td><strong>Mất</strong> — không đếm được click</td><td><strong>Đếm được</strong> mọi click</td></tr>
+              <tr><td>Dùng khi</td><td>URL cố định, ưu tiên hiệu năng</td><td>Cần tracking, URL có thể đổi</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Với dịch vụ short link thương mại (bit.ly), họ dùng <strong>302</strong> vì cần đếm click cho analytics. Nếu bạn chọn 301, hãy nói rõ lý do: "ưu tiên giảm tải, chấp nhận mất analytics".</p>
+
+        <h3>Bước 4 — Thiết kế chi tiết</h3>
+
+        <div class="diagram">
+          <svg viewBox="0 0 720 300" role="img" aria-label="Kiến trúc URL shortener với cache và replication">
+            <defs><marker id="m1c" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#505a68"/></marker></defs>
+            <g font-size="10" font-weight="700">
+              <rect x="14" y="120" width="92" height="52" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="60" y="142" text-anchor="middle" fill="#151515">Client</text>
+              <text x="60" y="158" text-anchor="middle" fill="#505a68" font-size="8.5" font-weight="600">browser/app</text>
+
+              <rect x="130" y="112" width="104" height="68" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+              <text x="182" y="138" text-anchor="middle" fill="#151515">Load</text>
+              <text x="182" y="152" text-anchor="middle" fill="#151515">Balancer</text>
+              <text x="182" y="168" text-anchor="middle" fill="#505a68" font-size="8.5" font-weight="600">L7, health check</text>
+
+              <rect x="258" y="104" width="108" height="34" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="312" y="126" text-anchor="middle" fill="#151515" font-size="9.5">Service 1</text>
+              <rect x="258" y="146" width="108" height="34" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="312" y="168" text-anchor="middle" fill="#151515" font-size="9.5">Service 2</text>
+              <rect x="258" y="188" width="108" height="34" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+              <text x="312" y="210" text-anchor="middle" fill="#151515" font-size="9.5">Service N</text>
+
+              <rect x="392" y="130" width="104" height="56" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+              <text x="444" y="153" text-anchor="middle" fill="#151515">Cache</text>
+              <text x="444" y="169" text-anchor="middle" fill="#505a68" font-size="8.5" font-weight="600">Redis, 90% hit</text>
+
+              <rect x="522" y="96" width="88" height="44" rx="7" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+              <text x="566" y="114" text-anchor="middle" fill="#151515" font-size="9.5">Master</text>
+              <text x="566" y="129" text-anchor="middle" fill="#505a68" font-size="8" font-weight="600">write</text>
+
+              <rect x="522" y="152" width="88" height="34" rx="7" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+              <text x="566" y="173" text-anchor="middle" fill="#151515" font-size="9.5">Replica 1</text>
+              <rect x="522" y="192" width="88" height="34" rx="7" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+              <text x="566" y="213" text-anchor="middle" fill="#151515" font-size="9.5">Replica 2</text>
+
+              <rect x="632" y="130" width="74" height="56" rx="8" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+              <text x="669" y="150" text-anchor="middle" fill="#151515" font-size="9">ID</text>
+              <text x="669" y="163" text-anchor="middle" fill="#151515" font-size="9">Generator</text>
+              <text x="669" y="177" text-anchor="middle" fill="#505a68" font-size="8" font-weight="600">Snowflake</text>
+            </g>
+            <g stroke="#505a68" stroke-width="1.6" marker-end="url(#m1c)" fill="none">
+              <line x1="108" y1="146" x2="126" y2="146"/>
+              <path d="M236 138 L254 122"/><path d="M236 146 L254 163"/><path d="M236 154 L254 204"/>
+              <path d="M368 122 L388 148"/>
+              <path d="M498 148 L518 120"/>
+              <path d="M498 155 L518 168"/>
+              <path d="M498 162 L518 208"/>
+              <path d="M494 130 L628 152"/>
+            </g>
+            <text x="360" y="264" text-anchor="middle" font-size="10" font-weight="600" fill="#505a68">Read path: Client → LB → Service → Cache → (miss) → Replica</text>
+            <text x="360" y="282" text-anchor="middle" font-size="10" font-weight="600" fill="#505a68">Write path: Client → LB → Service → ID Generator → Master</text>
+          </svg>
+          <div class="diagram-cap">Hình 1.3 — Luồng đọc và ghi tách biệt. Cache hấp thụ 90% read, replica 2× read capacity.</div>
+        </div>
+
+        <h3>Sinh code — hai cách tiếp cận</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th></th><th>Hash + base62</th><th>Counter + base62</th></tr></thead>
+            <tbody>
+              <tr><td>Cách làm</td><td><code>base62(md5(longUrl))[:7]</code></td><td>ID tăng dần → base62</td></tr>
+              <tr><td>Collision</td><td><strong>Có</strong> — phải retry hoặc dùng hash + salt</td><td>Không bao giờ</td></tr>
+              <tr><td>Độ dài</td><td>Cố định 7</td><td>Tăng dần (1 → 7 ký tự)</td></tr>
+              <tr><td>Đoán trước</td><td>Khó</td><td><strong>Dễ</strong> — có thể enumerate URL của người khác</td></tr>
+              <tr><td>Distributed</td><td>Dễ (stateless)</td><td>Cần ID generator (Snowflake, ZooKeeper)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">python</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code>BASE62 = <span class="c-str">"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"</span>&#10;&#10;<span class="c-key">def</span> <span class="c-fn">to_base62</span>(n: int) -> str:&#10;    <span class="c-key">if</span> n == <span class="c-num">0</span>: <span class="c-key">return</span> BASE62[<span class="c-num">0</span>]&#10;    out = []&#10;    <span class="c-key">while</span> n:&#10;        out.append(BASE62[n % <span class="c-num">62</span>])&#10;        n //= <span class="c-num">62</span>&#10;    <span class="c-key">return</span> <span class="c-str">""</span>.join(reversed(out))&#10;&#10;<span class="c-com"># Cách 1: hash — có collision</span>&#10;<span class="c-key">def</span> <span class="c-fn">shorten_hash</span>(long_url: str, salt: int = <span class="c-num">0</span>) -> str:&#10;    h = hashlib.md5(f<span class="c-str">"&#123;long_url&#125;&#123;salt&#125;"</span>.encode()).hexdigest()&#10;    <span class="c-key">return</span> to_base62(int(h[:<span class="c-num">12</span>], <span class="c-num">16</span>))[:<span class="c-num">7</span>]&#10;&#10;<span class="c-key">def</span> <span class="c-fn">create_url</span>(long_url: str) -> str:&#10;    <span class="c-key">for</span> attempt <span class="c-key">in</span> range(<span class="c-num">5</span>):&#10;        code = shorten_hash(long_url, salt=attempt)&#10;        <span class="c-com"># INSERT ... nếu conflict thì thử salt tiếp theo</span>&#10;        <span class="c-key">if</span> db.insert_if_absent(code, long_url):&#10;            <span class="c-key">return</span> code&#10;    <span class="c-key">raise</span> RuntimeError(<span class="c-str">"collision không giải quyết được"</span>)&#10;&#10;<span class="c-com"># Cách 2: Snowflake ID — không collision, nhưng đoán được</span>&#10;<span class="c-com"># 64 bit = 41 timestamp + 10 machine + 12 sequence</span>&#10;<span class="c-key">def</span> <span class="c-fn">snowflake</span>(machine_id: int, seq: int) -> int:&#10;    <span class="c-key">return</span> (int(time.time()*<span class="c-num">1000</span>) - EPOCH) &lt;&lt; <span class="c-num">22</span> |            (machine_id &amp; <span class="c-num">0x3FF</span>) &lt;&lt; <span class="c-num">12</span> | (seq &amp; <span class="c-num">0xFFF</span>)</code></pre>
+        </div>
+
+        <h3>Schema</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">sql</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-key">CREATE TABLE</span> urls (&#10;  code         <span class="c-key">VARCHAR</span>(<span class="c-num">8</span>)  <span class="c-key">PRIMARY KEY</span>,   <span class="c-com">-- 7 chars base62</span>&#10;  long_url     <span class="c-key">TEXT</span>         <span class="c-key">NOT NULL</span>,&#10;  user_id      <span class="c-key">BIGINT</span>,&#10;  created_at   <span class="c-key">TIMESTAMP</span>    <span class="c-key">DEFAULT</span> now(),&#10;  expires_at   <span class="c-key">TIMESTAMP</span>    <span class="c-key">NULL</span>,&#10;  click_count  <span class="c-key">BIGINT</span>       <span class="c-key">DEFAULT</span> <span class="c-num">0</span>&#10;);&#10;&#10;<span class="c-com">-- Chỉ cần 1 unique index trên PK, redirect là lookup O(1)</span>&#10;<span class="c-com">-- Nếu cần "URL của tôi": thêm index (user_id, created_at DESC)</span>&#10;<span class="c-key">CREATE INDEX</span> idx_urls_user <span class="c-key">ON</span> urls(user_id, created_at <span class="c-key">DESC</span>);</code></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-ico">i</div>
+          <div class="callout-body">
+            <div class="callout-title">Điểm cộng khi phỏng vấn</div>
+            <p>Chủ động nêu: (1) <strong>custom alias</strong> — user tự đặt code, cần check uniqueness và reserved words; (2) <strong>rate limiting</strong> theo user để chống spam; (3) <strong>expiration</strong> — dùng TTL hoặc background job quét; (4) <strong>abuse detection</strong> — chặn URL độc hại bằng Google Safe Browsing API.</p>
+          </div>
+        </div>

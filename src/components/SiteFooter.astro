@@ -1,0 +1,80 @@
+---
+// Site footer. The "Nội dung" column is generated from the module registry so
+// it can never again list only modules 0, 2 and 5 while eight exist.
+import Icon from '../components/Icon.astro';
+import { MODULES } from '../data/modules.js';
+import { REFERENCES } from '../data/references.js';
+
+interface Props {
+  topicCount?: number;
+  adrCount?: number;
+  exerciseCount?: number;
+  moduleExtras?: Record<number, { keywords: unknown[]; quiz: unknown[] }>;
+}
+
+const { topicCount = 64, adrCount = 6, exerciseCount = 2, moduleExtras = {} } = Astro.props;
+const B = import.meta.env.BASE_URL;
+
+// Every module, generated from the registry rather than hand-listed: the old
+// static footer named only modules 0, 2 and 5, which made the site look
+// unfinished. Reading the registry means a new module appears here by itself.
+const featured = MODULES.map((m) => ({ id: m.id, label: m.title }));
+---
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-main">
+      <div class="footer-brand">
+        <a class="brand" href={`${B}/`}>
+          <span class="brand-mark"><Icon name="logo" size={20} /></span>
+          <span class="brand-text">
+            <span class="brand-title">System Design Hub</span>
+            <span class="brand-sub">Học thiết kế hệ thống từ gốc</span>
+          </span>
+        </a>
+        <p>
+          Nền tảng học System Design tiếng Việt: 8 module từ nền tảng đến phỏng vấn, kèm ADR,
+          bài tập và sơ đồ kiến trúc cho từng chủ đề.
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h4>Nội dung</h4>
+        <a href={`${B}/modules`}>Tất cả modules</a>
+        {featured.map((m) => (
+          <a href={`${B}/modules/${m.id}`}>Module {m.id} — {m.label}</a>
+        ))}
+      </div>
+
+      <div class="footer-col">
+        <h4>Tài nguyên</h4>
+        <a href={`${B}/adr`}>Architecture Decision Records</a>
+        <a href={`${B}/exercises`}>Bài tập thực hành</a>
+        <a href={`${B}/learning-path`}>Lộ trình 12 tuần</a>
+        <a href={`${B}/curriculum`}>Giáo trình đầy đủ</a>
+      </div>
+
+      <div class="footer-col">
+        <h4>Nguồn tham khảo</h4>
+        {/* The old links pointed at bytebytego.com and a bare github.com, so
+            two of the three were dead ends. They now go to /references, where
+            every source is listed with a working PDF or repo link. */}
+        <a href={`${B}/references`}>Tất cả nguồn tham khảo</a>
+        {REFERENCES.map((r) => (
+          <a
+            href={r.file ? `${B}/${r.file}` : r.external}
+            target="_blank"
+            rel="noopener"
+          >
+            {r.author} — {r.title}
+          </a>
+        ))}
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>© 2026 System Design Hub · Xây dựng cho việc học, không phải production.</span>
+      <span class="mono" style="font-size:11.5px;">Nội dung: Alex Xu · Joud Awad · Franco Fernando</span>
+    </div>
+  </div>
+</footer>

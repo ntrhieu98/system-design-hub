@@ -1,0 +1,48 @@
+---
+title: "Cách trình bày trade-off như senior"
+description: "Đây là kỹ năng khó nhất và cũng quan trọng nhất. Junior nói \"em dùng Kafka\". Senior nói \"em cân nhắc Kafka và SQS, chọn SQS vì...\"."
+module: 1
+order: 7
+num: "1.7"
+sectionId: "thinking"
+---
+<p>Đây là kỹ năng khó nhất và cũng quan trọng nhất. Junior nói "em dùng Kafka". Senior nói "em cân nhắc Kafka và SQS, chọn SQS vì...".</p>
+
+        <h3>Cấu trúc một câu trả lời trade-off</h3>
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">text</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code>1. QUYẾT ĐỊNH:  "Em chọn X cho thành phần này."&#10;2. LÝ DO:      "Vì yêu cầu là Y, và X đáp ứng tốt nhất."&#10;3. ĐÁNH ĐỔI:   "Cái giá là Z — cụ thể là ..."&#10;4. GIẢM THIỂU: "Để giảm Z, em sẽ ..."&#10;5. PHƯƠNG ÁN B: "Nếu quy mô tăng gấp 10, em sẽ chuyển sang W."&#10;&#10;<span class="c-com"># Ví dụ thực tế:</span>&#10;"Em chọn Postgres cho user service.&#10; Vì cần transaction và quan hệ rõ ràng, lượng user 10M vẫn trong&#10; khả năng của 1 cluster có read replica.&#10; Đánh đổi: write bị giới hạn ~5K QPS trên 1 master.&#10; Giảm thiểu: shard theo user_id khi vượt 3K QPS write, và dùng&#10; connection pool (PgBouncer) để giảm overhead.&#10; Phương án B: nếu cần multi-region active-active, em sẽ dùng&#10; CockroachDB hoặc chuyển sang Cassandra cho phần không cần transaction."</code></pre>
+        </div>
+
+        <h3>Từ vựng phải dùng đúng</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Từ</th><th>Nghĩa chính xác</th><th>Sai thường gặp</th></tr></thead>
+            <tbody>
+              <tr><td>Scalable</td><td>Có thể thêm tài nguyên để chịu tải cao hơn</td><td>Nhầm với "nhanh"</td></tr>
+              <tr><td>Available</td><td>Luôn phản hồi (kể cả trả lỗi?)</td><td>Nhầm với "đúng"</td></tr>
+              <tr><td>Consistent</td><td>Mọi reader thấy cùng dữ liệu</td><td>Nhầm với "ACID C"</td></tr>
+              <tr><td>Idempotent</td><td>Gọi 1 lần hay N lần kết quả như nhau</td><td>Nhầm với "retry được"</td></tr>
+              <tr><td>Stateless</td><td>Server không giữ state giữa các request</td><td>Nhầm với "không có DB"</td></tr>
+              <tr><td>Partition tolerant</td><td>Vẫn hoạt động khi mạng đứt</td><td>Nhầm với "có sharding"</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Các câu hỏi tự vấn trước khi chốt thiết kế</h3>
+        <ul class="list-check">
+          <li>Nếu thành phần này chết, điều gì xảy ra? Có single point of failure không?</li>
+          <li>Khi traffic tăng 10×, chỗ nào vỡ trước? Cách scale nó?</li>
+          <li>Dữ liệu có thể mất/trùng/không nhất quán ở đâu? Chấp nhận được không?</li>
+          <li>Làm sao biết hệ thống đang lỗi? Metric nào? Alert cho ai?</li>
+          <li>Chi phí hạ tầng ước tính bao nhiêu/tháng?</li>
+          <li>Nếu phải bỏ 1 thành phần để giảm độ phức tạp, bỏ cái nào?</li>
+        </ul>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Câu chốt hạ luôn gây ấn tượng</div>
+            <p>"Nếu em có thêm thời gian, em sẽ <strong>bỏ bớt</strong> thành phần X vì nó chưa cần thiết ở quy mô này." — Người phỏng vấn đánh giá rất cao khả năng <em>không</em> over-engineer.</p>
+          </div>
+        </div>

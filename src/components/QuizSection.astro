@@ -1,0 +1,41 @@
+---
+// Self-check quiz for a whole module. Each item reveals its answer on click;
+// the answers are authored content, so they are rendered with set:html.
+import Icon from '../components/Icon.astro';
+
+interface QuizItem {
+  q: string;
+  a: string;
+}
+
+interface Props {
+  quiz: QuizItem[];
+}
+
+const { quiz } = Astro.props;
+---
+
+{
+  quiz.length > 0 && (
+    <section class="lesson" id="quiz">
+      <h2>
+        <span class="num">?</span>Quiz tự kiểm tra
+      </h2>
+      {quiz.map((item, i) => (
+        <div class="quiz">
+          <div class="quiz-head">
+            <Icon name="sparkles" size={14} />
+            <span>Câu {i + 1}</span>
+          </div>
+          <div class="quiz-body">
+            <p class="quiz-q" set:html={item.q} />
+            <button class="quiz-reveal" type="button">
+              Xem đáp án ▼
+            </button>
+            <div class="quiz-answer" set:html={item.a} />
+          </div>
+        </div>
+      ))}
+    </section>
+  )
+}

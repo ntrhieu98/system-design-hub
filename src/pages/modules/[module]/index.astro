@@ -1,0 +1,134 @@
+---
+// Module overview page: /modules/<id>
+// Lists every topic of the module in order, then the module-level keyword grid
+// and quiz — the same content the old single-page module view ended with.
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Sidebar from '../../../components/Sidebar.astro';
+import { MODULE_LEADS } from '../../../data/module-leads.js';
+import Icon from '../../../components/Icon.astro';
+import KeywordGrid from '../../../components/KeywordGrid.astro';
+import QuizSection from '../../../components/QuizSection.astro';
+import { getModulesWithTopics, moduleExtras, topicUrl } from '../../../lib/content.js';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const groups = await getModulesWithTopics();
+  // Every module has at least one exercise now; surface the first one on the
+  // overview page so it is reachable without going through /exercises.
+  const exercises = await getCollection('exercises');
+  const firstExercise = new Map();
+  for (const e of exercises.sort((a, b) => a.data.order - b.data.order)) {
+    const m = e.data.module;
+    if (m !== undefined && !firstExercise.has(m)) firstExercise.set(m, e.data);
+  }
+  return groups.map((g) => ({
+    params: { module: String(g.meta.id) },
+    props: { groups, group: g, exercise: firstExercise.get(g.meta.id) ?? null },
+  }));
+}
+
+const { groups, group, exercise } = Astro.props;
+const { meta, topics } = group;
+const B = import.meta.env.BASE_URL;
+const extras = moduleExtras(meta.id);
+
+const nextModule = groups.find((g) => g.meta.id === meta.id + 1);
+const prevModule = groups.find((g) => g.meta.id === meta.id - 1);
+---
+
+<BaseLayout
+  title={`Module ${meta.id} — ${meta.title} | System Design Hub`}
+  description={meta.desc}
+  active="modules"
+>
+  <div class="container doc-shell">
+    <Sidebar groups={groups} currentModule={meta.id} />
+
+    <article class="doc-main">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href={`${B}/`}>Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <a href={`${B}/modules`}>Modules</a>
+        <span aria-hidden="true">/</span>
+        <span>Module {meta.id}</span>
+      </nav>
+
+      <!-- Old deep links (#network, #http, …) resolved to in-page anchors on the
+           single-page module view. This map lets site.js forward them to the
+           standalone topic URL instead of dropping the reader at the top. -->
+      <div
+        data-topic-map={JSON.stringify(Object.fromEntries(topics.map((t) => [t.sectionId, `${B}${topicUrl(meta.id, t.slug)}`])))}
+        hidden
+      >
+      </div>
+
+      <div class="module-hero">
+        <div class="module-hero-top">
+          <span class="badge badge-yellow">Module {meta.id}</span>
+          <span class="badge">{meta.badge}</span>
+          <span class="badge badge-blue">{meta.level}</span>
+        </div>
+        <h1>Module {meta.id} — {meta.title}</h1>
+        <p class="lead" set:html={MODULE_LEADS[meta.id]} />
+        <div class="meta-row">
+          <span class="meta-item"><Icon name="clock" size={14} /><span>{meta.time}</span></span>
+          <span class="meta-item"><Icon name="book" size={14} /><span>{topics.length} mục</span></span>
+          <span class="meta-item"><Icon name="zap" size={14} /><span>{extras.keywords.length} từ khoá</span></span>
+          <span class="meta-item"><Icon name="gauge" size={14} /><span>{meta.level}</span></span>
+        </div>
+        <div class="mt-5 flex flex-wrap gap-2">
+          <button class="done-btn" data-done-key={`m${meta.id}`}>
+            <Icon name="check" size={14} /><span>Đánh dấu hoàn thành</span>
+          </button>
+          <a class="btn btn-sm btn-secondary" href="#keywords">Từ khoá</a>
+          <a class="btn btn-sm btn-secondary" href="#quiz">Quiz tự kiểm tra</a>
+          {exercise && (
+            <a class="btn btn-sm btn-secondary" href={`${B}/exercises/${exercise.id}`}>
+              Bài tập: {exercise.title.split(' — ')[0]}
+            </a>
+          )}
+        </div>
+      </div>
+
+      <section class="lesson topic-list">
+        <h2><span class="num">≡</span>Các chủ đề trong module</h2>
+        <ol class="topic-cards">
+          {topics.map((t) => (
+            <li>
+              <a class="topic-card" href={`${B}${topicUrl(meta.id, t.slug)}`}>
+                <span class="tc-top">
+                  <span class="tc-num">{t.num}</span>
+                  <span class="tc-go"><Icon name="arrow" size={14} /></span>
+                </span>
+                <span class="tc-title">{t.title}</span>
+                <span class="tc-desc">{t.description}</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <KeywordGrid keywords={extras.keywords} />
+      <QuizSection quiz={extras.quiz} />
+
+      <nav class="pager" aria-label="Điều hướng module">
+        {prevModule ? (
+          <a href={`${B}/modules/${prevModule.meta.id}`}>
+            <span class="dir">← Module trước</span>
+            <span class="name">{prevModule.meta.id}. {prevModule.meta.title}</span>
+          </a>
+        ) : (
+          <span />
+        )}
+        {nextModule ? (
+          <a class="next" href={`${B}/modules/${nextModule.meta.id}`}>
+            <span class="dir">Module tiếp →</span>
+            <span class="name">{nextModule.meta.id}. {nextModule.meta.title}</span>
+          </a>
+        ) : (
+          <span />
+        )}
+      </nav>
+    </article>
+  </div>
+</BaseLayout>

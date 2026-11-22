@@ -1,0 +1,67 @@
+---
+title: "Requirements & estimation — phần quyết định một nửa điểm"
+description: "Nhiều ứng viên nghĩ đây là phần \"khởi động\" không quan trọng. Sai. Đây là nơi interviewer đánh giá bạn có tư duy kỹ sư hay chỉ thuộc lòng template."
+module: 7
+order: 2
+num: "7.2"
+sectionId: "requirements"
+---
+<p>Nhiều ứng viên nghĩ đây là phần "khởi động" không quan trọng. Sai. Đây là nơi interviewer đánh giá bạn có <span class="kw">tư duy kỹ sư</span> hay chỉ thuộc lòng template.</p>
+
+        <h3>Bộ câu hỏi làm rõ — chọn 5–7, đừng hỏi hết</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nhóm</th><th>Câu hỏi</th><th>Tại sao quan trọng</th></tr></thead>
+            <tbody>
+              <tr><td rowspan="3"><strong>Chức năng</strong></td><td>"Ai là người dùng chính? Có loại user đặc biệt (admin, creator)?"</td><td>Creator/celebrity thay đổi toàn bộ thiết kế fan-out</td></tr>
+              <tr><td>"3 tính năng nào quan trọng nhất? Tôi sẽ bỏ phần còn lại."</td><td>Kiểm soát phạm vi — không bao giờ làm hết trong 45 phút</td></tr>
+              <tr><td>"Có cần realtime không, hay eventual (trễ vài giây) được?"</td><td>Quyết định WebSocket vs polling, đồng bộ vs async</td></tr>
+              <tr><td rowspan="3"><strong>Quy mô</strong></td><td>"Bao nhiêu DAU? Tỉ lệ read/write?"</td><td>Quyết định cache, replica, shard</td></tr>
+              <tr><td>"Dữ liệu giữ bao lâu? Có cần xoá theo yêu cầu user không?"</td><td>Ảnh hưởng storage, partition, GDPR</td></tr>
+              <tr><td>"Peak traffic gấp mấy lần trung bình?"</td><td>Capacity planning — thường 2–3×, sự kiện có thể 10×</td></tr>
+              <tr><td rowspan="3"><strong>Chất lượng</strong></td><td>"Latency mục tiêu là bao nhiêu? p99 hay trung bình?"</td><td>p99 &lt; 100ms khác hoàn toàn p50 &lt; 100ms</td></tr>
+              <tr><td>"Availability cần bao nhiêu số 9?"</td><td>99,9% (43 phút/tháng) vs 99,99% (4 phút) khác nhau 10× chi phí</td></tr>
+              <tr><td>"Có cần nhất quán mạnh ở đâu không?"</td><td>Thanh toán vs feed — quyết định CAP per entity</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Bốn câu hỏi "ăn điểm" ít người hỏi</div>
+            <p><strong>1.</strong> "Hệ thống này là greenfield hay đang chạy và cần migration?" — nếu là hệ thống có sẵn, câu trả lời hoàn toàn khác (không thể chọn DB mới dễ dàng). <strong>2.</strong> "Có yêu cầu multi-region/compliance (dữ liệu phải ở Việt Nam) không?" — thể hiện bạn nghĩ đến ràng buộc thật. <strong>3.</strong> "Thành công của hệ thống này đo bằng gì — DAU, doanh thu, hay độ trễ?" — cho thấy bạn hiểu business context. <strong>4.</strong> "Ngân sách hạ tầng có ràng buộc không?" — hầu hết ứng viên không bao giờ hỏi, nhưng đó là ràng buộc thật của mọi hệ thống.</p>
+          </div>
+        </div>
+
+        <h3>Estimation — công thức và số phải thuộc</h3>
+        <div class="callout callout-note">
+          <div class="callout-ico">∑</div>
+          <div class="callout-body">
+            <div class="callout-title">Bộ số cần nhớ</div>
+            <p><strong>1 ngày</strong> = 86.400s ≈ 10⁵. <strong>1 tháng</strong> ≈ 2,6×10⁶s. <strong>1 năm</strong> ≈ 3,15×10⁷s. <strong>1 triệu request/ngày</strong> ≈ 12 QPS. <strong>1 tỷ/ngày</strong> ≈ 11.600 QPS. <strong>1 KB</strong> × 1 tỷ = 1 TB. <strong>1 byte</strong> × 1 tỷ/ngày × 1 năm = 365 GB. Latency: RAM 100ns, SSD 100µs, disk seek 10ms, cùng DC 0,5ms, cross-AZ 1ms, cross-region 50–150ms, cross-continent 150–300ms.</p>
+          </div>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">ESTIMATION</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">// Template 6 dòng, dùng cho mọi bài</span>&#10;&#10;<span class="c-com">1. QPS write</span>  = writes_per_day / 86_400&#10;<span class="c-com">2. QPS read</span>   = QPS_write * read_write_ratio&#10;<span class="c-com">3. Peak QPS</span>   = QPS * 2..3&#10;<span class="c-com">4. Storage/y</span>  = writes_per_day * 365 * bytes_per_record&#10;<span class="c-com">5. Bandwidth</span>  = QPS * avg_response_bytes&#10;<span class="c-com">6. Cache size</span> = hot_data_ratio * total_storage * 1.2&#10;&#10;<span class="c-com">// Ví dụ: news feed, 150M DAU, 500M tweet/ngày, 200 byte/tweet</span>&#10;<span class="c-num">1</span>. write = 500M / 86.400          ≈ <span class="c-num">5.800</span> QPS&#10;<span class="c-num">2</span>. read  = 150M * <span class="c-num">10</span> / 86.400      ≈ <span class="c-num">17.400</span> QPS  (10 lần mở app/ngày)&#10;<span class="c-num">3</span>. peak  = <span class="c-num">17.400</span> * <span class="c-num">3</span>             ≈ <span class="c-num">52.000</span> QPS&#10;<span class="c-num">4</span>. store = 500M * <span class="c-num">365</span> * <span class="c-num">200</span>B     ≈ <span class="c-num">36</span> TB/năm (text only)&#10;<span class="c-num">5</span>. bw    = <span class="c-num">52.000</span> * <span class="c-num">20</span>KB           ≈ <span class="c-num">1</span> GB/s  → cần CDN/many nodes&#10;<span class="c-num">6</span>. cache = <span class="c-num">10</span>% * <span class="c-num">36</span>TB * <span class="c-num">1</span>.<span class="c-num">2</span>       ≈ <span class="c-num">4</span>.<span class="c-num">3</span> TB  → cluster Redis ~<span class="c-num">10</span> node</code></pre>
+        </div>
+
+        <h3>Dùng con số để dẫn đến quyết định kiến trúc</h3>
+        <p>Con số không phải để khoe tính toán — nó phải <strong>thay đổi thiết kế</strong>. Ví dụ cụ thể:</p>
+        <ul class="list-bullet">
+          <li>"11.600 QPS read" → một Postgres chịu được ~5.000 QPS đơn giản → <strong>cần cache + read replica</strong>.</li>
+          <li>"36 TB/năm" → một máy chịu được → <strong>chưa cần shard</strong>, nhưng cần partition theo tháng cho dễ xoá.</li>
+          <li>"1 GB/s bandwidth" → một NIC 10 Gbps đủ về lý thuyết nhưng không đủ dư địa → <strong>cần CDN</strong>.</li>
+          <li>"4,3 TB cache" → quá lớn cho một Redis → <strong>cache chọn lọc</strong> (10% hot nhất, không phải 100%).</li>
+          <li>"1,16 triệu write/s nếu fan-out 200 follower" → <strong>không khả thi</strong> → phải hybrid fan-out.</li>
+        </ul>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Đừng tính chính xác đến từng đồng</div>
+            <p>Interviewer không cần bạn ra 1.157,41 QPS. Họ cần thấy bạn biết <em>bậc độ lớn</em>. Làm tròn 86.400 thành 10⁵ và nói "khoảng 1.200 QPS" tốt hơn nhiều so với bấm máy tính 3 phút. Sai số 20% không ảnh hưởng kết luận; sai bậc độ lớn (nhầm 1.000 QPS với 1 triệu QPS) thì ảnh hưởng hoàn toàn. Và nếu bạn tính sai, hãy nói "khoảng" — thể hiện bạn biết đó là ước lượng, không phải khẳng định.</p>
+          </div>
+        </div>

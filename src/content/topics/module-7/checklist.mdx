@@ -1,0 +1,105 @@
+---
+title: "Checklist trước khi kết thúc & mock interview"
+description: "Năm phút cuối quyết định ấn tượng cuối cùng. Đừng để hết giờ giữa một câu. Hãy chủ động tổng kết và mở ra phần bạn muốn được hỏi."
+module: 7
+order: 5
+num: "7.5"
+sectionId: "checklist"
+---
+<p>Năm phút cuối quyết định ấn tượng cuối cùng. Đừng để hết giờ giữa một câu. Hãy chủ động tổng kết và mở ra phần bạn muốn được hỏi.</p>
+
+        <h3>Checklist tự kiểm trước khi nói "tôi xong"</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>✓</th><th>Điều phải có</th><th>Nếu thiếu thì sao</th></tr></thead>
+            <tbody>
+              <tr><td>☐</td><td>Đã nêu con số ước lượng (QPS, storage, bandwidth)</td><td>Mất điểm "tư duy kỹ sư" — trông như đọc template</td></tr>
+              <tr><td>☐</td><td>Đã vẽ luồng chính end-to-end</td><td>Không ai biết hệ thống hoạt động thế nào</td></tr>
+              <tr><td>☐</td><td>Đã nêu data model cho 2–3 entity chính</td><td>Thiết kế treo lơ lửng, không kiểm chứng được</td></tr>
+              <tr><td>☐</td><td>Đã nói bottleneck + cách xử lý</td><td>Đây là điểm phân biệt senior — thiếu là mất điểm lớn</td></tr>
+              <tr><td>☐</td><td>Đã nói ít nhất 1 failure mode + graceful degradation</td><td>Thiết kế "luôn hoạt động hoàn hảo" là thiết kế chưa xong</td></tr>
+              <tr><td>☐</td><td>Đã nói trade-off cho ≥ 3 quyết định</td><td>Trông như đang bán giải pháp, không phải kỹ sư</td></tr>
+              <tr><td>☐</td><td>Đã nói consistency: entity nào strong, entity nào eventual</td><td>Thiếu hiểu biết về phân tán</td></tr>
+              <tr><td>☐</td><td>Đã nói monitoring: biết hệ thống khoẻ bằng cách nào</td><td>Thiếu tư duy vận hành</td></tr>
+              <tr><td>☐</td><td>Đã nói điều gì sẽ làm tiếp nếu có thêm thời gian</td><td>Kết thúc cụt — không thể hiện được chiều sâu còn lại</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">SCRIPT</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com">// Câu tổng kết 60 giây — học thuộc cấu trúc</span>&#10;&#10;<span class="c-str">"Để tổng kết: hệ thống gồm [N] phần chính — [liệt kê 4–5].</span>&#10;<span class="c-str"> Luồng đọc đi qua CDN → LB → app → cache (90% hit) → DB replica.</span>&#10;<span class="c-str"> Luồng ghi đi qua app → DB leader → CDC → search index."</span>&#10;&#10;<span class="c-str">"Ba quyết định lớn và trade-off:</span>&#10;<span class="c-str"> (1) Postgres thay vì NoSQL — đánh đổi khả năng scale ghi, được ACID.</span>&#10;<span class="c-str"> (2) Cache-aside — đánh đổi staleness 60s, được giảm 90% tải DB.</span>&#10;<span class="c-str"> (3) Hybrid fan-out — đánh đổi độ phức tạp, được khả năng chịu celebrity."</span>&#10;&#10;<span class="c-str">"Điểm yếu tôi biết: [1 điểm cụ thể]. Nếu có thêm thời gian tôi sẽ</span>&#10;<span class="c-str"> [2 việc cụ thể]. Anh/chị muốn tôi đi sâu vào phần nào?"</span>&#10;&#10;<span class="c-com">// Câu cuối mở ra cho interviewer — thể hiện hợp tác, không độc diễn</span></code></pre>
+        </div>
+
+        <h3>Lộ trình luyện tập 4 tuần</h3>
+        <div class="diagram">
+          <svg viewBox="0 0 760 300" role="img" aria-label="Lộ trình luyện phỏng vấn bốn tuần từ học khung đến mock interview với người thật">
+            <defs>
+              <marker id="m7c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="16" y="34" width="170" height="112" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="101" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">TUẦN 1 — Khung</text>
+            <text x="32" y="82" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Học thuộc khung 45'</text>
+            <text x="32" y="98" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Tập estimation 10 bài</text>
+            <text x="32" y="114" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Viết template ra giấy</text>
+            <text x="32" y="130" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Chưa cần làm full bài</text>
+
+            <rect x="202" y="34" width="170" height="112" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="287" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">TUẦN 2 — Tự làm</text>
+            <text x="218" y="82" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• 5 bài kinh điển</text>
+            <text x="218" y="98" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Viết ra giấy 45', bấm giờ</text>
+            <text x="218" y="114" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Tự ghi âm, nghe lại</text>
+            <text x="218" y="130" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#ef4444">Đau nhất nhưng hiệu quả nhất</text>
+
+            <rect x="388" y="34" width="170" height="112" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="473" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">TUẦN 3 — Mock</text>
+            <text x="404" y="82" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• 3 buổi mock với người</text>
+            <text x="404" y="98" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Nhờ hỏi khó, phản biện</text>
+            <text x="404" y="114" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Ghi lại điểm yếu</text>
+            <text x="404" y="130" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Sửa từng điểm yếu</text>
+
+            <rect x="574" y="34" width="170" height="112" rx="9" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="659" y="58" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">TUẦN 4 — Tinh chỉnh</text>
+            <text x="590" y="82" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• 5 bài khó hơn</text>
+            <text x="590" y="98" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Tập nói trade-off</text>
+            <text x="590" y="114" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Chuẩn bị câu hỏi ngược</text>
+            <text x="590" y="130" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">• Nghỉ ngơi, không học mới</text>
+
+            <path d="M186,90 L200,90" stroke="#505a68" stroke-width="2" marker-end="url(#m7c)"/>
+            <path d="M372,90 L386,90" stroke="#505a68" stroke-width="2" marker-end="url(#m7c)"/>
+            <path d="M558,90 L572,90" stroke="#505a68" stroke-width="2" marker-end="url(#m7c)"/>
+
+            <rect x="16" y="168" width="728" height="112" rx="9" fill="#fff" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="192" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Năm bài nên tự làm trước tiên (theo thứ tự)</text>
+            <text x="34" y="214" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68"><strong>1. URL Shortener</strong> — dễ nhất, kiểm tra estimation + ID generation. <strong>2. Rate Limiter</strong> — kiểm tra thuật toán + distributed state.</text>
+            <text x="34" y="234" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68"><strong>3. News Feed</strong> — kiểm tra fan-out, celebrity problem, caching. <strong>4. Chat</strong> — kiểm tra realtime, presence, ordering.</text>
+            <text x="34" y="254" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68"><strong>5. Payment / Ledger</strong> — kiểm tra idempotency, transaction, đối soát. Bài này khó nhất và ít người làm tốt.</text>
+            <text x="34" y="272" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#8b95a3">Làm 5 bài này kỹ tốt hơn làm 20 bài qua loa — vì 80% kỹ năng lặp lại giữa các bài.</text>
+          </svg>
+          <div class="diagram-cap">Hình 7.3 — Luyện tập có cấu trúc: khung trước, tự làm sau, mock cuối</div>
+        </div>
+
+        <h3>Câu hỏi ngược — chuẩn bị 2 câu</h3>
+        <ul class="list-check">
+          <li>"Team hiện tại đang gặp khó khăn nhất ở phần nào của hệ thống? Tôi muốn biết mình sẽ làm gì trong 3 tháng đầu."</li>
+          <li>"Quy trình từ ý tưởng đến production hiện nay mất bao lâu? Có gì đang được cải thiện không?"</li>
+          <li>"Điều gì khiến anh/chị thích làm việc ở đây?" — câu này luôn tốt, nhưng đừng hỏi nếu đã hết giờ.</li>
+        </ul>
+
+        <div class="callout callout-danger">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba điều không nên làm trong 5 phút cuối</div>
+            <p><strong>1. Xin thêm thời gian để vẽ thêm.</strong> Thời gian đã hết; hãy tổng kết những gì có. <strong>2. Hỏi "em có đỗ không?".</strong> Không bao giờ. <strong>3. Bào chữa cho điểm yếu.</strong> Nếu bạn biết thiết kế có lỗ hổng, hãy nói thẳng: "Tôi biết phần này chưa xử lý tốt trường hợp X. Nếu có thêm thời gian, tôi sẽ [giải pháp]." Thừa nhận có kiểm soát luôn tốt hơn bị phát hiện.</p>
+          </div>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Điều cuối cùng — bình tĩnh quan trọng hơn kiến thức</div>
+            <p>Interviewer biết bạn đang căng thẳng. Họ không tìm người biết mọi thứ — họ tìm người <strong>suy nghĩ có cấu trúc khi không biết</strong>. Nếu bị hỏi điều chưa từng gặp, hãy nói: "Tôi chưa gặp bài này. Tôi sẽ suy luận từ nguyên tắc: nếu cần X thì... " và đi từng bước. Đó chính xác là điều bạn sẽ làm trong công việc thật. Và nhớ: một buổi phỏng vấn không quyết định sự nghiệp của bạn. Chuẩn bị tốt, nói rõ ràng, thừa nhận giới hạn — đó là tất cả những gì có thể kiểm soát.</p>
+          </div>
+        </div>

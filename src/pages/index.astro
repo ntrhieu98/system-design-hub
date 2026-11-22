@@ -1,0 +1,231 @@
+---
+// Home page: hero, headline counters, module grid, method cards, practice links.
+// Every number on this page comes from src/data/stats.js, which
+// scripts/check-stats.mjs verifies against the real content before each build.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import { MODULES } from '../data/modules.js';
+import { SITE_STATS } from '../data/stats.js';
+import { getModulesWithTopics } from '../lib/content.js';
+import HeroArt from '../components/HeroArt.astro';
+
+const groups = await getModulesWithTopics();
+const topicCount = (id: number) => groups.find((g) => g.meta.id === id)?.topics.length ?? 0;
+const B = import.meta.env.BASE_URL;
+
+const stats = [
+  { n: SITE_STATS.modules, label: 'Module' },
+  { n: SITE_STATS.topics, label: 'Chủ đề' },
+  { n: SITE_STATS.diagrams, label: 'Diagram' },
+  { n: SITE_STATS.quizzes, label: 'Câu hỏi' },
+];
+
+const method = [
+  {
+    n: '1', bg: 'bg-yellow', title: 'Từ khoá cần học',
+    text: 'Mỗi module mở đầu bằng danh sách thuật ngữ với định nghĩa kèm ngữ cảnh dùng — không chỉ dịch thuật ngữ. Bạn biết "quorum là gì" và biết "khi nào cần".',
+  },
+  {
+    n: '2', bg: 'bg-blue', title: 'Giải thích chi tiết',
+    text: 'Không tóm tắt một dòng. Mỗi khái niệm được giải thích đến mức cơ chế, kèm con số thật, ví dụ cụ thể và những cái bẫy thường gặp khi triển khai.',
+  },
+  {
+    n: '3', bg: 'bg-green', title: 'Diagram cho mỗi chủ đề',
+    text: `${SITE_STATS.diagrams} diagram vector — không phải ảnh chụp. Mỗi cái vẽ đúng một ý, có chú thích, dùng được để trình bày lại khi phỏng vấn.`,
+  },
+  {
+    n: '4', bg: 'bg-purple', title: 'Từ khoá được highlight',
+    text: 'Thuật ngữ quan trọng được đánh dấu bằng màu theo vai trò: <span class="kw">khái niệm chính</span>, <span class="kw-y">lưu ý</span>, <span class="kw-g">nên làm</span>, <span class="kw-r">cái bẫy</span>. Quét mắt là thấy điểm cốt lõi.',
+  },
+  {
+    n: '5', bg: 'bg-orange', title: 'Quiz có đáp án chi tiết',
+    text: `${SITE_STATS.quizzes} câu hỏi tình huống thật, không phải trắc nghiệm định nghĩa. Đáp án giải thích tại sao, kèm con số và cách sửa — đọc đáp án cũng là học.`,
+  },
+  {
+    n: '6', bg: 'bg-red', title: 'Theo dõi tiến độ',
+    text: 'Đánh dấu module đã học, thanh tiến độ toàn khoá, và trạng thái được lưu trong trình duyệt. Không cần đăng nhập, không cần tài khoản.',
+  },
+];
+---
+
+<BaseLayout
+  title="System Design — Học thiết kế hệ thống bằng tiếng Việt"
+  description={`Khoá học system design tiếng Việt: ${SITE_STATS.modules} module, ${SITE_STATS.topics} chủ đề, ${SITE_STATS.diagrams} diagram, ${SITE_STATS.keywords} khái niệm và ${SITE_STATS.quizzes} câu hỏi luyện tập. Từ nền tảng mạng đến kiến trúc cloud.`}
+  active="home"
+>
+  <section class="hero">
+    <div class="container hero-inner">
+      <div class="hero-copy">
+        <div class="hero-eyebrow">
+          <span class="chip chip-blue">Miễn phí</span>
+          <span class="chip chip-yellow">Tiếng Việt</span>
+          <span class="chip">{SITE_STATS.topics} chủ đề</span>
+        </div>
+
+        <h1 class="hero-title">
+          Học <span class="mark">System&nbsp;Design</span><br />
+          từ con số 0<br class="br-narrow" />
+          đến phỏng&nbsp;vấn
+        </h1>
+
+        <p class="hero-lead">
+          Không phải danh sách link. Đây là một khoá học có cấu trúc: mỗi module đi từ{' '}
+          <strong>cơ chế bên trong</strong> đến <strong>hệ quả vận hành</strong>, kèm diagram,
+          con số thật và {SITE_STATS.quizzes} câu hỏi có đáp án chi tiết.
+        </p>
+
+        <div class="hero-actions">
+          <a class="btn btn-primary" href={`${B}/modules/0`}>
+            Bắt đầu Module 0
+            <span class="btn-ico" aria-hidden="true">→</span>
+          </a>
+          <a class="btn" href={`${B}/modules`}>Xem {SITE_STATS.modules} module</a>
+          <a class="btn btn-ghost" href={`${B}/learning-path`}>Lộ trình {SITE_STATS.weeks} tuần</a>
+        </div>
+
+        <div class="stats">
+          {stats.map((s) => (
+            <div class="stat">
+              <div class="stat-num">{s.n}</div>
+              <div class="stat-label">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <HeroArt />
+    </div>
+  </section>
+
+  <section class="section" id="modules">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Chương trình</div>
+          <h2 class="section-title">Tám module, một lộ trình</h2>
+          <p class="section-sub">
+            Học theo thứ tự nếu bạn mới bắt đầu. Nếu đã có nền, nhảy vào module bạn cần —
+            mỗi module tự đứng được.
+          </p>
+        </div>
+        <a class="section-link" href={`${B}/modules`}>
+          Xem tất cả <span aria-hidden="true">→</span>
+        </a>
+      </div>
+
+      <div class="module-grid">
+        {MODULES.map((m) => (
+          <a class="mod-card" href={`${B}/modules/${m.slug}`}>
+            <div class="mod-card-top">
+              <span class="mod-icon" style={`background:${m.color}`}><Icon name={m.icon} size={17} /></span>
+              <span class="mod-num">MODULE {m.id}</span>
+            </div>
+            <h3 class="mod-title">{m.title}</h3>
+            <p class="mod-desc">{m.desc}</p>
+            <div class="chip-row mb-3">
+              {m.topics.slice(0, 3).map((t) => (
+                <span class="chip chip-mono">{t}</span>
+              ))}
+            </div>
+            <div class="mod-foot">
+              <span>
+                {m.time} · <span data-progress-label={`m${m.id}`}>{m.level}</span>
+              </span>
+              <span class="mod-arrow"><Icon name="arrow" size={14} /></span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Phương pháp</div>
+          <h2 class="section-title">Mỗi chủ đề được trình bày theo cùng một khung</h2>
+        </div>
+      </div>
+
+      <div class="grid grid-3">
+        {method.map((c) => (
+          <div class="card">
+            <div class={`card-ico ${c.bg}`}>{c.n}</div>
+            <h3 class="card-title">{c.title}</h3>
+            <p class="card-text" set:html={c.text} />
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Thực hành</div>
+          <h2 class="section-title">Đọc lý thuyết thôi không đủ</h2>
+          <p class="section-sub">
+            Phần này là nơi kiến thức trở thành kỹ năng: ghi lại quyết định kiến trúc và
+            làm bài tập thiết kế có ràng buộc.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <a class="card card-link" href={`${B}/adr`}>
+          <div class="card-top">
+            <div class="card-ico bg-blue">📐</div>
+            <span class="chip">{SITE_STATS.adrs} bản ghi</span>
+          </div>
+          <h3 class="card-title">Architecture Decision Records</h3>
+          <p class="card-text">
+            Sáu quyết định kiến trúc mẫu, viết theo chuẩn ADR: bối cảnh, các phương án đã cân nhắc,
+            quyết định, và hệ quả. Đây là kỹ năng phân biệt kỹ sư với người viết code.
+          </p>
+          <ul class="list-check list-compact">
+            <li>Chọn database: Postgres vs Cassandra</li>
+            <li>Giao tiếp service: sync vs async</li>
+            <li>Multi-region: active-passive vs active-active</li>
+          </ul>
+        </a>
+
+        <a class="card card-link" href={`${B}/exercises`}>
+          <div class="card-top">
+            <div class="card-ico bg-green">✎</div>
+            <span class="chip">Bài tập</span>
+          </div>
+          <h3 class="card-title">Bài tập thiết kế</h3>
+          <p class="card-text">
+            Đề bài có ràng buộc cụ thể (QPS, latency, ngân sách), kèm tiêu chí đánh giá và
+            diagram tham khảo. Tự làm trước, xem đáp án sau.
+          </p>
+          <ul class="list-check list-compact">
+            <li>URL shortener — 100M URL/ngày</li>
+            <li>Rate limiter phân tán — 10 instance</li>
+            <li>News feed — celebrity problem</li>
+          </ul>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-cta">
+    <div class="container">
+      <div class="cta-box">
+        <div class="cta-copy">
+          <h2 class="cta-title">Bắt đầu từ đâu?</h2>
+          <p class="cta-text">
+            Nếu bạn chưa từng thiết kế hệ thống: bắt đầu Module 0. Nếu đã đi làm và cần ôn phỏng vấn:
+            vào thẳng Module 5 và Module 7. Nếu không chắc, xem lộ trình {SITE_STATS.weeks} tuần.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary btn-lg" href={`${B}/modules/0`}>Module 0 →</a>
+          <a class="btn btn-lg" href={`${B}/learning-path`}>Lộ trình</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,103 @@
+---
+id: "06"
+title: "NFR & back-of-envelope — chốt số trước khi vẽ kiến trúc"
+level: beginner
+summary: "Bài tập về phần bị bỏ qua nhiều nhất trong phỏng vấn: biến một đề bài mơ hồ thành yêu cầu phi chức năng có số, rồi tự tính dung lượng, QPS và băng thông trước khi động đến kiến trúc."
+specs: [{ k: "Người dùng", v: "20 triệu, 5 triệu DAU" }, { k: "Thời gian", v: "10 phút cho phần ước lượng" }, { k: "Sản phẩm", v: "Ứng dụng ghi chú có ảnh" }, { k: "Mục tiêu", v: "p99 < 300ms" }, { k: "Module liên quan", v: "1" }]
+module: 1
+order: 6
+---
+
+## Mục tiêu
+
+Đề bài chỉ có một câu: *"Thiết kế ứng dụng ghi chú có ảnh cho 20 triệu người dùng."* Nhiệm vụ của bạn **không phải** vẽ kiến trúc ngay, mà là biến câu đó thành một bảng số: bao nhiêu QPS, bao nhiêu TB, bao nhiêu máy, độ trễ mục tiêu là gì. Bài này chấm phần đó.
+
+## Đề bài
+
+Ứng dụng cho phép người dùng tạo ghi chú văn bản và đính kèm ảnh. Ước lượng:
+
+1. Số người dùng hoạt động hàng ngày và QPS đọc/ghi
+2. Dung lượng lưu trữ trong 5 năm
+3. Băng thông ra ở giờ cao điểm
+4. Số máy chủ ứng dụng cần thiết nếu mỗi máy chịu được 500 QPS
+5. Ba yêu cầu phi chức năng quan trọng nhất, mỗi cái kèm con số
+
+Giả định bạn được tự chọn (và phải nói ra): tỉ lệ đọc/ghi, kích thước trung bình của một ghi chú, số ảnh mỗi ghi chú, tần suất dùng.
+
+## Gợi ý
+
+### Bước 1 — chốt giả định trước khi tính
+
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Giả định</th><th>Giá trị</th><th>Lý do</th></tr></thead>
+    <tbody>
+      <tr><td>Tổng người dùng</td><td>20 triệu</td><td>Đề bài cho</td></tr>
+      <tr><td>DAU</td><td>5 triệu (25%)</td><td>Tỉ lệ DAU/MAU phổ biến của ứng dụng ghi chú</td></tr>
+      <tr><td>Ghi chú mới / người / ngày</td><td>2</td><td>Người dùng thật viết ít, phần lớn là đọc lại</td></tr>
+      <tr><td>Tỉ lệ đọc/ghi</td><td>20 : 1</td><td>Ứng dụng thiên về đọc</td></tr>
+      <tr><td>Kích thước ghi chú</td><td>2 KB</td><td>Văn bản thuần, chưa có ảnh</td></tr>
+      <tr><td>Ảnh / ghi chú</td><td>0,2 (1 trong 5 ghi chú có ảnh)</td><td>—</td></tr>
+      <tr><td>Kích thước ảnh</td><td>500 KB</td><td>Đã nén, chưa tính thumbnail</td></tr>
+      <tr><td>Giờ cao điểm</td><td>3× trung bình</td><td>Quy tắc thường dùng khi chưa có dữ liệu</td></tr>
+    </tbody>
+  </table>
+</div>
+
+### Bước 2 — tính QPS
+
+Ghi: 5 triệu người × 2 ghi chú = **10 triệu ghi chú/ngày**. Trung bình một ngày có 86.400 giây, nên **~116 ghi/s**, giờ cao điểm **~350 ghi/s**.
+
+Đọc: gấp 20 lần ghi → **~2.300 đọc/s** trung bình, **~7.000 đọc/s** giờ cao điểm.
+
+<div class="callout callout-warn">
+  <div class="callout-ico">!</div>
+  <div class="callout-body">
+    <div class="callout-title">Đừng quên hệ số 3</div>
+    <p>Nếu chỉ tính trung bình, bạn sẽ thiết kế cho 116 ghi/s và hệ thống sập lúc 8 giờ tối. Hệ số cao điểm 3× là giả định phải nói ra <em>trước</em> khi tính, vì nó thay đổi số máy cần mua.</p>
+  </div>
+</div>
+
+### Bước 3 — dung lượng
+
+Văn bản: 10 triệu × 2 KB = **19 GB/ngày** → 6,8 TB/năm → **~34 TB sau 5 năm**.
+Ảnh: 10 triệu × 0,2 = 2 triệu ảnh/ngày × 500 KB = **1 TB/ngày** → **~1,8 PB sau 5 năm**.
+
+Con số thứ hai là con số quan trọng: ảnh chiếm **98%** dung lượng. Kết luận kiến trúc đến thẳng từ đây — văn bản và ảnh phải ở hai hệ lưu trữ khác nhau, và ảnh phải nằm trên object storage chứ không phải database.
+
+### Bước 4 — băng thông
+
+Băng thông ra chủ yếu là đọc ảnh: 6.945 đọc/s × (0,2 ảnh × 500 KB) = 6.945 × 100 KB = **~680 MB/s ≈ 5,3 Gbps** ở giờ cao điểm. Đây là lý do phải có CDN — không datacenter nào muốn trả tiền cho 5,3 Gbps egress thường trực.
+
+### Bước 5 — số máy
+
+7.290 QPS tổng ÷ 500 QPS/máy = **15 máy**, nhưng phải cộng biên an toàn: chạy 20 máy để chịu được mất 1 AZ (5 máy) mà vẫn còn 15 máy gánh tải.
+
+## Câu hỏi phải trả lời
+
+### 1. Ba NFR quan trọng nhất?
+
+**Trả lời mẫu:** (a) **Độ trễ đọc p99 < 300ms** — người dùng mở ghi chú phải thấy ngay; (b) **độ bền dữ liệu** — không được mất ghi chú đã lưu, nên ghi phải nhân bản trước khi trả về thành công; (c) **khả dụng 99,9%** (~43 phút downtime/tháng). Chú ý: đây là ba yêu cầu **khác nhau**, không phải ba cách nói của "nhanh và ổn định".
+
+### 2. Vì sao không đặt mục tiêu 99,99%?
+
+**Trả lời mẫu:** 99,99% là 4,3 phút/tháng. Muốn đạt được phải chạy multi-region active-active, và cái giá là giải quyết xung đột ghi giữa hai vùng — phức tạp hơn nhiều so với giá trị nhận được ở một ứng dụng ghi chú. Đây là trade-off phải nói ra, không phải chọn con số cao hơn cho oai.
+
+### 3. Nếu tỉ lệ đọc/ghi thực tế là 2:1 thay vì 20:1?
+
+**Trả lời mẫu:** số máy ứng dụng tăng từ 20 lên khoảng 25, nhưng **kiến trúc không đổi** vì ảnh vẫn chiếm 98% dung lượng và băng thông. Đây là điểm quan trọng khi trình bày: chỉ ra giả định nào *thay đổi kiến trúc* và giả định nào chỉ thay đổi *kích thước*. Sai số ở giả định thứ hai không đáng lo.
+
+## Sản phẩm cần nộp
+
+1. **Bảng giả định**: mọi con số bạn tự chọn, kèm lý do
+2. **Bảng tính**: QPS, dung lượng, băng thông, số máy — có cả trung bình và cao điểm
+3. **Ba NFR** với ngưỡng số cụ thể
+4. **Kết luận kiến trúc**: hai quyết định mà các con số trên ám chỉ
+
+## Tiêu chí đạt
+
+- [ ] Mọi giả định được nêu ra trước khi dùng, không có số bí ẩn
+- [ ] Có hệ số cao điểm, không chỉ tính trung bình
+- [ ] Nhận ra ảnh chiếm phần lớn dung lượng và băng thông
+- [ ] Ba NFR là ba yêu cầu khác nhau, mỗi cái có ngưỡng số
+- [ ] Chỉ ra được giả định nào ảnh hưởng kiến trúc, giả định nào chỉ ảnh hưởng kích thước

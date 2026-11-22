@@ -1,0 +1,138 @@
+---
+title: "Monolith, microservices và cái bẫy distributed monolith"
+description: "Không có câu trả lời đúng phổ quát. Có câu trả lời đúng cho bối cảnh của bạn — và người phỏng vấn giỏi sẽ kiểm tra bạn có biết bối cảnh nào phù hợp với cái gì."
+module: 6
+order: 1
+num: "6.1"
+sectionId: "monolith"
+---
+<p>Không có câu trả lời đúng phổ quát. Có câu trả lời đúng <span class="kw">cho bối cảnh của bạn</span> — và người phỏng vấn giỏi sẽ kiểm tra bạn có biết bối cảnh nào phù hợp với cái gì.</p>
+
+        <h3>Bảng so sánh thật, không lý tưởng hoá</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tiêu chí</th><th>Modular monolith</th><th>Microservices</th></tr></thead>
+            <tbody>
+              <tr><td>Thời gian ra feature đầu tiên</td><td><span class="kw-g">Nhanh</span> — 1 repo, 1 deploy, không cần hạ tầng mạng</td><td>Chậm — cần CI/CD, service discovery, observability trước khi có feature</td></tr>
+              <tr><td>Giao dịch nhất quán</td><td><span class="kw-g">ACID miễn phí</span> — cùng một DB</td><td>Saga/2PC, eventual consistency, phức tạp hơn nhiều</td></tr>
+              <tr><td>Scale</td><td>Scale cả khối (dù chỉ 1 module nóng)</td><td><span class="kw-g">Scale riêng</span> phần nóng</td></tr>
+              <tr><td>Ranh giới team</td><td>Dễ xung đột khi team &gt; 30 người</td><td><span class="kw-g">Team tự chủ</span>, deploy độc lập</td></tr>
+              <tr><td>Debug một request</td><td>1 stack trace, 1 log file</td><td>Cần distributed tracing, correlation ID — nếu không có thì gần như mù</td></tr>
+              <tr><td>Blast radius của một bug</td><td><span class="kw-r">Toàn hệ thống</span></td><td>Thường chỉ 1 service (nếu không có coupling)</td></tr>
+              <tr><td>Chi phí hạ tầng</td><td>Thấp</td><td>Cao hơn 2–4× (nhiều pod, mesh, observability, egress nội bộ)</td></tr>
+              <tr><td>Chi phí tổ chức</td><td>Thấp</td><td><span class="kw-r">Cao</span> — cần platform team, on-call, runbook cho từng service</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Ngưỡng thực dụng</div>
+            <p>Team &lt; 10 người, sản phẩm chưa fit: <strong>monolith</strong>, đừng bàn. 10–30 người: <strong>modular monolith</strong> với boundary rõ (mỗi module có schema riêng, không JOIN chéo). 30–100 người: tách 3–8 service theo bounded context thật sự khác biệt (ví dụ search, payment, notification). Trên 100 người: microservices gần như bắt buộc vì lý do tổ chức, không phải kỹ thuật. Câu nói ghi điểm: "Microservices là giải pháp cho vấn đề <em>tổ chức</em>, không phải vấn đề <em>kỹ thuật</em>. Nếu team chưa có vấn đề tổ chức, microservices chỉ thêm vấn đề kỹ thuật."</p>
+          </div>
+        </div>
+
+        <h3>Distributed monolith — anti-pattern tốn kém nhất</h3>
+        <p>Bạn tách 12 service, nhưng: chúng gọi nhau đồng bộ theo chuỗi, deploy cùng lúc, dùng chung một DB, và một thay đổi schema phải sửa 5 service. Kết quả: bạn có <strong>tất cả nhược điểm</strong> của cả hai mô hình.</p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 400" role="img" aria-label="So sánh distributed monolith với gọi đồng bộ chuỗi và dùng chung database so với microservices đúng với giao tiếp bất đồng bộ">
+            <defs>
+              <marker id="m6a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+              <marker id="m6ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/>
+              </marker>
+              <marker id="m6ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#10b981"/>
+              </marker>
+            </defs>
+            <text x="16" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#ef4444">✗ DISTRIBUTED MONOLITH</text>
+
+            <rect x="16" y="36" width="92" height="46" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="62" y="64" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">svc A</text>
+            <rect x="128" y="36" width="92" height="46" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="174" y="64" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">svc B</text>
+            <rect x="240" y="36" width="92" height="46" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="286" y="64" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">svc C</text>
+            <rect x="352" y="36" width="92" height="46" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="398" y="64" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">svc D</text>
+
+            <path d="M108,59 L126,59" stroke="#ef4444" stroke-width="2" marker-end="url(#m6ar)"/>
+            <path d="M220,59 L238,59" stroke="#ef4444" stroke-width="2" marker-end="url(#m6ar)"/>
+            <path d="M332,59 L350,59" stroke="#ef4444" stroke-width="2" marker-end="url(#m6ar)"/>
+
+            <rect x="16" y="100" width="428" height="40" rx="7" fill="#fee2e2" stroke="#151515" stroke-width="2"/>
+            <text x="32" y="125" font-family="JetBrains Mono, monospace" font-size="9" fill="#ef4444">một DB chung — mọi service đọc/ghi cùng schema</text>
+            <path d="M62,82 L62,98" stroke="#ef4444" stroke-width="2"/>
+            <path d="M174,82 L174,98" stroke="#ef4444" stroke-width="2"/>
+            <path d="M286,82 L286,98" stroke="#ef4444" stroke-width="2"/>
+            <path d="M398,82 L398,98" stroke="#ef4444" stroke-width="2"/>
+
+            <text x="16" y="168" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">1 request = A→B→C→D đồng bộ = 4× latency + 4× khả năng lỗi</text>
+            <text x="16" y="184" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#ef4444">Đổi schema = deploy 4 service cùng lúc. Không thể rollback riêng lẻ.</text>
+
+            <line x1="16" y1="204" x2="744" y2="204" stroke="#e7ebf1" stroke-width="2" stroke-dasharray="5 4"/>
+
+            <text x="16" y="230" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#10b981">✓ MICROSERVICES ĐÚNG — async + DB riêng</text>
+
+            <rect x="16" y="244" width="104" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="68" y="272" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">order svc</text>
+            <rect x="148" y="244" width="104" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="200" y="272" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">payment svc</text>
+            <rect x="280" y="244" width="112" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="336" y="272" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">inventory svc</text>
+            <rect x="420" y="244" width="120" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="480" y="272" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">notify svc</text>
+
+            <rect x="16" y="304" width="90" height="34" rx="6" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="61" y="326" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">DB order</text>
+            <rect x="148" y="304" width="104" height="34" rx="6" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="200" y="326" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">DB payment</text>
+            <rect x="280" y="304" width="112" height="34" rx="6" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="336" y="326" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">DB inventory</text>
+            <rect x="420" y="304" width="120" height="34" rx="6" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="480" y="326" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#151515">DB notify</text>
+
+            <path d="M68,290 L68,302" stroke="#505a68" stroke-width="1.5"/>
+            <path d="M200,290 L200,302" stroke="#505a68" stroke-width="1.5"/>
+            <path d="M336,290 L336,302" stroke="#505a68" stroke-width="1.5"/>
+            <path d="M480,290 L480,302" stroke="#505a68" stroke-width="1.5"/>
+
+            <rect x="560" y="244" width="60" height="94" rx="8" fill="#ffedd5" stroke="#151515" stroke-width="2"/>
+            <text x="590" y="282" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">Kafka</text>
+            <text x="590" y="300" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="7" fill="#505a68">event bus</text>
+
+            <path d="M120,266 L558,266" stroke="#10b981" stroke-width="2" marker-end="url(#m6ag)"/>
+            <path d="M558,278 L252,278" stroke="#10b981" stroke-width="2" marker-end="url(#m6ag)"/>
+            <path d="M558,292 L392,292" stroke="#10b981" stroke-width="2" marker-end="url(#m6ag)"/>
+
+            <rect x="640" y="244" width="104" height="94" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="692" y="278" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="9" font-weight="800" fill="#151515">Mỗi service</text>
+            <text x="692" y="294" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">deploy riêng</text>
+            <text x="692" y="308" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">rollback riêng</text>
+            <text x="692" y="322" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">scale riêng</text>
+
+            <text x="16" y="368" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Order publish "OrderCreated" → payment và inventory tự consume. Không chờ nhau, không biết nhau.</text>
+            <text x="16" y="386" font-family="Plus Jakarta Sans, sans-serif" font-size="9" fill="#505a68">Một service chết không kéo service khác sập — chỉ lag tăng, xử lý khi nó sống lại.</text>
+          </svg>
+          <div class="diagram-cap">Hình 6.1 — Cùng là "12 service" nhưng khác hoàn toàn về bản chất</div>
+        </div>
+
+        <h3>Bốn câu hỏi để tìm service boundary</h3>
+        <ol class="list-num">
+          <li><strong>Dữ liệu nào phải thay đổi cùng nhau trong một transaction?</strong> Nếu hai thứ luôn phải ACID cùng nhau, chúng thuộc cùng một service. Ranh giới transaction là ranh giới service mạnh nhất.</li>
+          <li><strong>Team nào sẽ thay đổi nó?</strong> Nếu cùng một team sửa cả hai, gộp lại. Tách service để hai team khác nhau deploy độc lập — đó là mục đích chính.</li>
+          <li><strong>Tần suất thay đổi và scaling có khác nhau không?</strong> Search cần scale 100× so với profile → tách. Notification cần deploy 10 lần/ngày trong khi billing deploy 1 lần/tháng → tách.</li>
+          <li><strong>Nếu tách sai thì sao?</strong> Tiêu chí quyết định: nếu tách rồi mà mỗi feature vẫn phải deploy 2 service cùng lúc, bạn đã tách sai — gộp lại (điều này hoàn toàn hợp lệ và nên làm).</li>
+        </ol>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Chia theo tầng kỹ thuật là sai lầm phổ biến</div>
+            <p>Tách thành <code>user-service</code>, <code>order-service</code>, <code>payment-service</code> là đúng — đó là bounded context. Tách thành <code>api-service</code>, <code>business-logic-service</code>, <code>data-access-service</code> là sai — mỗi feature phải sửa cả ba, và mỗi request đi qua ba hop mạng vô nghĩa. Đây là lỗi kiến trúc kinh điển của người mới học microservices. Quy tắc: <strong>service theo chiều dọc (nghiệp vụ), không theo chiều ngang (tầng kỹ thuật)</strong>.</p>
+          </div>
+        </div>

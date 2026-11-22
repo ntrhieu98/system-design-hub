@@ -1,0 +1,28 @@
+---
+// Site-wide search overlay. The index is fetched from /search-index.json the
+// first time the overlay opens, so a normal page load never pays for it.
+import Icon from '../components/Icon.astro';
+const B = import.meta.env.BASE_URL;
+---
+
+<div class="search-overlay" id="searchOverlay" hidden data-index-url={`${B}/search-index.json`}
+     data-base={B}>
+  <div class="search-panel" role="dialog" aria-modal="true" aria-label="Tìm kiếm toàn site">
+    <div class="search-panel-head">
+      <span class="search-panel-ico"><Icon name="search" size={16} /></span>
+      <input
+        id="siteSearchInput"
+        type="search"
+        placeholder="Tìm chủ đề, từ khoá, công nghệ… (vd: quorum, kafka, sharding)"
+        aria-label="Tìm kiếm toàn site"
+        autocomplete="off"
+      />
+      <button class="search-close" id="searchClose" type="button" aria-label="Đóng tìm kiếm">Esc</button>
+    </div>
+    <div class="search-results" id="searchResults" role="listbox"></div>
+    <div class="search-empty" id="searchEmpty" hidden>
+      Không tìm thấy kết quả. Thử từ khoá ngắn hơn, hoặc mở
+      <a href={`${B}/modules`}>danh sách module</a>.
+    </div>
+  </div>
+</div>

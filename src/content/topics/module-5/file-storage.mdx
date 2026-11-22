@@ -1,0 +1,130 @@
+---
+title: "File Storage (Drive) — chunking, dedup và đồng bộ"
+description: "Bài toán: lưu file của người dùng, đồng bộ nhiều thiết bị, cho phép chia sẻ, và không lưu cùng một file 10.000 lần."
+module: 5
+order: 8
+num: "5.8"
+sectionId: "file-storage"
+---
+<p>Bài toán: lưu file của người dùng, đồng bộ nhiều thiết bị, cho phép chia sẻ, và không lưu cùng một file 10.000 lần. Điểm khác biệt so với video: file <span class="kw">có thể sửa</span>, nên cần versioning và block-level sync.</p>
+
+        <h3>Chunking — tại sao không upload cả file</h3>
+        <ul class="list-bullet">
+          <li><strong>Resume:</strong> upload 5GB bị đứt ở 4,9GB không phải làm lại từ đầu — chỉ gửi lại chunk thiếu.</li>
+          <li><strong>Delta sync:</strong> sửa 1 trang trong file Word 50MB → chỉ upload chunk chứa trang đó (nếu chunking theo content-defined boundary).</li>
+          <li><strong>Dedup:</strong> chunk trùng giữa các file/version chỉ lưu một lần. Tiết kiệm 30–60% ở môi trường doanh nghiệp.</li>
+          <li><strong>Parallel:</strong> upload 8 chunk song song, dùng hết băng thông.</li>
+        </ul>
+
+        <div class="diagram">
+          <svg viewBox="0 0 760 400" role="img" aria-label="Chunking file thành các block với hash riêng, dedup khi trùng hash và lưu metadata ánh xạ file tới block">
+            <defs>
+              <marker id="m5h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#505a68"/>
+              </marker>
+            </defs>
+            <rect x="16" y="26" width="180" height="52" rx="8" fill="#f4d77c" stroke="#151515" stroke-width="2"/>
+            <text x="106" y="48" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">File 50MB</text>
+            <text x="106" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">báo cáo Q3.docx</text>
+
+            <rect x="230" y="26" width="150" height="52" rx="8" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="305" y="48" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Chunker</text>
+            <text x="305" y="66" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">CDC 4MB ± window</text>
+
+            <rect x="414" y="26" width="140" height="52" rx="8" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="484" y="48" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">SHA-256</text>
+            <text x="484" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#505a68">hash mỗi chunk</text>
+
+            <rect x="588" y="26" width="160" height="52" rx="8" fill="#f3e8ff" stroke="#151515" stroke-width="2"/>
+            <text x="668" y="48" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="800" fill="#151515">Check exists?</text>
+            <text x="668" y="66" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#505a68">1 query hàng loạt</text>
+
+            <path d="M196,52 L228,52" stroke="#505a68" stroke-width="2" marker-end="url(#m5h)"/>
+            <path d="M380,52 L412,52" stroke="#505a68" stroke-width="2" marker-end="url(#m5h)"/>
+            <path d="M554,52 L586,52" stroke="#505a68" stroke-width="2" marker-end="url(#m5h)"/>
+
+            <text x="16" y="112" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Bốn chunk của file này (hash rút gọn)</text>
+
+            <rect x="16" y="126" width="170" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="101" y="146" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">a3f9…c21</text>
+            <text x="101" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#10b981">chưa có → upload</text>
+
+            <rect x="204" y="126" width="170" height="46" rx="7" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="289" y="146" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">7b2e…9d4</text>
+            <text x="289" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#b45309">đã tồn tại → bỏ qua</text>
+
+            <rect x="392" y="126" width="170" height="46" rx="7" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="477" y="146" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">c8a1…45f</text>
+            <text x="477" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#10b981">chưa có → upload</text>
+
+            <rect x="580" y="126" width="168" height="46" rx="7" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="664" y="146" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">2d77…be0</text>
+            <text x="664" y="162" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8" fill="#b45309">đã tồn tại → bỏ qua</text>
+
+            <rect x="16" y="192" width="366" height="96" rx="9" fill="#e9f0fc" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="216" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Metadata: file → danh sách chunk</text>
+            <text x="34" y="238" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">files (file_id, name, size, version, owner)</text>
+            <text x="34" y="254" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">file_chunks (file_id, version, idx, chunk_hash)</text>
+            <text x="34" y="270" font-family="JetBrains Mono, monospace" font-size="9" fill="#151515">chunks (hash PK, s3_key, size, refcount)</text>
+
+            <rect x="398" y="192" width="350" height="96" rx="9" fill="#fef3c7" stroke="#151515" stroke-width="2"/>
+            <text x="416" y="216" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Vì sao lưu theo "content-defined"</text>
+            <text x="416" y="238" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Fixed-size chunking: chèn 1 byte ở đầu file →</text>
+            <text x="416" y="254" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">mọi chunk sau đó lệch, dedup = 0.</text>
+            <text x="416" y="272" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#151515">CDC cắt theo nội dung (rolling hash) → chèn byte</text>
+            <text x="416" y="282" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">chỉ ảnh hưởng 1 chunk, dedup vẫn hoạt động.</text>
+
+            <rect x="16" y="306" width="732" height="80" rx="9" fill="#dcfce7" stroke="#151515" stroke-width="2"/>
+            <text x="34" y="330" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="800" fill="#151515">Refcount và xoá an toàn</text>
+            <text x="34" y="352" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#505a68">Mỗi chunk có refcount = số file/version đang dùng. Xoá file → giảm refcount, chỉ xoá S3 object khi về 0. Job GC dọn chunk mồ côi.</text>
+            <text x="34" y="372" font-family="Plus Jakarta Sans, sans-serif" font-size="10" fill="#ef4444">Nếu không có refcount: xoá file A làm hỏng file B dùng chung chunk. Đây là bug kinh điển của dedup.</text>
+          </svg>
+          <div class="diagram-cap">Hình 5.8 — Dedup: chỉ upload chunk chưa tồn tại, và phải có refcount để xoá an toàn</div>
+        </div>
+
+        <h3>Đồng bộ nhiều thiết bị — bài toán khó nhất</h3>
+        <p>Bạn sửa file trên laptop, thêm ảnh trên điện thoại, cùng lúc. Server phải hợp nhất mà không mất dữ liệu.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cơ chế</th><th>Cách hoạt động</th><th>Hạn chế</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Version vector per device</strong></td><td>Mỗi thiết bị đánh số version riêng; server so sánh để biết ai mới hơn</td><td>Xung đột thật → phải tạo "conflicted copy"</td></tr>
+              <tr><td><strong>Last-write-wins</strong></td><td>Ai ghi sau thắng</td><td>Mất dữ liệu — không chấp nhận được cho file người dùng</td></tr>
+              <tr><td><strong>Conflicted copy</strong></td><td>Tạo bản "file (conflict của An 2026-11-20).docx"</td><td>Rác, nhưng <span class="kw-g">không mất dữ liệu</span> — Dropbox/Drive dùng</td></tr>
+              <tr><td><strong>CRDT / OT</strong></td><td>Merge tự động mức ký tự (docs cộng tác)</td><td>Chỉ cho document dạng text; file nhị phân không áp dụng được</td></tr>
+              <tr><td><strong>Lock file (check-out)</strong></td><td>Một người giữ quyền sửa</td><td>Giảm usability, nhưng cần cho CAD/binary</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-ico">★</div>
+          <div class="callout-body">
+            <div class="callout-title">Ba con số cho file storage</div>
+            <p><strong>1. Metadata DB:</strong> 500 triệu user × 1.000 file = 500 tỷ dòng metadata — đây mới là thứ cần shard (theo <code>user_id</code>), không phải blob. Blob đi thẳng S3. <strong>2. S3 không cần shard:</strong> nó đã là hệ phân tán; bạn chỉ cần đặt key hợp lý. Tuyệt đối không dùng key tuần tự (<code>file_0001</code>, <code>file_0002</code>) trên S3 cũ (giờ đã hash partition tự động, nhưng thói quen tốt là dùng UUID prefix). <strong>3. Upload lớn:</strong> dùng <strong>presigned URL</strong> để client upload trực tiếp lên S3, không qua app server. App server chỉ cấp URL và nhận callback — tránh app server thành bottleneck băng thông. Đây là chi tiết mà người phỏng vấn rất thích.</p>
+          </div>
+        </div>
+
+        <h3>Ước lượng, điểm nghẽn & quyết định gây tranh cãi</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Thông số</th><th>Giá trị</th><th>Cách tính</th></tr></thead>
+            <tbody>
+              <tr><td>Người dùng</td><td>500 triệu</td><td>Dropbox-like</td></tr>
+              <tr><td>Dung lượng mỗi người</td><td>10 GB (dùng thật ~2 GB)</td><td>Free tier</td></tr>
+              <tr><td>Tổng dung lượng</td><td>~1 EB lý thuyết, ~1 PB thật</td><td>5×10⁸ × 2 GB = 10¹⁸ byte</td></tr>
+              <tr><td>File trung bình</td><td>~500 KB → chunk 4 MB</td><td>Chunk nhỏ hơn 4 MB làm metadata phình to</td></tr>
+              <tr><td>Số chunk</td><td>~2,5×10⁸</td><td>10¹⁸ / 4×10⁶</td></tr>
+              <tr><td>Upload đồng thời</td><td>~50.000</td><td>Đỉnh giờ làm việc</td></tr>
+              <tr><td>Chi phí lưu trữ/tháng</td><td>~23.000 USD</td><td>1 PB × 0,023 USD/GB (S3 standard)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Điểm nghẽn không phải dung lượng mà là <span class="kw-r">metadata</span>. 250 triệu chunk nghĩa là 250 triệu dòng ánh xạ (file, chunk index → storage key), cộng version, cộng ACL. Nếu để chung một bảng quan hệ, mọi thao tác liệt kê thư mục sẽ chậm dần theo số file của user. Giải pháp thực tế: metadata lưu ở DB được shard theo <code>user_id</code>, và mỗi thư mục có một bảng ánh xạ riêng hoặc index theo <code>(user_id, parent_id)</code>; nội dung chunk nằm ở object storage, không bao giờ trong DB.</p>
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Quyết định gây tranh cãi: dedup toàn cục hay theo người dùng?</div>
+            <p><strong>Dedup toàn cục</strong> (hash nội dung, nếu đã có thì không lưu lại): tiết kiệm cực lớn — phần lớn dung lượng là file trùng (ảnh chuyển tiếp, tài liệu chung). Nhưng tạo ra <strong>kênh tấn công side-channel</strong>: nếu biết trước hash, kẻ tấn công có thể xác nhận một người khác đang giữ file đó (đây là lỗi thật đã xảy ra với Dropbox năm 2013). <strong>Dedup theo người dùng:</strong> an toàn hơn nhiều, nhưng mất phần lớn lợi ích vì trùng lặp lớn nhất là giữa các user khác nhau. <strong>Cách dung hoà:</strong> dedup toàn cục nhưng chỉ trong phạm vi đã được cấp quyền — hai người cùng trong một shared folder thì dedup, còn ngoài phạm vi đó thì không tiết lộ gì. Đây là ví dụ tốt để nói về việc tối ưu chi phí có thể tạo lỗ hổng bảo mật, và phải nêu được cả hai phía.</p>
+          </div>
+        </div>

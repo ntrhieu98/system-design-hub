@@ -1,0 +1,38 @@
+---
+title: "Clocks, ordering và sự thật phũ phàng"
+description: "Trong một máy, thứ tự sự kiện rõ ràng. Trong hệ phân tán, không có \"bây giờ\" chung. Đây là nguồn gốc của hàng loạt bug khó tìm."
+module: 0
+order: 8
+num: "0.8"
+sectionId: "clocks"
+---
+<p>Trong một máy, thứ tự sự kiện rõ ràng. Trong hệ phân tán, <strong>không có "bây giờ" chung</strong>. Đây là nguồn gốc của hàng loạt bug khó tìm.</p>
+
+        <h3>Vì sao timestamp không đủ?</h3>
+        <p>Đồng hồ vật lý lệch nhau (<span class="kw">clock skew</span>) vài ms đến vài chục ms do nhiệt độ, drift phần cứng, NTP sai. Nếu máy A ghi giá trị lúc 10:00:00.100 và máy B ghi lúc 10:00:00.090 (nhưng thực tế B xảy ra sau), dùng <span class="kw">last-write-wins</span> theo timestamp sẽ mất dữ liệu của A.</p>
+
+        <h3>Giải pháp theo cấp độ</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cách</th><th>Ý tưởng</th><th>Đảm bảo</th><th>Dùng ở</th></tr></thead>
+            <tbody>
+              <tr><td>Lamport clock</td><td>Counter tăng theo message</td><td>Thứ tự nhân quả</td><td>Distributed lock, log</td></tr>
+              <tr><td>Vector clock</td><td>Vector đếm cho mỗi node</td><td>Phát hiện conflict</td><td>Dynamo, Riak</td></tr>
+              <tr><td>Hybrid Logical Clock</td><td>Physical + logical</td><td>Causality + gần thời gian thực</td><td>CockroachDB</td></tr>
+              <tr><td>TrueTime</td><td>GPS + atomic clock, trả khoảng [earliest, latest]</td><td>Linearizability ngoài trời</td><td>Spanner (Google)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="codeblock">
+          <div class="codeblock-head"><span class="codeblock-lang">text</span><button class="codeblock-copy" type="button">Copy</button></div>
+          <pre><code><span class="c-com"># Lamport clock</span>&#10;A: e1 (t=1) ----send(t=1)----> B: receives, t = max(local,1)+1 = 2&#10;A: e2 (t=2)                    B: e3 (t=3)&#10;                               &#10;<span class="c-com"># Quy tắc: nếu a → b (nhân quả) thì L(a) &lt; L(b)</span>&#10;<span class="c-com"># Nhưng L(a) &lt; L(b) KHÔNG suy ra a → b (chỉ là tiềm năng)</span>&#10;&#10;<span class="c-com"># Vector clock</span>&#10;A = [A:2, B:0, C:0]&#10;B = [A:2, B:1, C:0]&#10;<span class="c-out">→ A &lt; B (A xảy ra trước B)</span>&#10;&#10;A = [A:2, B:1, C:0]&#10;B = [A:1, B:2, C:0]&#10;<span class="c-out">→ conflict (không so sánh được) → cần resolve</span></code></pre>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-ico">!</div>
+          <div class="callout-body">
+            <div class="callout-title">Bài học thiết kế</div>
+            <p>Đừng bao giờ dựa vào "hai máy có cùng thời gian" cho logic nghiệp vụ. Dùng idempotency key, version number, hoặc logical clock. Nếu buộc dùng thời gian, hãy chấp nhận cửa sổ sai số và viết logic chịu được nó.</p>
+          </div>
+        </div>
